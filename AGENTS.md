@@ -21,21 +21,23 @@ Full reasoning and the load bearing implementation notes: [docs/specs/0001-stack
 
 ## Commands
 
-The scaffold does not exist yet. `/develop stack and architecture` creates it; these are the
-commands it should produce.
+Root `package.json` wraps these. Run them from the repository root.
 
 ```bash
 # Install
 cargo fetch --manifest-path api/Cargo.toml && pnpm install
 
-# Dev server (database first, then API, then web)
-docker compose up -d && cargo run --manifest-path api/Cargo.toml && pnpm --filter web dev
+# Dev server (database first, then migrations, then API, then web)
+pnpm db:up && pnpm migrate && pnpm dev:api && pnpm dev:web
 
 # Build
-cargo build --release --manifest-path api/Cargo.toml && pnpm --filter web build
+pnpm build
 
 # Test
-cargo test --manifest-path api/Cargo.toml && pnpm --filter web test
+pnpm test
+
+# Everything continuous integration runs
+pnpm check
 ```
 
 ## Specs
