@@ -28,6 +28,7 @@ rules; this file holds what is true only here.
 | `migrations/0001_bootstrap.sql` | `current_restaurant_id()` and `notify_entity_change()`. No tables on purpose |
 | `scripts/init-roles.sql` | Creates `app_api` locally. Run by hand on RDS |
 | `Dockerfile` | Multi stage arm64 build. Build it from the repository root, not from here |
+| `Cargo.toml` | Dependencies, and the `[lints.clippy]` block that turns pedantic on |
 
 ## Commands
 
@@ -52,6 +53,7 @@ pnpm openapi:generate                               # rewrite api/openapi.json
 - **Nothing crosses the wire as a domain entity.** `presentation` owns its own serde DTOs, so an inner layer never learns the `utoipa` schema traits exist.
 - **A new route must be added to `paths(...)` in `presentation/openapi.rs`**, or it is absent from the document, and therefore absent from the generated TypeScript client, with nothing failing to tell you.
 - **Change SQL, run `pnpm sqlx:prepare`.** The `.sqlx` cache is committed and the Docker build reads it with `SQLX_OFFLINE=true`.
+- **Clippy pedantic is on**, configured in `[lints.clippy]` in `Cargo.toml`, and continuous integration runs it with `-D warnings`, so a warning fails the build. Two lints are allowed, each with the reason written beside it: `single_match_else` crate wide, and `duration_suboptimal_units` on the one test whose constants mirror seconds written in `infra/`. Add an exception the same way, argued, never blanket.
 
 ## Gotchas
 

@@ -37,6 +37,8 @@ pnpm --filter web lint
 pnpm client:generate                # regenerate schema.d.ts from the Rust handlers
 ```
 
+Formatting is a root command, `pnpm format`. This package has no format script of its own.
+
 ## Conventions
 
 - **Folders group by feature**, not by kind: `admin/`, `waiter/`, `kitchen/`, `shared/`, plus `app/` for the shell. The three surfaces share `shared/` and little else.

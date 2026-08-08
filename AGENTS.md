@@ -65,11 +65,11 @@ Stored in `docs/specs/`. Format: `docs/specs/NNNN-title/index.md`.
 
 ## Tooling
 
-Chosen here, installed by `/develop tooling`.
+Chosen here, installed and running.
 
-- **Lint and format**: `rustfmt` and `clippy`; ESLint and Prettier (ESLint carries the `react-hooks`, `jsx-a11y`, and TanStack Query rules this stack needs)
-- **Before commit**: format and lint changed files only. Typecheck, `cargo check`, and tests are left to CI, because a cold Rust build in a commit hook trains people to use `--no-verify`
-- **Continuous integration**: full checks on every push. `cargo fmt --check`, clippy denying warnings, `cargo test` against a Postgres service container, `tsc`, ESLint, Vitest. Playwright joins once slice 1 exists
+- **Lint and format**: `rustfmt` and `clippy` (pedantic, configured in `api/Cargo.toml`); ESLint and Prettier (ESLint carries the `react-hooks`, `jsx-a11y`, and TanStack Query rules this stack needs, and `infra/` has its own type aware config). One Prettier config for the whole repo, at the root, with `.prettierignore` keeping it off generated artifacts and off `docs/` prose. `pnpm format` from the root is the only formatting command
+- **Before commit**: format and lint changed files only, run by `lefthook` from `lefthook.yml`, installed by the `prepare` script on `pnpm install`. Typecheck, `cargo check`, and tests are left to CI, because a cold Rust build in a commit hook trains people to use `--no-verify`
+- **Continuous integration**: full checks on every push, in `.github/workflows/ci.yml`. It runs `pnpm check` (which is `cargo fmt --check`, clippy denying warnings, `tsc`, ESLint, `cargo test`, Vitest, then both builds) against a Postgres service container, then `pnpm sqlx:check` and `pnpm client:check`. Playwright joins once slice 1 exists
 - **Generated artifacts are committed**: the `.sqlx` offline cache and the generated TypeScript API client. CI regenerates both and fails if the result differs, so a renamed Rust field breaks the pull request instead of a Saturday night
 
 ## Git
@@ -105,7 +105,7 @@ Frontend:
 
 Skills live in `.agents/skills/`, which every agent reads. `.claude/skills/` holds symlinks to it.
 
-Declined: AWS CDK skill, Playwright skill, `softaworks/agent-toolkit@openapi-to-typescript`, AWS MCP servers, Playwright MCP
+Declined: AWS CDK skill, Playwright skill, `softaworks/agent-toolkit@openapi-to-typescript`, AWS MCP servers, Playwright MCP, lefthook skill
 
 MCP servers: Postgres (recommended, worth connecting once feature 4 creates a real schema, so the agent reads the live schema instead of trusting a migration file)
 
