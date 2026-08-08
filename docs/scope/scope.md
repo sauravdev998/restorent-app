@@ -72,7 +72,7 @@ spec [0003](../specs/0003-core-data-model/index.md) · code in `api/migrations/0
   - [x] Rust types and repository plumbing: identifier newtypes, the six enums, the real event entities, the eleven scoped operations (AC-7, AC-8, AC-10, AC-13)
   - [x] Money and audit: the bill close snapshot, rounding to the restaurant's currency, the audit log (AC-5, AC-9, AC-14)
   - [x] Tests and generated artifacts: the integration tests against a real Postgres as `app_api`, and the refreshed `.sqlx` cache (AC-1 through AC-15)
-- [ ] Verify it: `/check verify core data model`
+- [x] Verify it: `/check verify core data model`
 - [ ] Test it: `/test core data model`
 - [ ] Review it (fresh model): `/check review core data model`
 - [ ] Document it: `/document core data model`

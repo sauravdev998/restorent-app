@@ -14,49 +14,53 @@ pnpm db:up && pnpm migrate
 
 ## Commands
 
-- [ ] `pnpm migrate` on a database where the `auth_lookup` role does not exist → refuses with a message naming `api/scripts/init-roles.sql`, rather than migrating and leaving sign in silently broken → AC-12
-- [ ] `cargo test --manifest-path api/Cargo.toml --test isolation` → 6 pass → AC-2, AC-3, AC-4, AC-11, AC-12
-- [ ] `cargo test --manifest-path api/Cargo.toml --test service_flow` → 11 pass → AC-1, AC-7, AC-8, AC-10
-- [ ] `cargo test --manifest-path api/Cargo.toml --test billing` → 12 pass → AC-5, AC-6, AC-9, AC-13, AC-14, AC-15
-- [ ] `cargo test --manifest-path api/Cargo.toml --test concurrency` → 6 pass → AC-1, AC-6, AC-8, AC-13
-- [ ] `pnpm check` → green → all
-- [ ] `pnpm sqlx:check` → no diff, so the committed `.sqlx` cache matches the SQL in the tree → AC-9
+- [x] `pnpm migrate` on a database where the `auth_lookup` role does not exist → refuses with a message naming `api/scripts/init-roles.sql`, rather than migrating and leaving sign in silently broken → AC-12
+- [x] `cargo test --manifest-path api/Cargo.toml --test isolation` → 6 pass → AC-2, AC-3, AC-4, AC-11, AC-12
+- [x] `cargo test --manifest-path api/Cargo.toml --test service_flow` → 11 pass → AC-1, AC-7, AC-8, AC-10
+- [x] `cargo test --manifest-path api/Cargo.toml --test billing` → 12 pass → AC-5, AC-6, AC-9, AC-13, AC-14, AC-15
+- [x] `cargo test --manifest-path api/Cargo.toml --test concurrency` → 6 pass → AC-1, AC-6, AC-8, AC-13
+- [x] `pnpm check` → green → all
+- [x] `pnpm sqlx:check` → no diff, so the committed `.sqlx` cache matches the SQL in the tree → AC-9
 
 ## Schema shape, checked against the live database
 
 Run each as `restaurant_owner`, against the migrated database.
 
-- [ ] `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_sqlx_migrations'` → `16` → AC-1
-- [ ] `SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e'` → `6` → AC-7
-- [ ] Every tenant table has both `ENABLE` and `FORCE`: `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_sqlx_migrations' AND NOT (c.relrowsecurity AND c.relforcerowsecurity)` → `0` → AC-4
-- [ ] The two sign in functions are owned by `auth_lookup`, not the schema owner: `SELECT proname, pg_get_userbyid(proowner) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND proname IN ('find_staff_for_login','resolve_session')` → both `auth_lookup` → AC-12
-- [ ] No money column is anything but `numeric(14,4)`: `SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('price','unit_price','line_total','subtotal','service_charge_amount','tax_total','total','amount') AND (data_type<>'numeric' OR numeric_precision<>14 OR numeric_scale<>4)` → `0` → AC-9
-- [ ] No timestamp column is a bare `timestamp`: `SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND data_type='timestamp without time zone'` → `0` → AC-15
-- [ ] Exactly two unscoped read paths exist: `SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef` → `2` → AC-12
+- [x] `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_sqlx_migrations'` → `16` → AC-1
+- [x] `SELECT count(*) FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e'` → `6` → AC-7
+- [x] Every tenant table has both `ENABLE` and `FORCE`: `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_sqlx_migrations' AND NOT (c.relrowsecurity AND c.relforcerowsecurity)` → `0` → AC-4
+- [x] The two sign in functions are owned by `auth_lookup`, not the schema owner: `SELECT proname, pg_get_userbyid(proowner) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND proname IN ('find_staff_for_login','resolve_session')` → both `auth_lookup` → AC-12
+- [x] No money column is anything but `numeric(14,4)`: `SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND column_name IN ('price','unit_price','line_total','subtotal','service_charge_amount','tax_total','total','amount') AND (data_type<>'numeric' OR numeric_precision<>14 OR numeric_scale<>4)` → `0` → AC-9
+- [x] No timestamp column is a bare `timestamp`: `SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND data_type='timestamp without time zone'` → `0` → AC-15
+- [x] Exactly two unscoped read paths exist: `SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.prosecdef` → `2` → AC-12
 
 ## Value sourcing
 
 One step per row of the spec's Value sourcing table. Each varies the input that
 breaks if the value is read from the wrong place.
 
-- [ ] **Which restaurant a request is scoped to** ← `resolve_session`. Resolve a token, scope a transaction to the id it returns, and confirm the transaction reads only that restaurant's rows → AC-3, AC-12
-- [ ] **A line's unit price** ← `dishes.price` copied at send time. Send a round, then reprice the dish, then re read the line: `unit_price` is unchanged → AC-5
-- [ ] **A line's dish name** ← `dishes.name` copied at send time. Send a round, rename the dish, then archive it, then re read the line: `dish_name` is still the old name and the line still resolves → AC-5, AC-10
-- [ ] **A round's sequence number** ← `max(sequence_no) + 1` under the visit's row lock. Send three rounds on one visit → `1`, `2`, `3`; send two concurrently → two different numbers, never a duplicate → AC-8
-- [ ] **A round's status after a line write** ← the total function over its lines. Vary the mix: all voided → `voided` (never `ready`); one voided plus one served → `served`; one queued plus one ready → `queued` → AC-7
-- [ ] **A bill number** ← the `bill_number_counters` upsert. Close two bills → `1`, `2`. Close one in a transaction that rolls back, then close for real → still the next number, no gap. Close an empty bill → refused, consumes nothing → AC-6
-- [ ] **A bill's starting figures** ← zero, not null. Open a bill and read `subtotal`, `service_charge_amount`, `tax_total`, `total` → all `0`, none null → AC-9
+- [x] **Which restaurant a request is scoped to** ← `resolve_session`. Resolve a token, scope a transaction to the id it returns, and confirm the transaction reads only that restaurant's rows → AC-3, AC-12
+- [x] **A line's unit price** ← `dishes.price` copied at send time. Send a round, then reprice the dish, then re read the line: `unit_price` is unchanged → AC-5
+- [x] **A line's dish name** ← `dishes.name` copied at send time. Send a round, rename the dish, then archive it, then re read the line: `dish_name` is still the old name and the line still resolves → AC-5, AC-10
+- [x] **A round's sequence number** ← `max(sequence_no) + 1` under the visit's row lock. Send three rounds on one visit → `1`, `2`, `3`; send two concurrently → two different numbers, never a duplicate → AC-8
+- [x] **A round's status after a line write** ← the total function over its lines. Vary the mix: all voided → `voided` (never `ready`); one voided plus one served → `served`; one queued plus one ready → `queued` → AC-7
+- [x] **A bill number** ← the `bill_number_counters` upsert. Close two bills → `1`, `2`. Close one in a transaction that rolls back, then close for real → still the next number, no gap. Close an empty bill → refused, consumes nothing → AC-6
+- [x] **A bill's starting figures** ← zero, not null. Open a bill and read `subtotal`, `service_charge_amount`, `tax_total`, `total` → all `0`, none null → AC-9
 - [ ] **Which figures move before close** ← `subtotal` only. Assign lines to an open bill → `subtotal` moves, the other three stay `0` → AC-9
-- [ ] **A bill's subtotal** ← sum of `line_total` over assigned non voided lines. Void one assigned line → the subtotal drops by exactly that line. Move a line to another bill → both bills recompute → AC-13
-- [ ] **Each tax name and rate on a bill** ← `tax_components` copied at close. Close a bill, then rename the component and change its rate → the bill's `bill_taxes` row is unchanged → AC-5
-- [ ] **Each tax amount** ← subtotal times the copied rate, rounded once → AC-9
-- [ ] **The service charge percent and amount** ← `restaurants.service_charge_percent`. With it set to `12.5` on a subtotal of `34.50` → `4.31`. With it null → percent null and amount `0`, never a null amount → AC-9
-- [ ] **How rounding is performed** ← half away from zero, not half to even. `0.125` at two decimals → `0.13`, and `0.135` → `0.14`. Both rounding up is the tell; half to even would send the first to `0.12` → AC-9
-- [ ] **The currency a bill is in** ← `restaurants.currency_code` and `currency_decimals`. Run the same meal in a `EUR`/2 restaurant and a `JPY`/0 one: `34.4950` becomes `34.50` in one and `34` in the other → AC-9
-- [ ] **A bill's total** ← subtotal plus rounded service charge plus the sum of rounded taxes. `34.50 + 4.31 + 6.90 = 45.71`, with no residue → AC-9
-- [ ] **The local day a bill belongs to** ← `restaurants.timezone`, never the server's. Close a bill in a `Pacific/Kiritimati` restaurant and one in a `Pacific/Niue` restaurant at the same instant: the two local days differ, at every hour of the day. Equal days mean the value is coming from the server → AC-15
-- [ ] **The live event payload** ← `notify_entity_change` inside the same scoped transaction. `LISTEN entity_changed`, then send a round → a payload naming the right `restaurant_id` and the entity string `order_round` → AC-7
-- [ ] **An audit row's actor** ← the staff member acting. Perform a void, a bill close, a dish price edit, a tax edit, a service charge edit, a role change, and a deactivation → exactly seven rows, each with an actor and both a before and an after → AC-14
+  - Half observed on 9 August 2026. That the subtotal moves is proved by
+    `billing::moving_a_dish_between_bills_recomputes_both_of_them`. That the other
+    three stay at zero until close is asserted by nothing, so it stays unticked.
+    One for `/test` to lock.
+- [x] **A bill's subtotal** ← sum of `line_total` over assigned non voided lines. Void one assigned line → the subtotal drops by exactly that line. Move a line to another bill → both bills recompute → AC-13
+- [x] **Each tax name and rate on a bill** ← `tax_components` copied at close. Close a bill, then rename the component and change its rate → the bill's `bill_taxes` row is unchanged → AC-5
+- [x] **Each tax amount** ← subtotal times the copied rate, rounded once → AC-9
+- [x] **The service charge percent and amount** ← `restaurants.service_charge_percent`. With it set to `12.5` on a subtotal of `34.50` → `4.31`. With it null → percent null and amount `0`, never a null amount → AC-9
+- [x] **How rounding is performed** ← half away from zero, not half to even. `0.125` at two decimals → `0.13`, and `0.135` → `0.14`. Both rounding up is the tell; half to even would send the first to `0.12` → AC-9
+- [x] **The currency a bill is in** ← `restaurants.currency_code` and `currency_decimals`. Run the same meal in a `EUR`/2 restaurant and a `JPY`/0 one: `34.4950` becomes `34.50` in one and `34` in the other → AC-9
+- [x] **A bill's total** ← subtotal plus rounded service charge plus the sum of rounded taxes. `34.50 + 4.31 + 6.90 = 45.71`, with no residue → AC-9
+- [x] **The local day a bill belongs to** ← `restaurants.timezone`, never the server's. Close a bill in a `Pacific/Kiritimati` restaurant and one in a `Pacific/Niue` restaurant at the same instant: the two local days differ, at every hour of the day. Equal days mean the value is coming from the server → AC-15
+- [x] **The live event payload** ← `notify_entity_change` inside the same scoped transaction. `LISTEN entity_changed`, then send a round → a payload naming the right `restaurant_id` and the entity string `order_round` → AC-7
+- [x] **An audit row's actor** ← the staff member acting. Perform a void, a bill close, a dish price edit, a tax edit, a service charge edit, a role change, and a deactivation → exactly seven rows, each with an actor and both a before and an after → AC-14
 
 ## Acceptance criteria coverage
 
