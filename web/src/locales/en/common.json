@@ -1,0 +1,47 @@
+{
+  "app": {
+    "name": "Restaurant operations"
+  },
+  "nav": {
+    "admin": "Admin",
+    "waiter": "Waiter",
+    "kitchen": "Kitchen"
+  },
+  "system": {
+    "title": "System status",
+    "checking": "Checking the API",
+    "unreachable": "Could not reach the API",
+    "database": "Database",
+    "listener": "Live updates listener",
+    "serving": "Serving",
+    "notServing": "Not serving",
+    "up": "Up",
+    "down": "Down"
+  },
+  "stream": {
+    "title": "Live stream",
+    "connecting": "Connecting",
+    "open": "Connected",
+    "closed": "Closed",
+    "received_one": "{{count}} event received",
+    "received_other": "{{count}} events received",
+    "none": "No events yet",
+    "lastEvent": "Last event: {{entity}} {{id}}",
+    "sendProbe": "Send a test event",
+    "sending": "Sending"
+  },
+  "surface": {
+    "admin": "Admin surface",
+    "waiter": "Waiter surface",
+    "kitchen": "Kitchen surface",
+    "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "That address does not match any screen."
+  },
+  "error": {
+    "title": "Something went wrong",
+    "retry": "Try again"
+  }
+}
