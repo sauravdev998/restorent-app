@@ -1,5 +1,5 @@
 {
-  "app": "ts-node --prefer-ts-exts bin/app.ts",
+  "app": "tsx bin/app.ts",
   "watch": {
     "include": ["**"],
     "exclude": ["README.md", "cdk*.json", "dist", "node_modules", "tsconfig.json"]

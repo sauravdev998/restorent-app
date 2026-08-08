@@ -10,14 +10,17 @@
     "typecheck": "tsc --noEmit",
     "synth": "cdk synth",
     "diff": "cdk diff",
-    "deploy": "cdk deploy"
+    "deploy": "cdk deploy",
+    "format": "prettier --write \"{bin,lib}/**/*.ts\" \"*.json\"",
+    "format:check": "prettier --check \"{bin,lib}/**/*.ts\" \"*.json\""
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
-    "aws-cdk": "^2.1135.0",
-    "aws-cdk-lib": "^2.263.0",
-    "constructs": "^10.8.1",
-    "ts-node": "^10.9.2",
-    "typescript": "~6.0.3"
+    "aws-cdk": "^2.1034.0",
+    "aws-cdk-lib": "^2.230.0",
+    "constructs": "^10.4.2",
+    "prettier": "^3.9.6",
+    "tsx": "^4.20.7",
+    "typescript": "~6.0.2"
   }
 }

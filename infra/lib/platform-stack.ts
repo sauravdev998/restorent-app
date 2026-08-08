@@ -67,7 +67,10 @@ export class PlatformStack extends Stack {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.of('17.4', '17'),
       }),
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE4_GRAVITON, ec2.InstanceSize.MICRO),
+      instanceType: ec2.InstanceType.of(
+        ec2.InstanceClass.BURSTABLE4_GRAVITON,
+        ec2.InstanceSize.MICRO,
+      ),
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
       allocatedStorage: 20,
@@ -95,7 +98,7 @@ export class PlatformStack extends Stack {
     // ---------------------------------------------------------------------
     // Compute.
     // ---------------------------------------------------------------------
-    const cluster = new ecs.Cluster(this, 'Cluster', { vpc, containerInsightsV2: undefined })
+    const cluster = new ecs.Cluster(this, 'Cluster', { vpc })
 
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'ApiTask', {
       cpu: 512,
@@ -109,9 +112,13 @@ export class PlatformStack extends Stack {
     // Secrets and configuration come from SSM Parameter Store, injected by ECS.
     // No secret in the repository and none in a build log. Standard parameters
     // are free.
-    const databaseUrl = ssm.StringParameter.fromSecureStringParameterAttributes(this, 'DatabaseUrl', {
-      parameterName: '/restaurant/production/DATABASE_URL',
-    })
+    const databaseUrl = ssm.StringParameter.fromSecureStringParameterAttributes(
+      this,
+      'DatabaseUrl',
+      {
+        parameterName: '/restaurant/production/DATABASE_URL',
+      },
+    )
 
     taskDefinition.addContainer('api', {
       image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),

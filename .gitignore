@@ -23,5 +23,5 @@ npm-debug.log*
 pnpm-debug.log*
 
 # NOT ignored on purpose, both are committed and CI checks they are fresh:
-#   /api/.sqlx/                 the SQLx offline query cache
-#   /web/src/lib/api/schema.ts  the generated TypeScript API client types
+#   /api/.sqlx/                        the SQLx offline query cache
+#   /web/src/shared/api/schema.d.ts    the generated TypeScript API client types

@@ -1,9 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    // CommonJS, because the CDK CLI runs this through ts-node in CommonJS mode.
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    // node16 rather than the old node10 resolution, which TypeScript 6
+    // deprecates. Output stays CommonJS because the CDK CLI runs this file
+    // through ts-node, which is why imports below carry a .js extension.
+    "module": "node16",
+    "moduleResolution": "node16",
     "lib": ["ES2022"],
     "types": ["node"],
     "declaration": true,

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { App } from 'aws-cdk-lib'
 
-import { PlatformStack } from '../lib/platform-stack'
+import { PlatformStack } from '../lib/platform-stack.js'
 
 const app = new App()
 
