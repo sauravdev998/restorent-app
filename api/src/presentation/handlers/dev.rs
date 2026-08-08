@@ -26,6 +26,11 @@ pub struct ProbeSent {
 }
 
 /// Publishes one probe event to the caller's restaurant.
+///
+/// # Errors
+///
+/// Returns [`ApiError`] if the request carries no restaurant scope, or if the
+/// database refuses the transaction, the notify, or the commit.
 pub async fn notify(
     State(state): State<AppState>,
     scope: RestaurantScope,

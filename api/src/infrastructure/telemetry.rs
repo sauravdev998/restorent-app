@@ -1,6 +1,6 @@
 //! Structured logging, set up once at boot.
 //!
-//! Production writes JSON to stdout, which is what CloudWatch collects.
+//! Production writes JSON to stdout, which is what `CloudWatch` collects.
 //! Development writes the human readable form, because nobody wants to read
 //! JSON in a terminal. Crash and error monitoring proper is feature 3 and is a
 //! separate thing from this.

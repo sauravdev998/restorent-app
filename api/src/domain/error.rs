@@ -1,6 +1,6 @@
 //! The one error type the domain and application layers speak.
 //!
-//! It deliberately knows nothing about HTTP or about SQLx. The presentation
+//! It deliberately knows nothing about HTTP or about `SQLx`. The presentation
 //! layer maps it to status codes, and the infrastructure layer maps database
 //! failures into it. That keeps the dependency rule intact: nothing here points
 //! outward.
