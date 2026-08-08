@@ -1,0 +1,110 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, table_id, status AS \"status: VisitStatus\", guest_count,\n               opened_by_staff_id, opened_at, closed_at\n        FROM visits\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "table_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "table_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "status: VisitStatus",
+        "type_info": {
+          "Custom": {
+            "name": "visit_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "closed"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "guest_count",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "guest_count"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "opened_by_staff_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "opened_by_staff_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "opened_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "opened_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "closed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "closed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "93b481ea4cf235414aaae3c8c5074ef4630fecb18af1b8e423ba626c0105d2eb"
+}

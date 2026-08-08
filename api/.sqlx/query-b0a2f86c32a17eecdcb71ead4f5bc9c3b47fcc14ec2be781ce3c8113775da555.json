@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE order_lines\n        SET status = 'served', served_at = now(), updated_at = now()\n        WHERE id = $1 AND status = 'ready'\n        RETURNING round_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "round_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "round_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b0a2f86c32a17eecdcb71ead4f5bc9c3b47fcc14ec2be781ce3c8113775da555"
+}

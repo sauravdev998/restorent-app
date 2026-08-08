@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE staff SET role = $2, updated_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "staff_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "waiter",
+                "chef"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "47d202d065cd395198421ea7a3628bdc664797952710cf2bae1d273c9a3c22d7"
+}

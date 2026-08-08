@@ -64,14 +64,14 @@ No boxes. If you change your mind, run `/architect error and crash monitoring` a
 ### 4. Core data model
 The entities everything else is built on: restaurants, staff and their roles, menu categories and dishes, tables, bills, order rounds, order lines with per dish status, and payment records. Multi restaurant separation lives here, and it is the most expensive thing in the project to get wrong.
 **Done when:** the schema supports one open bill per table with many rounds, per dish status, per restaurant currency and tax settings, and strict data separation between restaurants, all without a breaking change when later slices land.
-spec [0003](../specs/0003-core-data-model/index.md)
+spec [0003](../specs/0003-core-data-model/index.md) · code in `api/migrations/0002_core_data_model.sql`, `api/scripts/init-roles.sql`, `api/src/domain/`, `api/src/infrastructure/db/`, `api/tests/`
 - [x] Design it (spec): `/architect core data model`
-- [ ] Build it: `/develop core data model`
+- [x] Build it: `/develop core data model`
   - [x] Schema and isolation: the six enum types, all sixteen tables, composite tenant keys, indexes, and row level security (AC-1, AC-2, AC-3, AC-4, AC-9, AC-11, AC-13, AC-15)
-  - [ ] The two bootstrap lookups and bill numbering: the `auth_lookup` role, the login and session functions, the gapless counter (AC-6, AC-12)
-  - [ ] Rust types and repository plumbing: identifier newtypes, the six enums, the real event entities, the eleven scoped operations (AC-7, AC-8, AC-10, AC-13)
-  - [ ] Money and audit: the bill close snapshot, rounding to the restaurant's currency, the audit log (AC-5, AC-9, AC-14)
-  - [ ] Tests and generated artifacts: the integration tests against a real Postgres as `app_api`, and the refreshed `.sqlx` cache (AC-1 through AC-15)
+  - [x] The two bootstrap lookups and bill numbering: the `auth_lookup` role, the login and session functions, the gapless counter (AC-6, AC-12)
+  - [x] Rust types and repository plumbing: identifier newtypes, the six enums, the real event entities, the eleven scoped operations (AC-7, AC-8, AC-10, AC-13)
+  - [x] Money and audit: the bill close snapshot, rounding to the restaurant's currency, the audit log (AC-5, AC-9, AC-14)
+  - [x] Tests and generated artifacts: the integration tests against a real Postgres as `app_api`, and the refreshed `.sqlx` cache (AC-1 through AC-15)
 - [ ] Verify it: `/check verify core data model`
 - [ ] Test it: `/test core data model`
 - [ ] Review it (fresh model): `/check review core data model`

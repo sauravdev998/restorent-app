@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO bills\n            (id, restaurant_id, visit_id, status, currency_code, currency_decimals,\n             subtotal, service_charge_amount, tax_total, total, opened_by_staff_id, updated_at)\n        VALUES ($1, $2, $3, 'open', $4, $5, 0, 0, 0, 0, $6, now())\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bpchar",
+        "Int2",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "70477232177a223c006ae6e876885ace719c8d8e9f69b34c2221223d0811a35e"
+}

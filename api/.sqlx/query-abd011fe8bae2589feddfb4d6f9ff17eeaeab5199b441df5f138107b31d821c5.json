@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE menu_categories\n        SET archived_at = now(), updated_at = now()\n        WHERE id = $1 AND archived_at IS NULL\n        RETURNING archived_at AS \"archived_at!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "archived_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "archived_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "abd011fe8bae2589feddfb4d6f9ff17eeaeab5199b441df5f138107b31d821c5"
+}

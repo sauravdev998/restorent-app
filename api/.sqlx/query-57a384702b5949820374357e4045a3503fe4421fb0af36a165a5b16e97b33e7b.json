@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT service_charge_percent FROM restaurants FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "service_charge_percent",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "service_charge_percent"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "57a384702b5949820374357e4045a3503fe4421fb0af36a165a5b16e97b33e7b"
+}

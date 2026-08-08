@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT role AS \"role: StaffRole\" FROM staff WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role: StaffRole",
+        "type_info": {
+          "Custom": {
+            "name": "staff_role",
+            "kind": {
+              "Enum": [
+                "admin",
+                "waiter",
+                "chef"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "staff",
+            "name": "role"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6626776bdfa903ed98bcabaecfada8ade5c6e23a5743cd2ee76ceec2cf5f6d68"
+}
