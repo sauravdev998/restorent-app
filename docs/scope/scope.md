@@ -12,7 +12,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
 | 1 | Stack and architecture | Foundation | done |
-| 2 | Coding standards and tooling | Foundation | planned |
+| 2 | Coding standards and tooling | Foundation | in-progress |
 | 3 | Error and crash monitoring | Foundation | planned |
 | 4 | Core data model | Foundation | planned |
 | 5 | Design system and accessibility baseline | Foundation | planned |
@@ -51,7 +51,8 @@ spec [0001](../specs/0001-stack-and-architecture/index.md) · code in `api/`, `w
 ### 2. Coding standards and tooling
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and a pre commit hook so all later code follows one shape.
 **Done when:** root `AGENTS.md` reflects the real stack, and lint, format, and the pre commit hook run clean.
-- [ ] Capture conventions and tooling choices: `/audit`
+context in `AGENTS.md`, `api/AGENTS.md`, `web/AGENTS.md`, `infra/AGENTS.md`
+- [x] Capture conventions and tooling choices: `/audit`
 - [ ] Install the tooling: `/develop tooling`
 
 ### 3. Error and crash monitoring · needs a decision

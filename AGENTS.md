@@ -5,7 +5,7 @@ in the kitchen, food is marked ready per dish, and the meal ends with a bill.
 
 ## Stack
 
-- **Language / Runtime**: Rust (stable, edition 2024, pinned in `rust-toolchain.toml`) and TypeScript on Node 22 LTS
+- **Language / Runtime**: Rust (stable, edition 2024, pinned in `rust-toolchain.toml`) and TypeScript on Node 24 (root `package.json` pins `engines.node >= 24`)
 - **Framework**: Axum 0.8 on Tokio for the API; React 19 with Vite and React Router 7 in data mode for the web app
 - **Key dependencies**: SQLx with the `query!` macros against PostgreSQL, TanStack Query, Tailwind CSS v4 with shadcn/ui, `utoipa` plus `openapi-typescript` for the typed API client
 - **Package manager**: `cargo` for `api/`, `pnpm` for `web/` and `infra/`
@@ -38,7 +38,12 @@ pnpm test
 
 # Everything continuous integration runs
 pnpm check
+
+# Regenerate the committed artifacts, after changing SQL or a handler's types
+pnpm sqlx:prepare && pnpm client:generate
 ```
+
+Local Postgres listens on 5434, not 5432. `.env.example` carries both connection strings and says which is which.
 
 ## Specs
 
@@ -55,6 +60,7 @@ Stored in `docs/specs/`. Format: `docs/specs/NNNN-title/index.md`.
 - **Public APIs are documented.** Public Rust items carry doc comments (`missing_docs` denied); every exported hook or component says what it is for.
 - **Nothing crosses a boundary as a domain entity.** Data travels as DTOs: serde structs on the API, generated TypeScript types on the web.
 - **Money is `NUMERIC` and `rust_decimal`, never a float. Timestamps are `timestamptz`, never bare `timestamp`.**
+- **Two database roles, never one.** Migrations run as the schema owner (`OWNER_DATABASE_URL`); the API connects as `app_api` (`DATABASE_URL`), which owns nothing, so row level security applies to it. Postgres skips row level security for a table's owner, so connecting as the owner would silently disable the tenant backstop.
 - **Tests follow the layers.** Domain and application are unit tested with no infrastructure mocked; repositories are integration tested against a real Postgres inside a rolled back transaction; Vitest covers web units; Playwright covers the two device scenarios.
 
 ## Tooling
@@ -105,6 +111,8 @@ MCP servers: Postgres (recommended, worth connecting once feature 4 creates a re
 
 ## Context files
 
-<!-- Nested AGENTS.md files are listed here as they are created -->
+- [api/AGENTS.md](api/AGENTS.md): the four layers, the scoped transaction, the listen connection, and the timeout ladder around them
+- [web/AGENTS.md](web/AGENTS.md): feature folders, the generated API client, and the two rules that keep the query cache honest
+- [infra/AGENTS.md](infra/AGENTS.md): the one CDK stack, not yet deployed, and the numbers that keep a stream alive
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._
