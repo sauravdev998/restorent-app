@@ -97,6 +97,19 @@ pub async fn events(
     tracing::info!(restaurant_id = %restaurant_id, "event stream opened");
 
     let stream = async_stream::stream! {
+        // Say something the instant the stream is subscribed, before waiting on
+        // anything. A quiet stream otherwise produces no body byte until the
+        // first heartbeat 15 seconds later, and an intermediary that holds the
+        // response headers back until the first byte of body (the Vite dev proxy
+        // does exactly this, and CloudFront is entitled to) delays the browser's
+        // `onopen` by that much.
+        //
+        // That delay is not only a stale badge. The client refetches its active
+        // queries from `onopen`, so a late open is a window in which the screen
+        // is live but has not resynchronised, which is the one gap this stream
+        // exists to close.
+        yield Ok(Event::default().comment("open"));
+
         loop {
             match receiver.recv().await {
                 Ok(event) => {
@@ -133,4 +146,99 @@ pub async fn events(
     };
 
     Sse::new(stream).keep_alive(KeepAlive::new().interval(HEARTBEAT))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::domain::event::EntityKind;
+    use crate::domain::ids::RestaurantId;
+
+    fn probe_event(restaurant: u128, entity: u128) -> DomainEvent {
+        DomainEvent {
+            restaurant_id: RestaurantId::from_uuid(Uuid::from_u128(restaurant)),
+            entity: EntityKind::Probe,
+            entity_id: Uuid::from_u128(entity),
+        }
+    }
+
+    #[test]
+    fn a_message_carries_the_kind_and_the_id_of_what_changed() {
+        let payload = StreamEvent::from(probe_event(1, 7));
+
+        assert_eq!(payload.entity, "probe");
+        assert_eq!(payload.entity_id, Uuid::from_u128(7));
+    }
+
+    /// The restaurant id is routed on by the server and then deliberately
+    /// dropped. This checks the wire shape rather than the struct, because the
+    /// struct having no field is only half of it: what matters is that the id
+    /// appears nowhere in the bytes a browser receives.
+    ///
+    /// Sending it would leak which restaurant a screen belongs to onto the
+    /// wire, and it would do so even though the follow up fetch would be
+    /// refused, which is the whole reason events carry a kind and an id rather
+    /// than row content.
+    #[test]
+    fn a_message_never_names_the_restaurant_it_belongs_to() {
+        let restaurant = Uuid::from_u128(0xabc_def);
+        let payload = StreamEvent::from(probe_event(0xabc_def, 7));
+
+        let json = serde_json::to_string(&payload).expect("a stream event serialises");
+
+        assert!(
+            !json.contains(&restaurant.to_string()),
+            "the restaurant id reached the browser in {json}, which leaks tenancy over the wire"
+        );
+        assert!(
+            !json.contains("restaurant"),
+            "no field naming a restaurant belongs on the wire, found in {json}"
+        );
+    }
+
+    /// A kind the client cannot read is reported as `unknown` rather than
+    /// dropping the message, because the id is still worth acting on: the
+    /// client refetches and row level security stays the authority on what it
+    /// may see.
+    #[test]
+    fn a_message_keeps_its_id_even_when_the_kind_means_nothing_to_the_client() {
+        let payload = StreamEvent::from(probe_event(1, 9));
+
+        assert_eq!(payload.entity_id, Uuid::from_u128(9));
+        assert!(
+            !payload.entity.is_empty(),
+            "an empty kind tells the client nothing to invalidate"
+        );
+    }
+
+    /// Pins the heartbeat against the two things between this stream and a
+    /// kitchen screen that hang up on a quiet connection.
+    ///
+    /// Read what this does and does not prove. It pins the relationship only,
+    /// against copies of the two numbers, because those live in
+    /// `infra/lib/platform-stack.ts` (CloudFront `readTimeout`, 60 seconds, and
+    /// the load balancer `idleTimeout`, 300 seconds) and this crate cannot
+    /// import from the CDK stack. Change either number there and this test
+    /// stays green. It is still worth having: it catches someone raising
+    /// `HEARTBEAT` here, which is the far likelier edit.
+    ///
+    /// The margin matters more than the ordering. CloudFront is the tighter of
+    /// the two, so a heartbeat that merely fits inside it once would drop a
+    /// kitchen screen on a single delayed comment.
+    #[test]
+    fn a_quiet_stream_heartbeats_well_inside_what_would_hang_up_on_it() {
+        const CLOUDFRONT_READ_TIMEOUT: Duration = Duration::from_secs(60);
+        const LOAD_BALANCER_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
+
+        assert!(
+            HEARTBEAT * 3 <= CLOUDFRONT_READ_TIMEOUT,
+            "a stream must survive a couple of missed heartbeats; {HEARTBEAT:?} leaves no room \
+             inside CloudFront's {CLOUDFRONT_READ_TIMEOUT:?} read timeout"
+        );
+        assert!(
+            HEARTBEAT < LOAD_BALANCER_IDLE_TIMEOUT,
+            "the load balancer closes an idle connection before the next heartbeat would arrive"
+        );
+    }
 }

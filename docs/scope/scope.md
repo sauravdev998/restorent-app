@@ -44,6 +44,9 @@ Choose the stack and scaffold a runnable project, so every later slice is built 
 spec [0001](../specs/0001-stack-and-architecture/index.md) · code in `api/`, `web/`, `infra/`
 - [x] Decide the stack (spec): `/architect stack and architecture`
 - [x] Scaffold from the decision: `/develop stack and architecture`
+- [x] Verify it: `/check verify stack and architecture`
+- [x] Test it: `/test`
+- [x] Review it: `/check review`
 
 ### 2. Coding standards and tooling
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and a pre commit hook so all later code follows one shape.

@@ -60,9 +60,20 @@ export function useLiveEvents(): LiveEvents {
     }
 
     source.onerror = () => {
-      // EventSource reconnects on its own, so this is "not right now" rather
-      // than "give up". Saying `connecting` keeps the screen honest about it.
-      setStatus('connecting')
+      // Two different failures arrive through this one callback, and only
+      // `readyState` tells them apart.
+      //
+      // A connection that drops mid stream is retried by the browser on its
+      // own, and `readyState` is CONNECTING while it does. But a response the
+      // browser cannot use at all, a non 2xx status in particular, is fatal:
+      // the spec has it close the stream and never retry, leaving `readyState`
+      // at CLOSED. `/api/events` answers 401 whenever there is no session, so
+      // this is the common case, not a corner one.
+      //
+      // Reporting "connecting" for a stream that is never coming back is worse
+      // than reporting nothing, because it tells staff to wait when what they
+      // need to do is reload.
+      setStatus(source.readyState === EventSource.CLOSED ? 'closed' : 'connecting')
     }
 
     source.addEventListener('entity_changed', (message: MessageEvent<string>) => {
