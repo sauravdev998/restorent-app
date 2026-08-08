@@ -1,0 +1,15 @@
+# Keep the build context small and free of anything secret.
+.git
+.github
+node_modules
+web
+infra
+docs
+.claude
+.agents
+**/target
+**/dist
+**/cdk.out
+.env
+.env.*
+!.env.example
