@@ -217,16 +217,22 @@ mod tests {
     ///
     /// Read what this does and does not prove. It pins the relationship only,
     /// against copies of the two numbers, because those live in
-    /// `infra/lib/platform-stack.ts` (CloudFront `readTimeout`, 60 seconds, and
+    /// `infra/lib/platform-stack.ts` (`CloudFront` `readTimeout`, 60 seconds, and
     /// the load balancer `idleTimeout`, 300 seconds) and this crate cannot
     /// import from the CDK stack. Change either number there and this test
     /// stays green. It is still worth having: it catches someone raising
     /// `HEARTBEAT` here, which is the far likelier edit.
     ///
-    /// The margin matters more than the ordering. CloudFront is the tighter of
+    /// The margin matters more than the ordering. `CloudFront` is the tighter of
     /// the two, so a heartbeat that merely fits inside it once would drop a
     /// kitchen screen on a single delayed comment.
     #[test]
+    // Seconds, not minutes, and clippy is overruled on purpose. These two are
+    // copies of `Duration.seconds(60)` and `Duration.seconds(300)` in
+    // `infra/lib/platform-stack.ts`. Written as `from_mins` they stop looking
+    // like the lines they mirror, which is the only thing holding the two
+    // files together.
+    #[allow(clippy::duration_suboptimal_units)]
     fn a_quiet_stream_heartbeats_well_inside_what_would_hang_up_on_it() {
         const CLOUDFRONT_READ_TIMEOUT: Duration = Duration::from_secs(60);
         const LOAD_BALANCER_IDLE_TIMEOUT: Duration = Duration::from_secs(300);

@@ -12,7 +12,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
 | 1 | Stack and architecture | Foundation | done |
-| 2 | Coding standards and tooling | Foundation | planned |
+| 2 | Coding standards and tooling | Foundation | done |
 | 3 | Error and crash monitoring | Foundation | planned |
 | 4 | Core data model | Foundation | planned |
 | 5 | Design system and accessibility baseline | Foundation | planned |
@@ -48,11 +48,12 @@ spec [0001](../specs/0001-stack-and-architecture/index.md) · code in `api/`, `w
 - [x] Test it: `/test`
 - [x] Review it: `/check review`
 
-### 2. Coding standards and tooling
+### 2. Coding standards and tooling · done
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and a pre commit hook so all later code follows one shape.
 **Done when:** root `AGENTS.md` reflects the real stack, and lint, format, and the pre commit hook run clean.
-- [ ] Capture conventions and tooling choices: `/audit`
-- [ ] Install the tooling: `/develop tooling`
+verify [0002](../specs/0002-coding-standards-and-tooling/verify.md) · context in `AGENTS.md`, `api/AGENTS.md`, `web/AGENTS.md`, `infra/AGENTS.md` · tooling in `lefthook.yml`, `.github/workflows/ci.yml`, `.prettierrc.json`, `infra/eslint.config.mjs`
+- [x] Capture conventions and tooling choices: `/audit`
+- [x] Install the tooling: `/develop tooling`
 
 ### 3. Error and crash monitoring · needs a decision
 Know when the app breaks for a waiter mid shift instead of hearing about it from the restaurant. Early, so every later slice reports into it from its first day.

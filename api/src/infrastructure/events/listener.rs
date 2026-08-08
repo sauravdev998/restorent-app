@@ -27,7 +27,7 @@ const RECONNECT_DELAY_MAX: Duration = Duration::from_secs(30);
 ///
 /// This bounds the attempt itself, which is a different thing from [`Backoff`],
 /// which is only the wait between attempts. The two are easy to confuse, and
-/// confusing them hid a bug: SQLx's pool does not fail a refused connection
+/// confusing them hid a bug: `SQLx`'s pool does not fail a refused connection
 /// straight away, it retries internally until its acquire timeout runs out, and
 /// that timeout defaults to 30 seconds. So an unbounded attempt cost 30 seconds
 /// no matter what the backoff ladder said. Measured against a database that was
@@ -145,7 +145,7 @@ pub fn spawn(database_url: String, registry: Arc<EventRegistry>) -> ListenerHand
 /// Opens the listen connection, giving up after [`CONNECT_TIMEOUT`].
 ///
 /// [`PgListener::connect`] is deliberately not used. It builds a pool of its
-/// own and leaves SQLx's 30 second default acquire timeout on it, and nothing
+/// own and leaves `SQLx`'s 30 second default acquire timeout on it, and nothing
 /// outside that function can reach the pool to change it. Building the pool
 /// here instead puts that bound back under this module's control.
 ///
@@ -274,7 +274,7 @@ mod tests {
     }
 
     /// Guards the bug where an attempt to connect was bounded by nothing this
-    /// module owned, so it inherited SQLx's 30 second default and every attempt
+    /// module owned, so it inherited `SQLx`'s 30 second default and every attempt
     /// cost 30 seconds regardless of what the backoff ladder said. A real run
     /// measured exactly that: `PgListener::connect` against a database that was
     /// down took 30.0 seconds, while the delay reported 1 second and then 2.

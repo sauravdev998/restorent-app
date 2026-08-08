@@ -1,4 +1,4 @@
-//! Writes the OpenAPI document to stdout.
+//! Writes the `OpenAPI` document to stdout.
 //!
 //! `pnpm openapi:generate` sends it to `api/openapi.json`, and the web client is
 //! generated from that. Needs no database and no configuration, so continuous

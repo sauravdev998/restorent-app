@@ -44,7 +44,13 @@ export class PlatformStack extends Stack {
     super(scope, id, props)
 
     // Which image tag to run. Continuous integration passes the commit sha.
-    const imageTag = this.node.tryGetContext('imageTag') ?? 'latest'
+    //
+    // `tryGetContext` is typed `any`, so the value is narrowed rather than
+    // cast: anything that is not a non empty string falls back to `latest`,
+    // instead of a number or an object reaching the image reference below.
+    const contextImageTag: unknown = this.node.tryGetContext('imageTag')
+    const imageTag =
+      typeof contextImageTag === 'string' && contextImageTag.length > 0 ? contextImageTag : 'latest'
 
     // ---------------------------------------------------------------------
     // Network. Two availability zones, and deliberately no NAT gateway.

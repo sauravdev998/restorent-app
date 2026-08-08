@@ -1,0 +1,105 @@
+name: CI
+
+# Full checks on every push, on every branch, plus every pull request.
+on:
+  push:
+  pull_request:
+
+# A newer push to the same branch makes the running one pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      # Same major version as RDS, and the same roles as local development, so
+      # a query that passes here passes on a laptop. Mapped to 5434 to match
+      # the ports in `.env.example`, which this job copies verbatim.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: restaurant_owner
+          POSTGRES_PASSWORD: local_dev_only
+          POSTGRES_DB: restaurant
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U restaurant_owner -d restaurant"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+
+    env:
+      # What the API connects as, and what the SQLx `query!` macros check the
+      # SQL against at compile time. A least privilege role that owns nothing,
+      # so row level security applies to it here exactly as it does in
+      # production.
+      DATABASE_URL: postgres://app_api:local_dev_only@localhost:5434/restaurant
+      # What migrations run as. Owns the schema, and is deliberately not the
+      # role the API uses.
+      OWNER_DATABASE_URL: postgres://restaurant_owner:local_dev_only@localhost:5434/restaurant
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # The scripts in `package.json` source `.env`, the same file an engineer
+      # keeps locally. `.env.example` already names the 5434 port and both
+      # roles, so copying it is enough and nothing here duplicates those URLs.
+      - name: Create .env
+        run: cp .env.example .env
+
+      # A service container cannot mount the init script the way Docker Compose
+      # does, so the role is created here instead. Same file, so the two cannot
+      # drift.
+      - name: Create the app_api role
+        run: psql "$OWNER_DATABASE_URL" -v ON_ERROR_STOP=1 -f api/scripts/init-roles.sql
+
+      # Installs the toolchain named in rust-toolchain.toml, with rustfmt and
+      # clippy, rather than a version pinned a second time in this file.
+      - name: Install the Rust toolchain
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+
+      - uses: cargo-bins/cargo-binstall@main
+
+      - name: Install sqlx-cli
+        run: cargo binstall --no-confirm sqlx-cli
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Before anything compiles. The `query!` macros check against the live
+      # schema, and `notify_entity_change` only exists once this has run.
+      - name: Run migrations
+        run: pnpm migrate
+
+      # Format, lint, typecheck, test, build. The same command an engineer runs
+      # locally, so a green laptop means a green pipeline.
+      - name: pnpm check
+        run: pnpm check
+
+      # Both generated artifacts are committed. Regenerate them and fail on any
+      # difference, so a renamed Rust field breaks the pull request instead of
+      # breaking a Saturday night.
+      - name: The SQLx offline cache is current
+        run: pnpm sqlx:check
+
+      - name: The generated API client is current
+        run: pnpm client:check
+
+      # Playwright joins here once slice 1 exists and there are two device
+      # scenarios worth driving.

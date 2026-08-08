@@ -8,6 +8,18 @@ description = "Restaurant operations platform API: JSON over HTTP plus a server 
 default-run = "api"
 publish = false
 
+# Clippy pedantic, minus the two lints that fight this codebase rather than help
+# it. Continuous integration runs clippy with `-D warnings`, so a warning here is
+# a failed build, which is why each exception is argued rather than assumed.
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+# `try_recv` answers with a two state protocol signal: a notification, or the
+# connection dropped and came back. Both arms carry real meaning and real
+# commentary, and `None =>` is the label that commentary hangs off. `if let`
+# with an `else` block would hide the second state behind an absence.
+single_match_else = "allow"
+
 [dependencies]
 anyhow = "1"
 async-stream = "0.3.6"

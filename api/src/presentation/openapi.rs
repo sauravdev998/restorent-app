@@ -1,4 +1,4 @@
-//! The OpenAPI document, generated from the handlers themselves.
+//! The `OpenAPI` document, generated from the handlers themselves.
 //!
 //! This is the honest half of the seam between two languages. `openapi.json` is
 //! generated from here, the TypeScript client is generated from that, and both

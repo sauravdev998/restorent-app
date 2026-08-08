@@ -21,7 +21,7 @@ pub use scoped::ScopedTx;
 
 /// How long a caller may wait for a pooled connection before giving up.
 ///
-/// SQLx defaults this to 30 seconds, which is exactly the router's request
+/// `SQLx` defaults this to 30 seconds, which is exactly the router's request
 /// timeout. With the database down the two race, the timeout layer wins, and the
 /// caller gets a bodiless `408` instead of the `503` that says which component
 /// is down. Anything comfortably under the request timeout keeps the error the
@@ -36,7 +36,7 @@ const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
 /// seconds is down as far as a kitchen screen is concerned.
 const HEALTH_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// Turns a SQLx failure into a domain error.
+/// Turns a `SQLx` failure into a domain error.
 ///
 /// Lives here rather than in the domain layer so that `sqlx` stays out of the
 /// inner layers entirely. The message is kept for the logs; the presentation
@@ -212,7 +212,7 @@ mod tests {
         }
     }
 
-    /// The SQLx message stays in the logs and never rides out on the response.
+    /// The `SQLx` message stays in the logs and never rides out on the response.
     ///
     /// Database errors quote connection strings, host addresses, and sometimes
     /// credentials. One error shape on every API response is only worth having

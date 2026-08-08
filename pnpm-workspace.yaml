@@ -1,7 +1,11 @@
 packages:
-  - "web"
-  - "infra"
+  - 'web'
+  - 'infra'
 # esbuild ships a native binary that its install script fetches. tsx (which the
 # CDK CLI uses to run the stack) will not run without it.
+#
+# lefthook is the same shape: a Go binary fetched by its install script, and it
+# also installs the git hooks on install. Blocked, there is no hook.
 allowBuilds:
   esbuild: true
+  lefthook: true
