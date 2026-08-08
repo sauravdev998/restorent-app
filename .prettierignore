@@ -1,0 +1,19 @@
+# Build output and vendored code
+node_modules/
+api/target/
+web/dist/
+infra/cdk.out/
+infra/dist/
+pnpm-lock.yaml
+
+# Generated, and generated with their own formatting. Continuous integration
+# regenerates both and fails on a difference, so reformatting them here would
+# turn `pnpm format` into a failing `pnpm client:check`.
+api/openapi.json
+api/.sqlx/
+
+# Prose, written and edited by hand and by the workflow skills. Prettier
+# rewrites markdown tables and list markers, which would churn every scope and
+# spec file for no gain.
+docs/
+*.md

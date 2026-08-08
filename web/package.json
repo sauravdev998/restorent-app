@@ -10,8 +10,6 @@
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,js,json}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,js,json}\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "client:generate": "openapi-typescript ../api/openapi.json -o src/shared/api/schema.d.ts && prettier --write src/shared/api/schema.d.ts"

@@ -1,6 +1,6 @@
 packages:
-  - "web"
-  - "infra"
+  - 'web'
+  - 'infra'
 # esbuild ships a native binary that its install script fetches. tsx (which the
 # CDK CLI uses to run the stack) will not run without it.
 allowBuilds:

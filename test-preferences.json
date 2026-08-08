@@ -1,12 +1,7 @@
 {
   "tool": "vitest",
   "gate": null,
-  "additionalTools": [
-    "@testing-library/react",
-    "@testing-library/jest-dom",
-    "jsdom",
-    "cargo test"
-  ],
+  "additionalTools": ["@testing-library/react", "@testing-library/jest-dom", "jsdom", "cargo test"],
   "e2eTool": "none",
   "testDir": "beside the source",
   "filePattern": "*.test.ts / *.test.tsx",
