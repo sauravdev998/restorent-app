@@ -27,3 +27,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 utoipa = { version = "5.5.0", features = ["axum_extras", "uuid"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+# `test-util` only: it provides the paused clock the listener timeout test uses
+# so that proving a 5 second bound does not cost 5 seconds on every test run.
+tokio = { version = "1", features = ["test-util"] }
