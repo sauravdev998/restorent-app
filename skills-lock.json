@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "skills": {
+    "architect": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/architect/SKILL.md",
+      "computedHash": "0397f01f00c4bb716d0a6199ee217834a8bc8db9175bd0bcf2d438d71d97dd7a"
+    },
+    "audit": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/audit/SKILL.md",
+      "computedHash": "9ce277225fa0cfb283717e943150e9e61f590a9c79b08181ddc09dd32b5e40c9"
+    },
+    "axum-web-framework": {
+      "source": "manutej/luxor-claude-marketplace",
+      "sourceType": "github",
+      "skillPath": "plugins/luxor-backend-toolkit/skills/axum-web-framework/SKILL.md",
+      "computedHash": "4bf0bf5ad32cdcf46aa63c14a85f29f2059d6e885764b5c487bcfa3d167bdf7f"
+    },
+    "check": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/check/SKILL.md",
+      "computedHash": "f57678c12ecc72e4d4e1bb384f41924293f1e58b7a92a0a37f87ded412a540da"
+    },
+    "debug": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/debug/SKILL.md",
+      "computedHash": "e8c4672415244af936c8c2cb797d2ea3dcbebf61631fb7d5e75abe29ff05bd5a"
+    },
+    "develop": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/develop/SKILL.md",
+      "computedHash": "245688b798cd22b847d393d3e557f48210769a745b82547026a67407e8cc8cc7"
+    },
+    "document": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/document/SKILL.md",
+      "computedHash": "68f768feb819eb6b7866b8a85e42a30e7d5ef20a1380b307ab22ccc1563532e8"
+    },
+    "postgresql-table-design": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/database-design/skills/postgresql/SKILL.md",
+      "computedHash": "dcace78e5cef7d8dce8ffef7ebee146e6c83a438aa4cf80bf502730e870c02d4"
+    },
+    "react-i18next": {
+      "source": "yildizberkay/skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-i18next/SKILL.md",
+      "computedHash": "2c419201047d93216faf44c2a0cce4ce86ed7ce4d1b51bc37577813069dd410d"
+    },
+    "react-router-data-mode": {
+      "source": "remix-run/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-router-data-mode/SKILL.md",
+      "computedHash": "76e3e0f70ff47b743bd90999e676515221e25fd7ee89cd9e5b340417b1a601e2"
+    },
+    "rust-async-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/systems-programming/skills/rust-async-patterns/SKILL.md",
+      "computedHash": "20d32ef58158c94eb4dfc4aaf19bec7ae2a025ae5d42da7b49ccfbaeda389273"
+    },
+    "rust-backend": {
+      "source": "windmill-labs/windmill",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/rust-backend/SKILL.md",
+      "computedHash": "7dc1c8fd3dd739f73244227e841ff2b4eec247bbbc6f972b0378fcdd62d210dc"
+    },
+    "rust-best-practices": {
+      "source": "apollographql/skills",
+      "sourceType": "github",
+      "skillPath": "skills/rust-best-practices/SKILL.md",
+      "computedHash": "0ac6606adb27e64a31bdc8c1ed34e446ae0c14bff1c7648867c46e106adc048f"
+    },
+    "scope": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/scope/SKILL.md",
+      "computedHash": "cc0c9ad797d81ab7466aa647ed7a62376e7734e6cb85b6c94d6f9b8ab997b7e5"
+    },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "c1a68ee06a668aced9ab2b5fbdea5f989864123794eb2e056b339a072dbb7f10"
+    },
+    "sqlx-postgres": {
+      "source": "daiki48/dotfiles",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/sqlx-postgres/SKILL.md",
+      "computedHash": "e1bf94aee4e94e204365fc250ec43cee54a624e979da6bb006b25f13f6220637"
+    },
+    "sync": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/sync/SKILL.md",
+      "computedHash": "fa3a2ef8c71a72dac4e0e1210333cb77aa9fb7722363a9f95c67577c4ff1f4f1"
+    },
+    "tailwind-4-docs": {
+      "source": "lombiq/tailwind-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tailwind-4-docs/SKILL.md",
+      "computedHash": "de756f5f03cc20a029983875b00b9dfef9d0ba8567d242c5cbb0262037d0a134"
+    },
+    "tanstack-query": {
+      "source": "tanstack-skills/tanstack-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/tanstack-query/skills/tanstack-query/SKILL.md",
+      "computedHash": "b8a0477cd4d7bf8fa54d27f8e64d82388402f0d502591db50a357df5b9995c75"
+    },
+    "test": {
+      "source": "jsmastery-pro/skills",
+      "sourceType": "github",
+      "skillPath": "skills/test/SKILL.md",
+      "computedHash": "1f85ef21aacbf8d02f0543f649ab908644fc58436463c3bb1908afc4201e1b83"
+    },
+    "tokio-patterns": {
+      "source": "geoffjay/claude-plugins",
+      "sourceType": "github",
+      "skillPath": "plugins/rust-tokio-expert/skills/tokio-patterns/SKILL.md",
+      "computedHash": "3d33732b5c7e9560556ed2470d526777dd6d92873aae327a536536aa2dbe767a"
+    },
+    "vitest": {
+      "source": "antfu/skills",
+      "sourceType": "github",
+      "skillPath": "skills/vitest/SKILL.md",
+      "computedHash": "943d436114c677802426741980146c07560bf375297666b03062444f4b98a785"
+    }
+  }
+}
