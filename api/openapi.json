@@ -1,0 +1,158 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Restaurant operations platform API",
+    "description": "Orders at the table, tickets live in the kitchen, a bill at the end.",
+    "license": {
+      "name": ""
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/events": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Opens the live stream for the caller's restaurant.",
+        "description": "The stream carries only this restaurant's events, because the server routes\non the restaurant id before it ever writes to a socket. Sending everything\nand letting the browser filter would leak ticket volume, timing, and\nidentifiers between restaurants over the wire, even though the follow up\nfetch would be refused.\n\nThe client must refetch its active queries every time this opens, including\nevery reconnect. Postgres queues nothing for a listener that is not\nconnected, so anything sent during a gap is gone, and without a refetch one\nnetwork blip becomes a ticket that never appears in the kitchen.",
+        "operationId": "events",
+        "responses": {
+          "200": {
+            "description": "A server sent event stream. Each message is named `entity_changed` and its data is a StreamEvent.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamEvent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session, so no restaurant to stream.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Reports whether this instance can actually serve.",
+        "description": "Returns 200 only when the pool answers **and** the listen connection is\nalive. An instance whose listener has died still answers HTTP perfectly but\ndelivers no tickets to any kitchen screen, so a check that only proved the\nprocess was up would leave it in service forever.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Every dependency is up and this instance can serve.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A dependency is down. Take this instance out of service.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Component": {
+        "type": "string",
+        "description": "Whether one dependency is answering.",
+        "enum": [
+          "up",
+          "down"
+        ]
+      },
+      "ErrorBody": {
+        "type": "object",
+        "description": "The body every failed request returns.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "A stable machine readable code, safe to branch on in the client.",
+            "example": "not_found"
+          },
+          "message": {
+            "type": "string",
+            "description": "A human readable sentence. Never contains internal detail.",
+            "example": "The requested resource does not exist."
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "description": "What the health endpoint returns.\n\nA presentation DTO rather than the application's `HealthReport`, so that the\nwire format can change without touching a use case, and so that no inner\nlayer has to know the `utoipa` schema traits exist.",
+        "required": [
+          "serving",
+          "database",
+          "listener"
+        ],
+        "properties": {
+          "database": {
+            "$ref": "#/components/schemas/Component",
+            "description": "Whether the connection pool answers."
+          },
+          "listener": {
+            "$ref": "#/components/schemas/Component",
+            "description": "Whether this instance's Postgres listen connection is up."
+          },
+          "serving": {
+            "type": "boolean",
+            "description": "True only when every dependency is up."
+          }
+        }
+      },
+      "StreamEvent": {
+        "type": "object",
+        "description": "What one message on the stream looks like.\n\nA kind and an id, never row content. The client uses it to refetch or to\npatch its query cache, which keeps row level security the single authority\non who may see what: a client that should not see a row simply gets nothing\nback when it asks for it.",
+        "required": [
+          "entity",
+          "entity_id"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string",
+            "description": "What kind of thing changed, for example `probe`.",
+            "example": "probe"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which one changed."
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "system",
+      "description": "Health and live updates."
+    }
+  ]
+}

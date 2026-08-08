@@ -1,0 +1,29 @@
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2024"
+description = "Restaurant operations platform API: JSON over HTTP plus a server sent event stream."
+# Two binaries live here: `api` serves, `openapi` prints the API document.
+# Naming the default keeps `cargo run` unambiguous.
+default-run = "api"
+publish = false
+
+[dependencies]
+anyhow = "1"
+async-stream = "0.3.6"
+axum = { version = "0.8", features = ["macros"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
+dotenvy = "0.15.7"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "macros", "migrate"] }
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }
+tokio-stream = "0.1.19"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "compression-gzip", "timeout"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+utoipa = { version = "5.5.0", features = ["axum_extras", "uuid"] }
+uuid = { version = "1", features = ["v4", "serde"] }
