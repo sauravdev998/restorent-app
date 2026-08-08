@@ -41,9 +41,9 @@ Nothing here is optional groundwork you can skip past: every slice below stands 
 ### 1. Stack and architecture · in-progress
 Choose the stack and scaffold a runnable project, so every later slice is built on real structure rather than guesses. This is the one place tools, frameworks, hosting, and providers get chosen.
 **Done when:** the stack is recorded in a spec, and the empty scaffold boots locally and passes a build.
-spec [0001](../specs/0001-stack-and-architecture/index.md)
+spec [0001](../specs/0001-stack-and-architecture/index.md) · code in `api/`, `web/`, `infra/`
 - [x] Decide the stack (spec): `/architect stack and architecture`
-- [ ] Scaffold from the decision: `/develop stack and architecture`
+- [x] Scaffold from the decision: `/develop stack and architecture`
 
 ### 2. Coding standards and tooling
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and a pre commit hook so all later code follows one shape.

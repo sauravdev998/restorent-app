@@ -1,7 +1,7 @@
 # 0001. Stack and architecture for the restaurant operations platform
 
 **Date**: 2026-08-07
-**Status**: Proposed
+**Status**: In Progress
 
 ## Summary
 
