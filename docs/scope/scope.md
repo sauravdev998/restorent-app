@@ -13,8 +13,8 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 |---|---------|-------|--------|
 | 1 | Stack and architecture | Foundation | done |
 | 2 | Coding standards and tooling | Foundation | done |
-| 3 | Error and crash monitoring | Foundation | planned |
-| 4 | Core data model | Foundation | planned |
+| 3 | Error and crash monitoring | Foundation | dropped |
+| 4 | Core data model | Foundation | in-progress |
 | 5 | Design system and accessibility baseline | Foundation | planned |
 | 6 | Language and text foundation | Foundation | planned |
 | 7 | Accounts, restaurants, and roles | Foundation | planned |
@@ -33,6 +33,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 20 | Privacy, terms, and cookie consent | Slice 6 | planned |
 | 21 | Subscription plans and paid signup | Deferred | planned |
 | 22 | Customer QR self ordering | Deferred | planned |
+| 23 | Splitting and merging bills | Deferred | planned |
 
 ## Foundations
 
@@ -55,15 +56,26 @@ verify [0002](../specs/0002-coding-standards-and-tooling/verify.md) · context i
 - [x] Capture conventions and tooling choices: `/audit`
 - [x] Install the tooling: `/develop tooling`
 
-### 3. Error and crash monitoring · needs a decision
-Know when the app breaks for a waiter mid shift instead of hearing about it from the restaurant. Early, so every later slice reports into it from its first day.
-**Done when:** an unhandled error on any screen or server route arrives in the monitoring tool with enough context to find it, and you get alerted.
-- [ ] Design it (spec): `/architect error and crash monitoring`
+### 3. Error and crash monitoring · dropped
+Dropped on 8 August 2026: you do not want it. Kept as a row so the numbering and the history stay honest, and so a later run does not quietly plan it again.
+What stands in for it: structured logs going to CloudWatch, already decided in spec [0001](../specs/0001-stack-and-architecture/index.md). That tells you what happened once you go looking; it does not tell you a waiter's screen broke mid shift. Accepted trade off.
+No boxes. If you change your mind, run `/architect error and crash monitoring` and this row comes back to life.
 
-### 4. Core data model · needs a decision
+### 4. Core data model
 The entities everything else is built on: restaurants, staff and their roles, menu categories and dishes, tables, bills, order rounds, order lines with per dish status, and payment records. Multi restaurant separation lives here, and it is the most expensive thing in the project to get wrong.
 **Done when:** the schema supports one open bill per table with many rounds, per dish status, per restaurant currency and tax settings, and strict data separation between restaurants, all without a breaking change when later slices land.
-- [ ] Design it (spec): `/architect core data model`
+spec [0003](../specs/0003-core-data-model/index.md)
+- [x] Design it (spec): `/architect core data model`
+- [ ] Build it: `/develop core data model`
+  - [x] Schema and isolation: the six enum types, all sixteen tables, composite tenant keys, indexes, and row level security (AC-1, AC-2, AC-3, AC-4, AC-9, AC-11, AC-13, AC-15)
+  - [ ] The two bootstrap lookups and bill numbering: the `auth_lookup` role, the login and session functions, the gapless counter (AC-6, AC-12)
+  - [ ] Rust types and repository plumbing: identifier newtypes, the six enums, the real event entities, the eleven scoped operations (AC-7, AC-8, AC-10, AC-13)
+  - [ ] Money and audit: the bill close snapshot, rounding to the restaurant's currency, the audit log (AC-5, AC-9, AC-14)
+  - [ ] Tests and generated artifacts: the integration tests against a real Postgres as `app_api`, and the refreshed `.sqlx` cache (AC-1 through AC-15)
+- [ ] Verify it: `/check verify core data model`
+- [ ] Test it: `/test core data model`
+- [ ] Review it (fresh model): `/check review core data model`
+- [ ] Document it: `/document core data model`
 
 ### 5. Design system and accessibility baseline · needs a decision
 The visual language and base components every screen uses, built for three very different contexts: an admin on a desktop, a waiter on a phone, a chef on a kitchen screen read from a distance. The accessibility target is set here and then applied by every later feature rather than being its own row.
@@ -175,6 +187,7 @@ Out of scope for the current build pass, kept so the plan stays honest. Both are
 
 - **21. Subscription plans and paid signup**: monthly plans per restaurant, a paid signup flow, a payment provider, invoices, and what happens when a payment fails · needs a decision
 - **22. Customer QR self ordering**: the customer scans a code at the table, browses the menu, and sends rounds to the kitchen without a waiter, which needs its own public surface, its own session handling, and its own abuse controls · needs a decision
+- **23. Splitting and merging bills** `from spec 0003`: guests paying separately, and two joined tables paying as one. The schema in spec [0003](../specs/0003-core-data-model/index.md) permits both (lines carry a bill reference, and a visit owns the table rather than a bill), and nothing implements either. It needs the waiter screens for choosing which lines go where, which is the real work · needs a decision
 
 ## Legend
 
