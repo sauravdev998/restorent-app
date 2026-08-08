@@ -51,9 +51,9 @@ spec [0001](../specs/0001-stack-and-architecture/index.md) · code in `api/`, `w
 ### 2. Coding standards and tooling
 Capture the conventions from the real scaffolded project, then install lint, formatting, type strictness, and a pre commit hook so all later code follows one shape.
 **Done when:** root `AGENTS.md` reflects the real stack, and lint, format, and the pre commit hook run clean.
-context in `AGENTS.md`, `api/AGENTS.md`, `web/AGENTS.md`, `infra/AGENTS.md`
+context in `AGENTS.md`, `api/AGENTS.md`, `web/AGENTS.md`, `infra/AGENTS.md` · tooling in `lefthook.yml`, `.github/workflows/ci.yml`, `.prettierrc.json`, `infra/eslint.config.mjs`
 - [x] Capture conventions and tooling choices: `/audit`
-- [ ] Install the tooling: `/develop tooling`
+- [x] Install the tooling: `/develop tooling`
 
 ### 3. Error and crash monitoring · needs a decision
 Know when the app breaks for a waiter mid shift instead of hearing about it from the restaurant. Early, so every later slice reports into it from its first day.
