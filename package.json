@@ -1,0 +1,32 @@
+{
+  "name": "restaurant-platform",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Restaurant operations platform: orders at the table, tickets live in the kitchen, a bill at the end.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "packageManager": "pnpm@11.11.0",
+  "scripts": {
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d --wait && pnpm migrate",
+    "migrate": "sqlx migrate run --source api/migrations --database-url \"$OWNER_DATABASE_URL\"",
+    "dev:api": "cargo run --manifest-path api/Cargo.toml",
+    "dev:web": "pnpm --filter web dev",
+    "build": "cargo build --release --manifest-path api/Cargo.toml && pnpm --filter web build",
+    "test": "cargo test --manifest-path api/Cargo.toml && pnpm --filter web test",
+    "lint": "cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings && pnpm --filter web lint",
+    "format": "cargo fmt --manifest-path api/Cargo.toml && pnpm --filter web format",
+    "format:check": "cargo fmt --manifest-path api/Cargo.toml --check && pnpm --filter web format:check",
+    "typecheck": "pnpm --filter web typecheck && pnpm --filter infra typecheck",
+    "openapi:generate": "cargo run --manifest-path api/Cargo.toml --bin openapi > api/openapi.json",
+    "client:generate": "pnpm openapi:generate && pnpm --filter web client:generate",
+    "client:check": "pnpm client:generate && git diff --exit-code api/openapi.json web/src/lib/api/schema.d.ts",
+    "sqlx:prepare": "cargo sqlx prepare --manifest-path api/Cargo.toml -- --all-targets",
+    "sqlx:check": "cargo sqlx prepare --manifest-path api/Cargo.toml --check -- --all-targets"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}
