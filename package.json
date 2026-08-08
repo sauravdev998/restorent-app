@@ -8,6 +8,7 @@
   },
   "packageManager": "pnpm@11.11.0",
   "scripts": {
+    "prepare": "lefthook install",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d --wait && pnpm migrate",
@@ -30,6 +31,7 @@
     "sqlx:check": "cd api && set -a && . ../.env && set +a && cargo sqlx prepare --check -- --all-targets"
   },
   "devDependencies": {
+    "lefthook": "^2.1.10",
     "prettier": "^3.6.2"
   }
 }

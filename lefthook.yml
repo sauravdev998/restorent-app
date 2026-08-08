@@ -1,0 +1,48 @@
+# What runs before a commit, and deliberately nothing more.
+#
+# Format and lint the files you actually touched. Typecheck, `cargo check`, and
+# the test suites are left to continuous integration on purpose: a cold Rust
+# build in a commit hook is a minute of waiting on every commit, and a hook that
+# costs a minute is a hook people escape with `--no-verify`. A hook that stays
+# under a second or two is a hook that survives.
+#
+# `stage_fixed: true` restages what a formatter rewrote, so the fix lands in the
+# same commit rather than as a stray change sitting behind it.
+#
+# `root:` on a job does two things that are easy to miss: it runs the command
+# from that directory, and it hands `{staged_files}` over relative to it. Both
+# are needed, because a path like `web/src/main.tsx` does not resolve once the
+# command is already running inside `web/`.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: rust-format
+      glob: '*.rs'
+      # rustfmt directly rather than `cargo fmt`, so only the staged files are
+      # touched. `cargo fmt` reformats the whole crate, which would rewrite
+      # files this commit never meant to include.
+      run: rustfmt --edition 2024 {staged_files}
+      stage_fixed: true
+
+    - name: web-lint
+      root: 'web/'
+      glob: '*.{ts,tsx}'
+      # The generated client is generated. Linting it produces complaints
+      # nobody can act on without editing a file they must not edit.
+      exclude:
+        - 'src/shared/api/schema.d.ts'
+      run: pnpm exec eslint --fix {staged_files}
+      stage_fixed: true
+
+    - name: infra-lint
+      root: 'infra/'
+      glob: '{bin,lib}/**/*.ts'
+      run: pnpm exec eslint --fix {staged_files}
+      stage_fixed: true
+
+    - name: prettier
+      glob: '*.{ts,tsx,css,json,yml,yaml}'
+      # Root `.prettierignore` covers the generated and vendored paths.
+      run: pnpm exec prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
