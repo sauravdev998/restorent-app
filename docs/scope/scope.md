@@ -11,7 +11,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
-| 1 | Stack and architecture | Foundation | done |
+| 1 | Stack and architecture | Foundation | in-progress |
 | 2 | Coding standards and tooling | Foundation | planned |
 | 3 | Error and crash monitoring | Foundation | planned |
 | 4 | Core data model | Foundation | planned |
@@ -38,7 +38,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 
 Nothing here is optional groundwork you can skip past: every slice below stands on it. Build them in this order, cheapest ground first.
 
-### 1. Stack and architecture · done
+### 1. Stack and architecture · in-progress
 Choose the stack and scaffold a runnable project, so every later slice is built on real structure rather than guesses. This is the one place tools, frameworks, hosting, and providers get chosen.
 **Done when:** the stack is recorded in a spec, and the empty scaffold boots locally and passes a build.
 spec [0001](../specs/0001-stack-and-architecture/index.md) · code in `api/`, `web/`, `infra/`
