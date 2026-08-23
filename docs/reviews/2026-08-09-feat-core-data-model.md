@@ -1,0 +1,39 @@
+# Review, feat/core-data-model, 2026-08-09
+
+**Reviewed by**: Claude Sonnet, the contrasting model this review was spawned on. Author on Claude Opus 5, confirmed by the engineer at the start of the run. The reviewing agent named both models the other way round in its own draft of this line, which is the unreliable self introspection `/check review` warns about; corrected here from the spawn setting.
+**Scope**: 26 code files + 66 `.sqlx` cache files + 5 docs files, branch vs `main` (merge base `a6bc539`)
+**Verdict**: Approve with nits
+
+## Summary
+
+This lands the whole foundation schema (16 tables, 6 enums, RLS on every tenant table, the two `SECURITY DEFINER` sign-in lookups owned by `auth_lookup`) plus the matching Rust domain types and repository layer, in one migration, exactly as spec 0003 asks. I read every changed file in full, ran `cargo check`/`clippy --all-targets -D warnings` offline (clean), and — since a live Postgres on 5434 with both migrations already applied was available in this environment — ran the actual integration suite rather than only reading it: all 43 unit tests and all 35 integration tests pass (`isolation` 6, `service_flow` 11, `billing` 12, `concurrency` 6, matching verify.md's counts exactly), `pnpm sqlx:check` reports no diff, and I independently re-ran every schema-shape query from verify.md against the live database (16 tables, 6 enums, 0 tables missing `ENABLE`+`FORCE` RLS, both sign-in functions owned by `auth_lookup`, 0 non-`numeric(14,4)` money columns, 0 bare `timestamp` columns, exactly 2 `SECURITY DEFINER` functions) and every one matches. The tenant isolation story (composite FKs, RLS, the `auth_lookup` bypass) is correctly implemented and is the part I scrutinised hardest, given the prompt's emphasis. I found no blockers and no majors. Two minors, both narrow, and a few nits.
+
+## Minor
+
+### 🟡 A void's audit "before" snapshot is read without a lock, so it can record a stale prior state under a race, `api/src/infrastructure/db/repository/service.rs:542`
+**Problem**: `void_line` reads `before = line(tx, line_id).await?` with a plain `SELECT`, then performs the conditional `UPDATE ... WHERE status IN ('queued', 'ready')`. If another transaction changes the line's status (e.g. `mark_line_ready`) and commits in the gap between that read and this update, the update still succeeds (its own status is still one of the accepted ones), but `before.status` in the audit row can be one state behind what the line's status actually was immediately before this write. Every other write that snapshots a "before" value for the audit log (`update_dish`, `update_tax_component`, `set_service_charge`, `change_staff_role` in `catalog.rs`) reads its "before" state with `FOR UPDATE`, which closes exactly this gap; `void_line` is the one place that does not.
+**Why it matters**: The audit log is explicitly "not negotiable" per the spec because "this schema holds money and access control." A wrong `before` value doesn't lose the entry or misreport what happened (the `after` value and the actual database state are always correct), but it is exactly the kind of narrow correctness gap that is expensive to notice later, in a log whose whole purpose is being trustworthy when something is disputed.
+**Suggested fix**: Read the line with `SELECT ... FOR UPDATE` before the conditional `UPDATE`, the same pattern already used in `catalog.rs`'s edit functions.
+
+### 🟡 The "figures stay zero before close" behaviour is untested, `docs/specs/0003-core-data-model/verify.md:49`
+**Problem**: The design states that `assign_lines_to_bill` moves only the subtotal, and `service_charge_amount`/`tax_total`/`total` stay at zero until `close_bill` computes all three at once. Reading `close_bill`/`recompute_subtotal` in `billing.rs`, the code does appear to honour this (only `subtotal` is written by `recompute_subtotal`), but no test asserts it — `verify.md` itself already flags this exact gap as the one unticked line in the whole checklist.
+**Why it matters**: This is the one place in the design that a future edit to `recompute_subtotal` (e.g. someone "helpfully" recomputing `total` too) could silently start exposing half-computed money figures on an open bill, and nothing in the suite would catch it.
+**Suggested fix**: Not this PR's job to add (test signal is `configured`, and this gap is already tracked for `/test` to pick up per verify.md's own note) — flagging so it isn't lost as a genuine, if narrow, coverage gap on money-adjacent code.
+
+## Nits
+
+- ⚪ `api/src/infrastructure/db/repository/billing.rs:284-287`, `assign_lines_to_bill` re-reads a fresh `bill(tx, id).await?` inside `recompute_subtotal` for every affected bill just to get the currency, which is already known to be the restaurant's currency and could be read once via `catalog::restaurant`. Harmless at the scale involved (at most two bills per reassignment).
+- ⚪ `api/src/infrastructure/db/repository/billing.rs:364`, the comment "the number is allocated last, because it is the one thing that cannot be taken back" is slightly imprecise: two more writes (`write_bill_taxes`, `stamp_closed`) follow it in the same transaction. Correctness doesn't depend on the comment (the whole transaction is atomic, so a later failure still releases the number), but the wording reads as if the number allocation is the final statement rather than the final *irreversible input*.
+- ⚪ `api/src/domain/people.rs:30`, `Session` is defined but has no repository read/write path yet in this feature (only `ResolvedSession`, via the security-definer function, is used) — clearly deliberate scaffolding for feature 7, not a defect.
+
+## Strengths
+
+- The trickiest part of this design — `SECURITY DEFINER` functions needing an owner distinct from the schema owner under `FORCE ROW LEVEL SECURITY`, or sign-in silently returns no rows — is implemented correctly and independently verified live: both functions are owned by `auth_lookup`, not `restaurant_owner`, and `isolation::the_two_sign_in_lookups_read_across_restaurants_and_nothing_else_does` is exactly the test that would have caught the mistake if it existed. It passed.
+- Every composite foreign key in the migration is genuinely composite (`(id, restaurant_id)`, never a bare id) — I grepped every `REFERENCES` in the migration to confirm this, and it holds without exception across all 16 tables.
+- The concurrency tests are built as real two-connection races run in a fixed, deterministic order (lock, spawn, commit, observe) rather than two tasks fired and hoped about — this is a materially stronger test design than the usual `tokio::join!` race test, and it actually exercises the row locks the design calls for (bill lock, visit lock, counter lock).
+- Money handling is careful and correctly tested across currencies with different decimal places (EUR/2, JPY/0), including the explicit half-away-from-zero rounding strategy with a test that would fail loudly if someone simplified it to the default `round_dp`.
+- Offline build discipline is solid: `cargo check`/`clippy --all-targets -D warnings` pass cold, and no `unwrap`/`expect` appears outside `#[cfg(test)]` blocks anywhere in the diff.
+
+## Test coverage
+
+Excellent, and unusually verifiable: I ran the full suite rather than reading it. 43/43 unit tests and 35/35 integration tests pass against a real Postgres connected as `app_api` (not the schema owner, so the RLS tests mean what they claim to). All 15 acceptance criteria have at least one integration test named for them in `verify.md`'s own mapping, and I spot-checked several of those mappings against the actual test bodies (AC-6 numbering/rollback, AC-8 loser-changes-nothing, AC-12 the two sign-in lookups, AC-13 concurrent reassignment-vs-close) and they hold up. The one honestly-flagged gap (figures staying zero before close) is called out above as Minor rather than hidden.
