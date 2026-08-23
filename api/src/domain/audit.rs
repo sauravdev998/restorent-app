@@ -76,3 +76,122 @@ pub struct AuditEntry {
     /// When it happened.
     pub occurred_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every action, in one place, so the tests below cover all of them.
+    ///
+    /// Kept honest by [`position`]: adding a variant stops that match compiling,
+    /// and filling it in stops this array being the right length.
+    const ALL: [AuditAction; 8] = [
+        AuditAction::LineVoided,
+        AuditAction::BillClosed,
+        AuditAction::DishEdited,
+        AuditAction::DishArchived,
+        AuditAction::TaxComponentEdited,
+        AuditAction::ServiceChargeEdited,
+        AuditAction::StaffRoleChanged,
+        AuditAction::StaffDeactivated,
+    ];
+
+    /// Where each action sits in [`ALL`].
+    ///
+    /// The match is exhaustive on purpose. A new variant fails to compile here,
+    /// which is the only thing that stops [`ALL`] silently falling behind the
+    /// enum and the tests quietly covering less than they claim to.
+    const fn position(action: AuditAction) -> usize {
+        match action {
+            AuditAction::LineVoided => 0,
+            AuditAction::BillClosed => 1,
+            AuditAction::DishEdited => 2,
+            AuditAction::DishArchived => 3,
+            AuditAction::TaxComponentEdited => 4,
+            AuditAction::ServiceChargeEdited => 5,
+            AuditAction::StaffRoleChanged => 6,
+            AuditAction::StaffDeactivated => 7,
+        }
+    }
+
+    #[test]
+    fn the_list_the_other_tests_run_over_holds_every_action() {
+        for (index, action) in ALL.into_iter().enumerate() {
+            assert_eq!(
+                position(action),
+                index,
+                "{action:?} is not where the list says it is"
+            );
+        }
+    }
+
+    /// covers: AC-14
+    ///
+    /// These strings are the `action` column. Nothing else writes it, and the
+    /// only way to read the log back is to match on them, so changing one turns
+    /// every row written before the change into a row that no longer answers the
+    /// question it was written for. Spelled out one by one rather than derived,
+    /// because a rule that generates them would change its output alongside any
+    /// rename and pin nothing.
+    #[test]
+    fn every_action_writes_the_exact_string_the_log_is_read_back_by() {
+        assert_eq!(AuditAction::LineVoided.as_label(), "line_voided");
+        assert_eq!(AuditAction::BillClosed.as_label(), "bill_closed");
+        assert_eq!(AuditAction::DishEdited.as_label(), "dish_edited");
+        assert_eq!(AuditAction::DishArchived.as_label(), "dish_archived");
+        assert_eq!(
+            AuditAction::TaxComponentEdited.as_label(),
+            "tax_component_edited"
+        );
+        assert_eq!(
+            AuditAction::ServiceChargeEdited.as_label(),
+            "service_charge_edited"
+        );
+        assert_eq!(
+            AuditAction::StaffRoleChanged.as_label(),
+            "staff_role_changed"
+        );
+        assert_eq!(
+            AuditAction::StaffDeactivated.as_label(),
+            "staff_deactivated"
+        );
+    }
+
+    /// covers: AC-14
+    ///
+    /// Two actions sharing a label would merge two kinds of change into one in
+    /// the log, and the merge would be invisible: every row still writes, every
+    /// row still reads, and the count of voids quietly includes bill closes.
+    #[test]
+    fn no_two_actions_share_a_label() {
+        for action in ALL {
+            let clashes = ALL
+                .into_iter()
+                .filter(|other| other.as_label() == action.as_label())
+                .count();
+
+            assert_eq!(
+                clashes,
+                1,
+                "{action:?} shares its label {:?} with another action",
+                action.as_label()
+            );
+        }
+    }
+
+    /// The `audit_log_action_not_blank` check refuses a blank action, so a label
+    /// that was empty, or padded, would fail at the insert rather than here.
+    #[test]
+    fn no_label_is_blank_or_padded() {
+        for action in ALL {
+            let label = action.as_label();
+
+            assert!(!label.trim().is_empty(), "{action:?} has a blank label");
+            assert_eq!(
+                label,
+                label.trim(),
+                "{action:?} has a label with space around it"
+            );
+        }
+    }
+}
