@@ -15,7 +15,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 2 | Coding standards and tooling | Foundation | done |
 | 3 | Error and crash monitoring | Foundation | dropped |
 | 4 | Core data model | Foundation | in-progress |
-| 5 | Design system and accessibility baseline | Foundation | planned |
+| 5 | Design system and accessibility baseline | Foundation | in-progress |
 | 6 | Language and text foundation | Foundation | planned |
 | 7 | Accounts, restaurants, and roles | Foundation | planned |
 | 8 | The thin order thread | Slice 1 | planned |
@@ -77,10 +77,21 @@ spec [0003](../specs/0003-core-data-model/index.md) · code in `api/migrations/0
 - [x] Review it (fresh model): `/check review core data model`
 - [x] Document it: `/document core data model`
 
-### 5. Design system and accessibility baseline · needs a decision
+### 5. Design system and accessibility baseline
 The visual language and base components every screen uses, built for three very different contexts: an admin on a desktop, a waiter on a phone, a chef on a kitchen screen read from a distance. The accessibility target is set here and then applied by every later feature rather than being its own row.
 **Done when:** `design.md` covers type, colour, spacing, and the base components; components handle keyboard use and focus; the chosen accessibility level is written down and the base components meet it.
-- [ ] Design it (spec): `/architect design system and accessibility baseline`
+spec [0004](../specs/0004-design-system-and-accessibility/index.md)
+- [x] Design it (spec): `/architect design system and accessibility baseline`
+- [ ] Build it: `/develop design system and accessibility baseline`
+  - [ ] Tokens and the console look: the fonts, the icons, the shadcn helpers, and the four token layers covering both appearances, print, and forced colours (AC-1, AC-2, AC-3, AC-12, AC-16)
+  - [ ] The frame and the thread's components: who owns the surface density, the shell, and `Icon`, `Button`, `Card`, `StatusPill`, `ElapsedTime` (AC-2, AC-5, AC-6, AC-12, AC-14)
+  - [ ] The three gates and the gallery: the contrast script, the lint and axe rules, and the development only `/design` route (AC-1, AC-4, AC-6, AC-11, AC-13, AC-15)
+  - [ ] The rest of the components: `Field`, `Input`, `Select`, `Dialog`, `LiveRegion`, `Toast`, `Alert`, `Skeleton`, `EmptyState`, `DataTable` (AC-4, AC-7, AC-8, AC-9, AC-10)
+  - [ ] Finishing: the logical property sweep, the forced colours pass, the print block, and `docs/design.md` (AC-11, AC-13, AC-16, AC-17)
+- [ ] Verify it: `/check verify design system and accessibility baseline`
+- [ ] Test it: `/test design system and accessibility baseline`
+- [ ] Review it (fresh model): `/check review design system and accessibility baseline`
+- [ ] Document it: `/document design system and accessibility baseline`
 
 ### 6. Language and text foundation · needs a decision
 Every piece of text in the app comes from a translation file from the first screen onward, plus how a user's language is chosen and stored. Cheap now, painful to retrofit once twenty screens exist.
