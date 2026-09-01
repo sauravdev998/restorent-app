@@ -19,7 +19,13 @@ export interface SkeletonProps {
 export function Skeleton({ label, className }: SkeletonProps) {
   return (
     <div
-      className={cn('h-4 animate-pulse rounded-md bg-muted motion-reduce:animate-none', className)}
+      className={cn(
+        'h-4 animate-pulse rounded-md bg-muted motion-reduce:animate-none',
+        // Its shape is a background, and forced colours removes backgrounds, so
+        // it would be a blank gap where content is about to arrive.
+        'forced-colors:border-line forced-colors:border-border',
+        className,
+      )}
       role={label === undefined ? 'presentation' : 'status'}
       aria-hidden={label === undefined ? true : undefined}
     >

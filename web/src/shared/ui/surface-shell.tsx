@@ -54,9 +54,13 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
 
   return (
     <div className={cn('flex min-h-screen flex-col bg-background', className)}>
+      {/* Parked just above the viewport rather than hidden with `sr-only`.
+          `not-sr-only` resets padding and margin to zero as part of undoing the
+          hiding, which left the link visible but with its text jammed against
+          its own edges. Sliding it into view keeps every other style intact. */}
       <a
         href="#main-content"
-        className="sr-only rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50"
+        className="fixed top-0 start-4 z-50 -translate-y-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:translate-y-4"
       >
         {t('a11y.skipToMain')}
       </a>

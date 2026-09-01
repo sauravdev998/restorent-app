@@ -15,13 +15,20 @@ const button = cva(
     'border-line target-h inline-flex items-center justify-center gap-2 rounded-md',
     'font-medium whitespace-nowrap transition-colors',
     'aria-disabled:pointer-events-none aria-disabled:opacity-50',
+    // Forced colours throws away opacity as a signal, so the disabled state
+    // says so in the one colour the operating system reserves for it.
+    'forced-colors:aria-disabled:text-[color:GrayText] forced-colors:aria-disabled:opacity-100',
   ],
   {
     variants: {
       variant: {
         primary: 'border-primary bg-primary text-primary-foreground hover:bg-primary/90',
         secondary: 'border-border bg-secondary text-secondary-foreground hover:bg-accent',
-        ghost: 'border-transparent bg-transparent text-foreground hover:bg-accent',
+        // A ghost button's only boundary is the background it grows on hover,
+        // and forced colours removes backgrounds. Without a real edge here it
+        // is indistinguishable from a run of text.
+        ghost:
+          'border-transparent bg-transparent text-foreground hover:bg-accent forced-colors:border-current',
         destructive:
           'border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/90',
       },
