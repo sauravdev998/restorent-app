@@ -1,0 +1,95 @@
+import { Utensils } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import { NavLink } from 'react-router'
+
+import type { StreamStatus } from '@/shared/events/use-live-events'
+
+import { cn } from './cn'
+import { ConnectionStatus } from './connection-status'
+import { Icon } from './icon'
+
+const NAV = [
+  { to: '/admin', key: 'nav.admin' },
+  { to: '/waiter', key: 'nav.waiter' },
+  { to: '/kitchen', key: 'nav.kitchen' },
+] as const
+
+export interface SurfaceShellProps {
+  children: ReactNode
+  /** The live stream's state, shown in the header of every surface. */
+  stream: StreamStatus
+  className?: string
+}
+
+/**
+ * The frame every screen sits inside.
+ *
+ * It owns the landmarks (one header, one nav, one main), the skip link that
+ * lets a keyboard user jump the navigation, and the width of the content
+ * column.
+ *
+ * The width is the interesting part. `max-w-*` lives in Tailwind's container
+ * namespace, which does not ride `--spacing`, so it would stay exactly as wide
+ * on a kitchen wall as on a laptop while everything inside it tripled. The
+ * shell takes the width from its own `--shell-width` token instead, which the
+ * density layer sets per surface: a wide column for admin paperwork, a narrow
+ * one for a phone, and the whole screen for a kitchen.
+ *
+ * The header is deliberately not sticky. A sticky bar is the usual way a focus
+ * ring ends up hidden behind something, and no screen here needs one.
+ */
+export function SurfaceShell({ children, stream, className }: SurfaceShellProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div className={cn('flex min-h-screen flex-col bg-background', className)}>
+      <a
+        href="#main-content"
+        className="sr-only rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50"
+      >
+        {t('a11y.skipToMain')}
+      </a>
+
+      <header className="border-b-line border-border bg-card">
+        <div className="shell-width flex flex-wrap items-center gap-4 px-4 py-3">
+          <NavLink
+            to="/"
+            className="inline-flex items-center gap-2 text-base font-semibold text-foreground"
+          >
+            <Icon icon={Utensils} size="md" className="text-primary" />
+            {t('app.name')}
+          </NavLink>
+
+          <nav aria-label={t('a11y.primaryNav')}>
+            <ul className="flex flex-wrap items-center gap-1">
+              {NAV.map((item) => (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    className={({ isActive }) =>
+                      cn(
+                        'target-h inline-flex items-center rounded-md px-3 py-2 text-sm transition-colors',
+                        isActive
+                          ? 'bg-secondary font-medium text-secondary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                      )
+                    }
+                  >
+                    {t(item.key)}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <ConnectionStatus status={stream} className="ms-auto" />
+        </div>
+      </header>
+
+      <main id="main-content" className="shell-width w-full flex-1 px-4 py-8">
+        {children}
+      </main>
+    </div>
+  )
+}
