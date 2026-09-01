@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, type RouteObject } from 'react-router'
 
 import { AdminHome } from '@/admin/routes/admin-home'
 import { KitchenHome } from '@/kitchen/routes/kitchen-home'
@@ -8,6 +8,26 @@ import { ErrorScreen } from './error-screen'
 import { NotFound } from './not-found'
 import { RootLayout } from './root-layout'
 import { SystemStatus } from './system-status'
+
+/**
+ * The design gallery, in development only.
+ *
+ * `import.meta.env.DEV` is replaced with the literal `false` in a production
+ * build, so the bundler drops this branch and, with it, the dynamic import
+ * inside it. The gallery and everything it pulls in are never emitted, which is
+ * stronger than hiding the route behind a check at runtime.
+ */
+const developmentRoutes: RouteObject[] = import.meta.env.DEV
+  ? [
+      {
+        path: 'design',
+        lazy: async () => {
+          const { DesignGallery } = await import('./design/design-gallery')
+          return { Component: DesignGallery }
+        },
+      },
+    ]
+  : []
 
 /**
  * The route table, in React Router's data mode.
@@ -32,6 +52,7 @@ export const router = createBrowserRouter([
       { path: 'admin', children: [{ index: true, element: <AdminHome /> }] },
       { path: 'waiter', children: [{ index: true, element: <WaiterHome /> }] },
       { path: 'kitchen', children: [{ index: true, element: <KitchenHome /> }] },
+      ...developmentRoutes,
       { path: '*', element: <NotFound /> },
     ],
   },

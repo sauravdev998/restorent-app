@@ -1,13 +1,16 @@
 import { Utensils } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router'
 
 import type { StreamStatus } from '@/shared/events/use-live-events'
 
+import { primeAudioUnlock } from './audio-unlock'
 import { cn } from './cn'
 import { ConnectionStatus } from './connection-status'
 import { Icon } from './icon'
+import { LiveRegion } from './live-region'
+import { ToastViewport } from './toast'
 
 const NAV = [
   { to: '/admin', key: 'nav.admin' },
@@ -38,9 +41,16 @@ export interface SurfaceShellProps {
  *
  * The header is deliberately not sticky. A sticky bar is the usual way a focus
  * ring ends up hidden behind something, and no screen here needs one.
+ *
+ * It also mounts the two things that must exist exactly once per document: the
+ * live regions every announcement goes through, and the toast viewport. And it
+ * primes the audio unlock on the session's first tap or key press, because that
+ * gesture is the only moment a browser will open an audio context.
  */
 export function SurfaceShell({ children, stream, className }: SurfaceShellProps) {
   const { t } = useTranslation()
+
+  useEffect(() => primeAudioUnlock(), [])
 
   return (
     <div className={cn('flex min-h-screen flex-col bg-background', className)}>
@@ -90,6 +100,9 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
       <main id="main-content" className="shell-width w-full flex-1 px-4 py-8">
         {children}
       </main>
+
+      <LiveRegion />
+      <ToastViewport />
     </div>
   )
 }

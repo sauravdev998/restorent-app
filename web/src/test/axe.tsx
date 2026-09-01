@@ -40,6 +40,16 @@ export interface AccessibleOptions {
    * too. Use it for anything that renders a `<main>`.
    */
   page?: boolean
+  /**
+   * The subject renders into a portal on `document.body`, so scan the whole
+   * document and put the appearance and density attributes on the document
+   * element rather than on a wrapper.
+   *
+   * That is not a testing trick, it is what actually happens: a portal escapes
+   * the React tree, so a wrapper's attributes never reach it. Setting them on
+   * the document is the only way to test the thing that ships.
+   */
+  portal?: boolean
 }
 
 /**
@@ -58,15 +68,22 @@ export async function expectAccessible(
     rules: { ...SHARED_RULES, ...(options.page === true ? {} : COMPONENT_ONLY_RULES) },
   }
 
+  const root = document.documentElement
+
   for (const theme of APPEARANCES) {
     for (const surface of SURFACES) {
+      if (options.portal === true) {
+        root.dataset['theme'] = theme
+        root.dataset['surface'] = surface
+      }
+
       const { container, unmount } = render(
         <div data-theme={theme} data-surface={surface}>
           {ui}
         </div>,
       )
 
-      const results = await axe.run(container, config)
+      const results = await axe.run(options.portal === true ? document.body : container, config)
 
       if (results.violations.length > 0) {
         const detail = results.violations
@@ -81,4 +98,7 @@ export async function expectAccessible(
       unmount()
     }
   }
+
+  delete root.dataset['theme']
+  delete root.dataset['surface']
 }
