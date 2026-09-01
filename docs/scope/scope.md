@@ -80,14 +80,14 @@ spec [0003](../specs/0003-core-data-model/index.md) · code in `api/migrations/0
 ### 5. Design system and accessibility baseline
 The visual language and base components every screen uses, built for three very different contexts: an admin on a desktop, a waiter on a phone, a chef on a kitchen screen read from a distance. The accessibility target is set here and then applied by every later feature rather than being its own row.
 **Done when:** `design.md` covers type, colour, spacing, and the base components; components handle keyboard use and focus; the chosen accessibility level is written down and the base components meet it.
-spec [0004](../specs/0004-design-system-and-accessibility/index.md)
+spec [0004](../specs/0004-design-system-and-accessibility/index.md) · design in `docs/design.md` · code in `web/src/styles/index.css`, `web/src/shared/ui/`, `web/src/app/design/`, `web/scripts/check-contrast.ts`, `web/eslint.config.js`, `web/src/test/axe.tsx`
 - [x] Design it (spec): `/architect design system and accessibility baseline`
-- [ ] Build it: `/develop design system and accessibility baseline`
-  - [ ] Tokens and the console look: the fonts, the icons, the shadcn helpers, and the four token layers covering both appearances, print, and forced colours (AC-1, AC-2, AC-3, AC-12, AC-16)
-  - [ ] The frame and the thread's components: who owns the surface density, the shell, and `Icon`, `Button`, `Card`, `StatusPill`, `ElapsedTime` (AC-2, AC-5, AC-6, AC-12, AC-14)
-  - [ ] The three gates and the gallery: the contrast script, the lint and axe rules, and the development only `/design` route (AC-1, AC-4, AC-6, AC-11, AC-13, AC-15)
-  - [ ] The rest of the components: `Field`, `Input`, `Select`, `Dialog`, `LiveRegion`, `Toast`, `Alert`, `Skeleton`, `EmptyState`, `DataTable` (AC-4, AC-7, AC-8, AC-9, AC-10)
-  - [ ] Finishing: the logical property sweep, the forced colours pass, the print block, and `docs/design.md` (AC-11, AC-13, AC-16, AC-17)
+- [x] Build it: `/develop design system and accessibility baseline`
+  - [x] Tokens and the console look: the fonts, the icons, the shadcn helpers, and the four token layers covering both appearances, print, and forced colours (AC-1, AC-2, AC-3, AC-12, AC-16)
+  - [x] The frame and the thread's components: who owns the surface density, the shell, and `Icon`, `Button`, `Card`, `StatusPill`, `ElapsedTime` (AC-2, AC-5, AC-6, AC-12, AC-14)
+  - [x] The three gates and the gallery: the contrast script, the lint and axe rules, and the development only `/design` route (AC-1, AC-4, AC-6, AC-11, AC-13, AC-15)
+  - [x] The rest of the components: `Field`, `Input`, `Select`, `Dialog`, `LiveRegion`, `Toast`, `Alert`, `Skeleton`, `EmptyState`, `DataTable` (AC-4, AC-7, AC-8, AC-9, AC-10)
+  - [x] Finishing: the logical property sweep, the forced colours pass, the print block, and `docs/design.md` (AC-11, AC-13, AC-16, AC-17)
 - [ ] Verify it: `/check verify design system and accessibility baseline`
 - [ ] Test it: `/test design system and accessibility baseline`
 - [ ] Review it (fresh model): `/check review design system and accessibility baseline`
