@@ -75,6 +75,34 @@ describe('Field', () => {
     // common way a form becomes unusable with a screen reader.
     expect(() => render(<Input />)).toThrow(/inside a <Field>/)
   })
+
+  it('keeps a disabled control labelled and announced as disabled', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <Field label="Dish name">
+          <Input disabled />
+        </Field>
+        <Field label="Course">
+          <Select disabled>
+            <option value="main">Main</option>
+          </Select>
+        </Field>
+      </>,
+    )
+
+    // Disabled is a state a screen reader reads out, so it has to survive
+    // alongside the label rather than replacing it. A control that goes quiet
+    // when disabled leaves someone unable to tell which field is unavailable.
+    const input = screen.getByLabelText('Dish name')
+    const select = screen.getByLabelText('Course')
+    expect(input).toBeDisabled()
+    expect(select).toBeDisabled()
+
+    // And it genuinely refuses input, rather than only looking dimmed.
+    await user.type(input, 'Grilled sea bass')
+    expect(input).toHaveValue('')
+  }) // covers: AC-8
 })
 
 describe('Dialog', () => {
