@@ -64,8 +64,10 @@ mod tests {
     }
 
     impl HealthPort for Stub {
-        async fn database_reachable(&self) -> bool {
-            self.database
+        // A stub answers from a field, so there is nothing to await. Written as
+        // an `async fn` it trips clippy's `unused_async_trait_impl`.
+        fn database_reachable(&self) -> impl Future<Output = bool> {
+            std::future::ready(self.database)
         }
 
         fn listener_alive(&self) -> bool {
