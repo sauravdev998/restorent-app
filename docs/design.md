@@ -197,7 +197,7 @@ takes it as a prop so feature 13 supplies the real value with nothing here rewri
 | Gate | What it catches | Where |
 |---|---|---|
 | the contrast script | a colour edit that drops any declared pair below 4.5:1 (text) or 3:1 (boundaries and rings), in dark, light, and print | `web/scripts/check-contrast.ts`, reading the real stylesheet, 144 pairs |
-| lint | bad markup (`jsx-a11y` strict) and any physical direction utility in a class string | `web/eslint.config.js` |
+| lint | bad markup (`jsx-a11y` strict), any physical direction utility in a class string, and any user facing string written into a component | `web/eslint.config.js` |
 | axe | any violation in any base component, in both appearances and all three densities, six renders each | `web/src/test/axe.tsx` |
 
 All three run in `pnpm check`.
@@ -216,3 +216,99 @@ Checked by hand for now, and by Playwright once it joins continuous integration 
   Windows high contrast proves it)
 - the print layout against a real kitchen ticket and a real bill
 - the audio unlock across real browsers and real devices, which is feature 12's problem
+
+
+## Words
+
+Spec [0005](specs/0005-language-and-text-foundation/index.md) decided all of this. What follows is
+the part a person needs while building a screen.
+
+### Nothing is written into a component
+
+Every visible word, every placeholder, every `alt`, `title`, and `aria-label` comes from a
+translation file through `t()`. A literal string in a component is a lint error, not a review
+comment.
+
+The files live in `web/src/locales/<language>/<namespace>.json`, split four ways:
+
+| Namespace | Holds | Loaded by |
+|---|---|---|
+| `common` | the shell, the base components, statuses, errors, anything cross cutting | every surface, always |
+| `admin` | the admin surface, including the system status screen and the design gallery | the admin surface |
+| `waiter` | the waiter surface | the waiter surface |
+| `kitchen` | the kitchen surface | the kitchen surface |
+
+A screen downloads `common` plus its own, and nothing else. Reading across from a surface file into
+the shared one is written out: `t('common:status.ready')`.
+
+Key names are dotted and describe the thing rather than the screen it happens to sit on, so
+`status.ready` and not `kitchenTicketBadgeReady`.
+
+### English is the floor
+
+`pnpm locales` fails the build when any language is short a key English has. A key that somehow goes
+missing at runtime falls through to the English words, so a raw key never reaches a person.
+
+Adding a language is one entry in `locales/catalogue.json` plus one folder of files. No migration, no
+schema change, no component change.
+
+**Hindi is machine translated and has not been reviewed.** See `web/src/locales/hi/UNREVIEWED.md`.
+
+### The pseudo language
+
+Selectable in the switcher while developing, absent from a production build. It mangles every
+English string, pads it by about a third, and wraps it in brackets. Two things fall out of it: any
+text still reading as plain English is a string that never went through `t()`, including one built in
+a helper where lint cannot see it; and any layout that only fits English starts to break where you
+can see it.
+
+### What is never translated
+
+Anything the restaurant typed: dish names, category names, table labels, line notes, void reasons.
+It is data, not copy. Render it through `RestaurantText`, which marks it with the restaurant's own
+language so a screen reader pronounces it correctly inside a page declared as another language.
+
+### Which locale writes what
+
+Two separate values that are never derived from each other:
+
+| Value | Comes from | Decides |
+|---|---|---|
+| interface language | `staff.language`, else `restaurants.default_language` | the words |
+| formatting locale | `restaurants.formatting_locale` | money, numbers, dates, times |
+
+So an owner in India reading the app in English still sees rupees grouped the Indian way, and a bill
+reads identically to every member of staff whatever each of them has chosen.
+
+Everything numeric goes through `web/src/shared/format/`. Never `toLocaleString` at a call site,
+never `new Intl.*` in a component.
+
+- **Money** is formatted from the exact decimal string the API returned, never from a float. On a
+  bill it uses that bill's own copied currency; anywhere else, the restaurant's current one.
+- **Timestamps** are converted to the restaurant's timezone, never the device's.
+- **Digits are Latin** in every language, pinned on the locale itself.
+
+### The kitchen surface follows the restaurant
+
+The language switcher is in the admin and waiter shells and deliberately absent from the kitchen
+one. That screen is a shared appliance several chefs read across a shift handover, so it stays in
+`restaurants.default_language` whoever last touched it.
+
+### Documents and the public page
+
+A printed kitchen ticket and a printed bill (feature 16) use `restaurants.default_language`, not the
+language of whoever pressed print. Paper has no signed in reader.
+
+The public marketing page (feature 19) has neither a restaurant nor a signed in person, so neither
+rule above reaches it. It owns its own language decision, including the search engine side of it.
+
+### Line heights are sized for Devanagari
+
+The leading in the density layer is not what Latin alone would want. Noto Sans Devanagari's own
+metrics give it a natural line box of **1.304em** (measured from the shipped font: unitsPerEm 1000,
+ascent 896, descent -408), because the vowel marks sit above the letters and the conjuncts hang
+below. No line height in the scale is under that multiple of its own size.
+
+Feature 5 set the sizes and none of them moved. Only the leading did, and only where it was too
+tight: the large steps, where a 4rem kitchen heading at 4.5rem leading was a ratio of 1.125,
+comfortable in Latin and unreadable in Hindi.

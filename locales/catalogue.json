@@ -1,0 +1,8 @@
+{
+  "languages": [
+    { "code": "en", "englishName": "English", "nativeName": "English", "direction": "ltr" },
+    { "code": "hi", "englishName": "Hindi", "nativeName": "हिन्दी", "direction": "ltr" }
+  ],
+  "formattingLocales": ["en-US", "en-GB", "en-IN", "hi-IN"],
+  "defaults": { "language": "en", "formattingLocale": "en-US" }
+}

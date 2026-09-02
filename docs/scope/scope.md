@@ -16,7 +16,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 3 | Error and crash monitoring | Foundation | dropped |
 | 4 | Core data model | Foundation | in-progress |
 | 5 | Design system and accessibility baseline | Foundation | in-progress |
-| 6 | Language and text foundation | Foundation | planned |
+| 6 | Language and text foundation | Foundation | in-progress |
 | 7 | Accounts, restaurants, and roles | Foundation | planned |
 | 8 | The thin order thread | Slice 1 | planned |
 | 9 | Menu management | Slice 2 | planned |
@@ -93,10 +93,21 @@ spec [0004](../specs/0004-design-system-and-accessibility/index.md) · design in
 - [x] Review it (fresh model): `/check review design system and accessibility baseline`
 - [x] Document it: `/document design system and accessibility baseline`
 
-### 6. Language and text foundation · needs a decision
+### 6. Language and text foundation
 Every piece of text in the app comes from a translation file from the first screen onward, plus how a user's language is chosen and stored. Cheap now, painful to retrofit once twenty screens exist.
 **Done when:** no screen has hard coded user facing text, a second language can be added by dropping in one file, and a staff member's language choice sticks across sessions.
-- [ ] Design it (spec): `/architect language and text foundation`
+spec [0005](../specs/0005-language-and-text-foundation/index.md) · catalogue in `locales/` · code in `web/src/shared/i18n/`, `web/src/shared/format/`, `web/src/locales/`, `api/src/domain/language.rs`, `api/migrations/0003_language_and_formatting.sql` · gates in `web/scripts/check-locales.ts`, `web/eslint.config.js`
+- [x] Design it (spec): `/architect language and text foundation`
+- [ ] Build it: `/develop language and text foundation`
+  - [ ] The thread, top to bottom: the shared catalogue, migration 0003, the Rust newtypes, the two resolvers, loading on demand, the switcher, and Hindi for the shell (AC-2, AC-3, AC-4, AC-5, AC-6, AC-7, AC-8, AC-9, AC-10, AC-15, AC-17)
+  - [x] Every string moved into the split: the four namespaces, the sixteen call sites, and full Hindi key parity (AC-1, AC-2, AC-5)
+  - [x] Formatting cut loose from language: the memoised Intl formatters, money from an exact decimal, the restaurant's timezone, and error codes mapped to keys (AC-1, AC-3, AC-12, AC-13)
+  - [x] The three gates and the font: the lint rule, the parity check in continuous integration, the pseudo language, and Devanagari (AC-1, AC-2, AC-14, AC-16)
+  - [x] Mixed language text and the written rules: the language marked wrapper for restaurant typed data, and `docs/design.md` (AC-11, AC-12)
+- [ ] Verify it: `/check verify language and text foundation`
+- [ ] Test it: `/test language and text foundation`
+- [ ] Review it (fresh model): `/check review language and text foundation`
+- [ ] Document it: `/document language and text foundation`
 
 ### 7. Accounts, restaurants, and roles · needs a decision
 An owner registers a restaurant and becomes its admin, staff sign in, and every request is limited to that person's restaurant and role. Real authentication and real data separation from the very first slice, never faked.

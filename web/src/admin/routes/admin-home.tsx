@@ -8,12 +8,13 @@ import { useTranslation } from 'react-i18next'
  * than being untangled later.
  */
 export function AdminHome() {
-  const { t } = useTranslation()
+  // Its own namespace, plus `common` for the words the shell shares.
+  const { t } = useTranslation(['admin', 'common'])
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-foreground">{t('surface.admin')}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{t('surface.placeholder')}</p>
+      <h1 className="text-2xl font-semibold text-foreground">{t('title')}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{t('common:placeholder')}</p>
     </div>
   )
 }

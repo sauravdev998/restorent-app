@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router'
 
 import type { StreamStatus } from '@/shared/events/use-live-events'
+import { LanguageSwitcher } from '@/shared/i18n/language-switcher'
+import { followsRestaurantLanguage, type Surface } from '@/shared/surface'
 
 import { primeAudioUnlock } from './audio-unlock'
 import { cn } from './cn'
@@ -22,6 +24,8 @@ export interface SurfaceShellProps {
   children: ReactNode
   /** The live stream's state, shown in the header of every surface. */
   stream: StreamStatus
+  /** Which surface this is, which decides whether the language is a choice. */
+  surface: Surface
   className?: string
 }
 
@@ -47,7 +51,7 @@ export interface SurfaceShellProps {
  * primes the audio unlock on the session's first tap or key press, because that
  * gesture is the only moment a browser will open an audio context.
  */
-export function SurfaceShell({ children, stream, className }: SurfaceShellProps) {
+export function SurfaceShell({ children, stream, surface, className }: SurfaceShellProps) {
   const { t } = useTranslation()
 
   useEffect(() => primeAudioUnlock(), [])
@@ -97,7 +101,14 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
             </ul>
           </nav>
 
-          <ConnectionStatus status={stream} className="ms-auto" />
+          <div className="ms-auto flex items-center gap-4">
+            <ConnectionStatus status={stream} />
+            {/* Absent from the kitchen, which is a shared appliance following
+                the restaurant's own language rather than whoever last walked
+                past it. Absent by not being rendered, not by being disabled:
+                there is nothing here for a chef to decide. */}
+            {!followsRestaurantLanguage(surface) && <LanguageSwitcher surface={surface} />}
+          </div>
         </div>
       </header>
 

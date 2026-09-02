@@ -17,7 +17,7 @@ function renderShell(stream: 'connecting' | 'open' | 'closed' = 'open') {
       {
         path: '/',
         element: (
-          <SurfaceShell stream={stream}>
+          <SurfaceShell stream={stream} surface="waiter">
             <h1>Waiter surface</h1>
             <button type="button">Send the round</button>
           </SurfaceShell>
@@ -37,7 +37,7 @@ describe('SurfaceShell', () => {
         {
           path: '/',
           element: (
-            <SurfaceShell stream="open">
+            <SurfaceShell stream="open" surface="waiter">
               <h1>Waiter surface</h1>
             </SurfaceShell>
           ),

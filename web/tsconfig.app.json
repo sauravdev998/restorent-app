@@ -6,6 +6,7 @@
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -34,7 +35,8 @@
        ../../.. that breaks the moment a file moves. Paths resolve relative to
        this file; baseUrl is deprecated in TypeScript 6 and deliberately absent. */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@catalogue": ["../locales/catalogue.json"]
     }
   },
   "include": ["src"]

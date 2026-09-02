@@ -17,7 +17,8 @@ import { Card } from '@/shared/ui/card'
  * replaces it with a waiter sending a real dish to a real kitchen screen.
  */
 export function SystemStatus() {
-  const { t } = useTranslation()
+  // The system status screen is admin side, so its words live there.
+  const { t } = useTranslation('admin')
   const live = useOutletContext<LiveEvents>()
   const health = useQuery(healthQuery)
 

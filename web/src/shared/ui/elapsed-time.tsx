@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatUnitList } from '@/shared/format'
+
 import { cn } from './cn'
 import { Icon } from './icon'
 import { STATUS_PRESENTATION } from './status'
@@ -39,7 +41,8 @@ function secondsSince(iso: string, now: number): number {
  * The visible text is short because a chef reads it from three metres away. The
  * whole duration in words sits beside it, hidden from sight but not from a
  * screen reader, so it says "twelve minutes, thirty seconds" rather than
- * spelling out a colon.
+ * spelling out a colon. The words and the separator between them both come from
+ * the active language rather than being assembled in English here.
  *
  * Deliberately not `aria-label`. `<time>` carries no ARIA role, and an
  * `aria-label` on a role less element is simply ignored by screen readers, so
@@ -69,9 +72,15 @@ export function ElapsedTime({
   const late = total >= lateAfterSeconds
 
   const clock = `${String(minutes)}:${String(seconds).padStart(2, '0')}`
-  const spoken = `${t('elapsed.minutes', { count: minutes })}, ${t('elapsed.seconds', {
-    count: seconds,
-  })}`
+
+  // Joined by `Intl.ListFormat`, not by a comma written here. A comma is
+  // English punctuation, and the separator between the parts of a duration is
+  // not the same mark in every language. The plural forms come from the
+  // language's own rules for the same reason.
+  const spoken = formatUnitList([
+    t('elapsed.minutes', { count: minutes }),
+    t('elapsed.seconds', { count: seconds }),
+  ])
 
   return (
     <time
@@ -85,7 +94,7 @@ export function ElapsedTime({
     >
       {late && <Icon icon={STATUS_PRESENTATION.late.icon} size="sm" />}
       <span aria-hidden="true">{clock}</span>
-      <span className="sr-only">{late ? `${spoken}, ${t('status.late')}` : spoken}</span>
+      <span className="sr-only">{late ? formatUnitList([spoken, t('status.late')]) : spoken}</span>
     </time>
   )
 }

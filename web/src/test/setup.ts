@@ -1,11 +1,19 @@
 import '@testing-library/jest-dom/vitest'
-// Translations, initialised before any component renders. Without this every
-// component renders raw keys, which would make an axe run judge markup nobody
-// will ever see and let a missing translation pass unnoticed.
-import '@/shared/i18n'
 
 import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
+
+// Translations, initialised before any component renders. Without this every
+// component renders raw keys, which would make an axe run judge markup nobody
+// will ever see and let a missing translation pass unnoticed.
+import { preloadAllNamespaces } from '@/shared/i18n'
+
+// Every namespace, up front. The app loads a surface's words on demand and
+// suspends while they arrive, which is right in a browser and wrong in a test:
+// a component under test would render its fallback instead of itself, and the
+// assertion would fail for a reason that has nothing to do with what it is
+// checking. Loading them all here keeps each test rendering the real thing.
+await preloadAllNamespaces()
 
 // jsdom has no EventSource, so anything holding the live stream open would
 // throw. A minimal stand in keeps component tests honest without pretending to
