@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status AS \"status: BillStatus\" FROM bills WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: BillStatus",
+        "type_info": {
+          "Custom": {
+            "name": "bill_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "closed",
+                "voided"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "bills",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "150b36a8da4c5672c2199ca45ff28bc5e182182bd52bb9cd2c83c4e6333c0903"
+}

@@ -6,6 +6,8 @@
 //! the restaurant scope applied. Bypassing that is a compile error rather than
 //! something a tired engineer has to remember not to do.
 
+pub mod pg_enum;
+pub mod repository;
 pub mod scoped;
 
 use std::time::Duration;
@@ -13,8 +15,11 @@ use std::time::Duration;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
+use crate::domain::enums::StaffRole;
 use crate::domain::error::{DomainError, DomainResult};
-use crate::domain::ids::RestaurantId;
+use crate::domain::event::EntityKind;
+use crate::domain::ids::{RestaurantId, SessionId, StaffId};
+use crate::domain::people::{ResolvedSession, StaffCredentials};
 
 use super::config::Config;
 pub use scoped::ScopedTx;
@@ -137,12 +142,16 @@ impl Database {
     /// scoped transaction so it cannot name a restaurant the caller is not
     /// already scoped to.
     ///
+    /// Takes an [`EntityKind`] rather than a string, so the closed vocabulary
+    /// the listener understands is enforced by the compiler instead of by
+    /// everyone spelling `order_round` the same way.
+    ///
     /// # Errors
     ///
     /// Returns [`DomainError::Unavailable`] if the notify call fails.
     pub async fn notify_entity_change(
         tx: &mut ScopedTx<'_>,
-        entity: &str,
+        entity: EntityKind,
         entity_id: uuid::Uuid,
     ) -> DomainResult<()> {
         let restaurant_id = tx.restaurant_id().as_uuid();
@@ -150,13 +159,97 @@ impl Database {
         sqlx::query!(
             "SELECT notify_entity_change($1, $2, $3)",
             restaurant_id,
-            entity,
+            entity.as_label(),
             entity_id
         )
         .fetch_one(tx.connection())
         .await?;
 
         Ok(())
+    }
+
+    /// Finds an account by email, across every restaurant on the platform.
+    ///
+    /// One of exactly two reads in the whole system that happen without a
+    /// restaurant scope, and it exists because sign in has a chicken and egg
+    /// problem: you cannot scope a transaction to a restaurant until you know
+    /// which restaurant the person belongs to.
+    ///
+    /// The bypass is not this method. It is the `find_staff_for_login` function
+    /// in the database, which is `SECURITY DEFINER`, owned by the `auth_lookup`
+    /// role, and returns a fixed narrow shape. Everything this method could
+    /// possibly learn is decided there, in SQL anybody can read, rather than
+    /// here.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Unavailable`] if the lookup cannot run. An address
+    /// nobody has returns [`Ok(None)`], which callers must not let the caller
+    /// tell apart from a wrong password.
+    pub async fn find_staff_for_login(
+        &self,
+        email: &str,
+    ) -> DomainResult<Option<StaffCredentials>> {
+        let found = sqlx::query!(
+            r#"
+            SELECT staff_id      AS "staff_id!",
+                   restaurant_id AS "restaurant_id!",
+                   role          AS "role!: StaffRole",
+                   password_hash AS "password_hash!",
+                   deactivated_at
+            FROM find_staff_for_login($1)
+            "#,
+            email
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(found.map(|row| StaffCredentials {
+            staff_id: StaffId::from_uuid(row.staff_id),
+            restaurant_id: RestaurantId::from_uuid(row.restaurant_id),
+            role: row.role,
+            password_hash: row.password_hash,
+            deactivated_at: row.deactivated_at,
+        }))
+    }
+
+    /// Works out whose session a token belongs to, across every restaurant.
+    ///
+    /// The other of exactly two unscoped reads. Its answer's `restaurant_id` is
+    /// what every later query in the request is scoped to, which makes this the
+    /// value the whole tenant isolation story hangs from.
+    ///
+    /// An expired or revoked session yields [`Ok(None)`]. Whether the account
+    /// behind it is deactivated is feature 7's question, not this one's.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Unavailable`] if the lookup cannot run.
+    pub async fn resolve_session(
+        &self,
+        token_hash: &[u8],
+    ) -> DomainResult<Option<ResolvedSession>> {
+        let found = sqlx::query!(
+            r#"
+            SELECT session_id    AS "session_id!",
+                   staff_id      AS "staff_id!",
+                   restaurant_id AS "restaurant_id!",
+                   role          AS "role!: StaffRole",
+                   expires_at    AS "expires_at!"
+            FROM resolve_session($1)
+            "#,
+            token_hash
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(found.map(|row| ResolvedSession {
+            session_id: SessionId::from_uuid(row.session_id),
+            staff_id: StaffId::from_uuid(row.staff_id),
+            restaurant_id: RestaurantId::from_uuid(row.restaurant_id),
+            role: row.role,
+            expires_at: row.expires_at,
+        }))
     }
 }
 

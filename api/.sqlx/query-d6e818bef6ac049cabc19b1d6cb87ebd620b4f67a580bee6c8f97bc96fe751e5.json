@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT coalesce(sum(line_total), 0) AS \"subtotal!\"\n        FROM order_lines\n        WHERE bill_id = $1 AND status <> 'voided'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "subtotal!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d6e818bef6ac049cabc19b1d6cb87ebd620b4f67a580bee6c8f97bc96fe751e5"
+}

@@ -1,60 +1,49 @@
-import { useTranslation } from 'react-i18next'
-import { NavLink, Outlet } from 'react-router'
+import { useEffect } from 'react'
+import { Outlet, useLocation } from 'react-router'
 
 import { useLiveEvents } from '@/shared/events/use-live-events'
+import { SurfaceShell } from '@/shared/ui/surface-shell'
 
-const NAV = [
-  { to: '/admin', key: 'nav.admin' },
-  { to: '/waiter', key: 'nav.waiter' },
-  { to: '/kitchen', key: 'nav.kitchen' },
-] as const
+/** The three surfaces, and what anything unrecognised falls back to. */
+const SURFACES = ['admin', 'waiter', 'kitchen'] as const
+
+type Surface = (typeof SURFACES)[number]
+
+const DEFAULT_SURFACE: Surface = 'admin'
+
+function surfaceForPath(pathname: string): Surface {
+  const first = pathname.split('/')[1] ?? ''
+  return SURFACES.find((surface) => surface === first) ?? DEFAULT_SURFACE
+}
 
 /**
- * The shell every screen sits inside.
+ * The shell every screen sits inside, and the one owner of two global things.
  *
- * It is also where the live stream is held open, once, for the whole
- * application. One stream per browser, not one per screen.
+ * **The live stream.** Held open once here for the whole application, not once
+ * per screen.
+ *
+ * **The density.** `data-surface` goes on the document element rather than on a
+ * wrapping div, because dialogs, toasts, and tooltips render into a portal
+ * attached to `document.body`, which sits outside the React tree. A wrapper div
+ * would leave every overlay at admin density in the kitchen, which is exactly
+ * the screen where being unreadable hurts most.
+ *
+ * It is set here and nowhere else. If each `SurfaceShell` set it on mount, the
+ * attribute would outlive the component that set it: walking from the kitchen
+ * back to `/` would leave the whole document stuck at kitchen density with
+ * nothing left to clear it.
  */
 export function RootLayout() {
-  const { t } = useTranslation()
   const live = useLiveEvents()
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    document.documentElement.dataset['surface'] = surfaceForPath(pathname)
+  }, [pathname])
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 dark:border-slate-800">
-        <nav className="mx-auto flex max-w-4xl items-center gap-6 px-4 py-3" aria-label="Main">
-          <NavLink to="/" className="font-semibold">
-            {t('app.name')}
-          </NavLink>
-          <ul className="flex gap-4">
-            {NAV.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) =>
-                    isActive ? 'underline underline-offset-4' : 'text-slate-500 hover:underline'
-                  }
-                >
-                  {t(item.key)}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-          <span
-            className="ml-auto text-sm text-slate-500"
-            // Announced politely so a screen reader mentions a dropped
-            // connection without interrupting whatever is being read.
-            aria-live="polite"
-            data-testid="stream-status"
-          >
-            {t(`stream.${live.status}`)}
-          </span>
-        </nav>
-      </header>
-
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <Outlet context={live} />
-      </main>
-    </div>
+    <SurfaceShell stream={live.status}>
+      <Outlet context={live} />
+    </SurfaceShell>
   )
 }

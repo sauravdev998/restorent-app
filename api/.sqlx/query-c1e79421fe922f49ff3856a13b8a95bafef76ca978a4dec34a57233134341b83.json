@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT (b.closed_at AT TIME ZONE r.timezone)::date AS \"local_day?\"\n        FROM bills AS b\n        JOIN restaurants AS r ON r.id = b.restaurant_id\n        WHERE b.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "local_day?",
+        "type_info": "Date",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c1e79421fe922f49ff3856a13b8a95bafef76ca978a4dec34a57233134341b83"
+}

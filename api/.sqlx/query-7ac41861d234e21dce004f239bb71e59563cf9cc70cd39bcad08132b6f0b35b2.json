@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE order_rounds\n        SET status = $2,\n            ready_at = CASE\n                WHEN $2 = 'ready'::round_status AND ready_at IS NULL THEN now()\n                ELSE ready_at\n            END,\n            served_at = CASE\n                WHEN $2 = 'served'::round_status AND served_at IS NULL THEN now()\n                ELSE served_at\n            END,\n            updated_at = now()\n        WHERE id = $1 AND status IS DISTINCT FROM $2\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "round_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "ready",
+                "served",
+                "voided"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7ac41861d234e21dce004f239bb71e59563cf9cc70cd39bcad08132b6f0b35b2"
+}

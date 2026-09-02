@@ -12,6 +12,7 @@ use axum::extract::State;
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::domain::event::EntityKind;
 use crate::infrastructure::db::Database;
 use crate::presentation::error::ApiError;
 use crate::presentation::extract::RestaurantScope;
@@ -40,7 +41,7 @@ pub async fn notify(
     // Exactly the shape every real write will take: open a scoped transaction,
     // do the work, notify inside it, commit.
     let mut tx = state.database.begin_scoped(scope.restaurant_id()).await?;
-    Database::notify_entity_change(&mut tx, "probe", entity_id).await?;
+    Database::notify_entity_change(&mut tx, EntityKind::Probe, entity_id).await?;
     tx.commit().await?;
 
     Ok(Json(ProbeSent { entity_id }))

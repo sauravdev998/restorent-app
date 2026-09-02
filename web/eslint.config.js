@@ -7,6 +7,34 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
+/**
+ * Tailwind utilities that write a physical direction.
+ *
+ * Every one of them has a logical twin: `ml-*` becomes `ms-*`, `pr-*` becomes
+ * `pe-*`, `text-left` becomes `text-start`, `border-l` becomes `border-s`.
+ * Writing the physical one works fine until the day a right to left language is
+ * added, at which point the layout mirrors everywhere except the places someone
+ * hardcoded, and those places are found one screenshot at a time.
+ *
+ * The trailing group matters: it is what keeps `rounded-lg` and `border-line`
+ * legal, since both begin with a banned prefix and neither is physical.
+ */
+const PHYSICAL_DIRECTION_UTILITIES = String.raw`(^|[\s:])(m[lr]|p[lr]|scroll-m[lr]|scroll-p[lr]|border-[lr]|rounded-[lr]|rounded-[tb][lr]|inset-[lr]|left|right|text-(left|right)|float-(left|right)|clear-(left|right))(-[^\s]*)?(\s|$)`
+
+const PHYSICAL_DIRECTION_MESSAGE =
+  'Use the logical property, not the physical one: ms-/me- instead of ml-/mr-, ps-/pe- instead of pl-/pr-, start-/end- instead of left-/right-, text-start/text-end instead of text-left/text-right, border-s/border-e instead of border-l/border-r. Setting dir="rtl" has to mirror the layout without anyone editing a component.'
+
+const noPhysicalDirection = [
+  {
+    selector: `JSXAttribute[name.name='className'] Literal[value=/${PHYSICAL_DIRECTION_UTILITIES}/]`,
+    message: PHYSICAL_DIRECTION_MESSAGE,
+  },
+  {
+    selector: `CallExpression[callee.name=/^(cn|cva)$/] Literal[value=/${PHYSICAL_DIRECTION_UTILITIES}/]`,
+    message: PHYSICAL_DIRECTION_MESSAGE,
+  },
+]
+
 export default tseslint.config(
   // The generated client is generated. Linting it would only ever produce
   // complaints nobody can act on without editing a file they must not edit.
@@ -23,7 +51,10 @@ export default tseslint.config(
       tseslint.configs.recommendedTypeChecked,
       reactHooks.configs.flat['recommended-latest'],
       reactRefresh.configs.vite,
-      jsxA11y.flatConfigs.recommended,
+      // Strict, not recommended. The difference is the rules that catch a
+      // control nobody can reach: a click handler on a div, an interactive
+      // element with no keyboard equivalent, a label pointing at nothing.
+      jsxA11y.flatConfigs.strict,
       ...query.configs['flat/recommended'],
     ],
     languageOptions: {
@@ -42,6 +73,18 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/no-non-null-assertion': 'error',
+      'no-restricted-syntax': ['error', ...noPhysicalDirection],
+      // A named region is allowed to be focusable, on top of the rule's own
+      // `tabpanel`. This is the sanctioned fix for a box that scrolls: axe
+      // fails a scrollable container nobody can focus, because a keyboard or
+      // switch user can never reach the far side of it, and the remedy is
+      // exactly `role="region"` plus a name plus `tabIndex={0}`. Without this
+      // the two rules contradict each other and one of them has to be muted at
+      // every call site instead of decided once, here.
+      'jsx-a11y/no-noninteractive-tabindex': [
+        'error',
+        { tags: [], roles: ['tabpanel', 'region'], allowExpressionValues: true },
+      ],
     },
   },
 
@@ -52,6 +95,12 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/unbound-method': 'off',
     },
+  },
+
+  {
+    // Node scripts, not browser code.
+    files: ['scripts/**/*.ts'],
+    languageOptions: { globals: globals.node },
   },
 
   // Must stay last: it switches off every rule Prettier already handles, so the

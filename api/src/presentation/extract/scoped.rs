@@ -50,39 +50,52 @@ impl RestaurantScope {
 impl FromRequestParts<AppState> for RestaurantScope {
     type Rejection = ApiError;
 
-    async fn from_request_parts(
+    // Not an `async fn`, because nothing here awaits: the answer comes from a
+    // header and a query string, both already in memory. Clippy's
+    // `unused_async_trait_impl` says so, and it is right. Feature 7 replaces
+    // the body with a real session lookup against the `sessions` table, and at
+    // that point this becomes an `async fn` again.
+    fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        if state.environment != Environment::Development {
-            // Feature 7 replaces this branch with a real session lookup. Until
-            // it does, no request outside development gets a restaurant.
-            tracing::error!(
-                "a request needed a restaurant scope but no session handling exists yet; refusing"
-            );
-            return Err(DomainError::Unauthenticated.into());
-        }
-
-        let from_header = parts
-            .headers
-            .get(DEV_RESTAURANT_HEADER)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_owned);
-
-        let raw = match from_header {
-            Some(value) => value,
-            None => query_value(parts.uri.query(), DEV_RESTAURANT_QUERY)
-                .ok_or(DomainError::Unauthenticated)?,
-        };
-
-        let restaurant_id = raw.trim().parse::<RestaurantId>().map_err(|_| {
-            DomainError::Invalid(format!(
-                "`{DEV_RESTAURANT_HEADER}` (or `?{DEV_RESTAURANT_QUERY}=`) is not a UUID"
-            ))
-        })?;
-
-        Ok(Self(restaurant_id))
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> {
+        std::future::ready(resolve(parts, state))
     }
+}
+
+/// The whole of the development placeholder, kept synchronous.
+///
+/// It is a free function rather than the trait body so the `?` operator still
+/// reads normally. `from_request_parts` wraps the result in a ready future.
+fn resolve(parts: &Parts, state: &AppState) -> Result<RestaurantScope, ApiError> {
+    if state.environment != Environment::Development {
+        // Feature 7 replaces this branch with a real session lookup. Until
+        // it does, no request outside development gets a restaurant.
+        tracing::error!(
+            "a request needed a restaurant scope but no session handling exists yet; refusing"
+        );
+        return Err(DomainError::Unauthenticated.into());
+    }
+
+    let from_header = parts
+        .headers
+        .get(DEV_RESTAURANT_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+
+    let raw = match from_header {
+        Some(value) => value,
+        None => query_value(parts.uri.query(), DEV_RESTAURANT_QUERY)
+            .ok_or(DomainError::Unauthenticated)?,
+    };
+
+    let restaurant_id = raw.trim().parse::<RestaurantId>().map_err(|_| {
+        DomainError::Invalid(format!(
+            "`{DEV_RESTAURANT_HEADER}` (or `?{DEV_RESTAURANT_QUERY}=`) is not a UUID"
+        ))
+    })?;
+
+    Ok(RestaurantScope(restaurant_id))
 }
 
 /// Pulls one value out of a raw query string.

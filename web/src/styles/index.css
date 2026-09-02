@@ -1,40 +1,543 @@
 @import 'tailwindcss';
 
-/* Tailwind v4 is configured in CSS, not in a JavaScript config file. Anything
-   declared in @theme becomes a utility class as well as a variable.
+/* Self hosted, so there is no third party host to configure and nothing for
+   feature 20's cookie consent to account for. Both packages already declare
+   `font-display: swap`, so text paints in the fallback face rather than
+   waiting. */
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 
-   This is a starting point only. Feature 5 (design system and accessibility
-   baseline) owns the real visual language, including the fact that three very
-   different contexts share this codebase: an admin at a desk, a waiter holding
-   a phone, and a chef reading a screen from across a hot kitchen. */
-@theme {
-  /* Kitchen screens are read from a distance and tapped with wet or gloved
-     hands, so they get their own scale rather than the dense admin one. */
-  --text-kitchen: 1.75rem;
-  --text-kitchen--line-height: 2.25rem;
-  --spacing-touch: 3.5rem;
+/* ---------------------------------------------------------------------------
+   The design system, spec 0004.
+
+   Four stacked layers, in this order and no other:
+
+     1. Palette         raw values, named after what they are
+     2. Semantic roles  what a value is for, swapped per appearance
+     3. Density         the size of everything, swapped per surface
+     4. Tailwind bridge role names mapped onto utility names
+
+   Two mechanics carry the whole thing, and they are the reason no component
+   contains a single line of per surface code:
+
+     Tailwind emits spacing utilities as `calc(var(--spacing) * n)`, so
+     redefining the one `--spacing` value under a surface selector rescales
+     every p-*, gap-*, h-*, and w-* at once.
+
+     Tailwind emits text utilities as `font-size: var(--text-sm)`, so
+     redefining Tailwind's own scale names under a surface selector rescales
+     every vendored component's type too. This is why the scale below keeps
+     Tailwind's names rather than inventing prettier ones: invented names would
+     mean editing every component the shadcn CLI ever generates.
+
+   Tailwind's own theme output sits in `@layer theme`. Everything below is
+   unlayered, and unlayered rules beat layered ones whatever their specificity,
+   so these overrides win by construction rather than by luck of source order.
+
+   Three things do NOT ride the cascade and each has its own token here rather
+   than being left to surprise someone: border widths (fixed pixels, not on the
+   spacing scale) use --border-width, container widths (a separate Tailwind
+   namespace) use --shell-width, and Lucide's `size` prop writes literal pixels
+   onto the SVG, which is why `Icon` sizes itself with a class and never passes
+   that prop.
+   --------------------------------------------------------------------------- */
+
+/* --- Layer 1: palette. Raw values only. Nothing overrides these. ---------- */
+
+:root {
+  --console-950: #0b0f14;
+  --console-900: #151b23;
+  --console-850: #1a222c;
+  --console-800: #1e2733;
+  --console-600: #616c7a;
+  --console-500: #6a7583;
+  --console-400: #94a3b8;
+  --console-300: #9aa7b8;
+  --console-100: #e6edf5;
+
+  --paper-000: #ffffff;
+  --paper-050: #f6f8fa;
+  --paper-100: #eef2f6;
+  --paper-150: #e8edf3;
+  --paper-400: #868e98;
+  --paper-500: #79828e;
+  --paper-600: #4b5866;
+  --paper-700: #5d6c81;
+
+  --cyan-400: #38bdf8;
+  --cyan-300: #7dd3fc;
+  --cyan-800: #0369a1;
+  --cyan-ink: #04121b;
+
+  --amber-400: #fbbf24;
+  --amber-800: #9e5a07;
+  --green-400: #4ade80;
+  --green-800: #147b3b;
+  --rose-400: #fb7185;
+  --rose-300: #f87171;
+  --rose-800: #b91c1c;
+  --rose-ink: #1a0507;
 }
 
-/* Respect a person who has asked their system for less motion. Feature 5
-   builds on this; it is here from the start so no screen ever ships without
-   it. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+/* --- Layer 2: semantic roles. -------------------------------------------- */
+
+/* Dark is what a device with no stated preference gets. A restaurant runs its
+   screens in a dim dining room and a bright kitchen, and neither wants a white
+   rectangle at eye level all evening. */
+:root {
+  color-scheme: dark;
+
+  --background: var(--console-950);
+  --foreground: var(--console-100);
+  --card: var(--console-900);
+  --card-foreground: var(--console-100);
+  --popover: var(--console-900);
+  --popover-foreground: var(--console-100);
+  --muted: var(--console-850);
+  --muted-foreground: var(--console-400);
+  --secondary: var(--console-800);
+  --secondary-foreground: var(--console-100);
+  --accent: var(--console-800);
+  --accent-foreground: var(--console-100);
+  --primary: var(--cyan-400);
+  --primary-foreground: var(--cyan-ink);
+  --destructive: var(--rose-300);
+  --destructive-foreground: var(--rose-ink);
+  --border: var(--console-600);
+  --input: var(--console-500);
+  --ring: var(--cyan-300);
+  --overlay: rgb(4 8 12 / 0.72);
+
+  --status-queued: var(--amber-400);
+  --status-ready: var(--green-400);
+  --status-served: var(--console-400);
+  --status-voided: var(--console-300);
+  --status-late: var(--rose-400);
+}
+
+/* A device asking for light gets a light theme that was designed, not a dark
+   one with the lightness inverted. */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --background: var(--paper-000);
+    --foreground: var(--console-950);
+    --card: var(--paper-050);
+    --card-foreground: var(--console-950);
+    --popover: var(--paper-000);
+    --popover-foreground: var(--console-950);
+    --muted: var(--paper-100);
+    --muted-foreground: var(--paper-600);
+    --secondary: var(--paper-150);
+    --secondary-foreground: var(--console-950);
+    --accent: var(--paper-150);
+    --accent-foreground: var(--console-950);
+    --primary: var(--cyan-800);
+    --primary-foreground: var(--paper-000);
+    --destructive: var(--rose-800);
+    --destructive-foreground: var(--paper-000);
+    --border: var(--paper-400);
+    --input: var(--paper-500);
+    --ring: var(--cyan-800);
+    --overlay: rgb(11 15 20 / 0.5);
+
+    --status-queued: var(--amber-800);
+    --status-ready: var(--green-800);
+    --status-served: var(--paper-600);
+    --status-voided: var(--paper-700);
+    --status-late: var(--rose-800);
   }
 }
 
-body {
-  @apply bg-white text-slate-900 antialiased;
+/* Both role sets again, on a plain attribute.
+
+   This is a forcing hook for the /design gallery and for the axe tests, and
+   nothing in the product ever sets it. It exists because a media query is
+   document wide: without it the gallery cannot show the two appearances beside
+   each other and jsdom cannot put a component in light for its axe run, so the
+   light theme would ship unproven. Role tokens are inherited custom
+   properties, so the attribute on any container switches that whole subtree.
+
+   These blocks sit after the media query on purpose: same specificity, later
+   source, so an explicit choice always beats the device preference. */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --background: var(--console-950);
+  --foreground: var(--console-100);
+  --card: var(--console-900);
+  --card-foreground: var(--console-100);
+  --popover: var(--console-900);
+  --popover-foreground: var(--console-100);
+  --muted: var(--console-850);
+  --muted-foreground: var(--console-400);
+  --secondary: var(--console-800);
+  --secondary-foreground: var(--console-100);
+  --accent: var(--console-800);
+  --accent-foreground: var(--console-100);
+  --primary: var(--cyan-400);
+  --primary-foreground: var(--cyan-ink);
+  --destructive: var(--rose-300);
+  --destructive-foreground: var(--rose-ink);
+  --border: var(--console-600);
+  --input: var(--console-500);
+  --ring: var(--cyan-300);
+  --overlay: rgb(4 8 12 / 0.72);
+
+  --status-queued: var(--amber-400);
+  --status-ready: var(--green-400);
+  --status-served: var(--console-400);
+  --status-voided: var(--console-300);
+  --status-late: var(--rose-400);
 }
 
-@media (prefers-color-scheme: dark) {
+[data-theme='light'] {
+  color-scheme: light;
+
+  --background: var(--paper-000);
+  --foreground: var(--console-950);
+  --card: var(--paper-050);
+  --card-foreground: var(--console-950);
+  --popover: var(--paper-000);
+  --popover-foreground: var(--console-950);
+  --muted: var(--paper-100);
+  --muted-foreground: var(--paper-600);
+  --secondary: var(--paper-150);
+  --secondary-foreground: var(--console-950);
+  --accent: var(--paper-150);
+  --accent-foreground: var(--console-950);
+  --primary: var(--cyan-800);
+  --primary-foreground: var(--paper-000);
+  --destructive: var(--rose-800);
+  --destructive-foreground: var(--paper-000);
+  --border: var(--paper-400);
+  --input: var(--paper-500);
+  --ring: var(--cyan-800);
+  --overlay: rgb(11 15 20 / 0.5);
+
+  --status-queued: var(--amber-800);
+  --status-ready: var(--green-800);
+  --status-served: var(--paper-600);
+  --status-voided: var(--paper-700);
+  --status-late: var(--rose-800);
+}
+
+/* Paper is white and ink is black, whatever the screen was doing. A kitchen
+   ticket and a customer bill must not print as a black rectangle. */
+@media print {
+  :root,
+  [data-theme='dark'],
+  [data-theme='light'] {
+    color-scheme: light;
+
+    --background: #ffffff;
+    --foreground: #000000;
+    --card: #ffffff;
+    --card-foreground: #000000;
+    --popover: #ffffff;
+    --popover-foreground: #000000;
+    --muted: #ffffff;
+    --muted-foreground: #000000;
+    --secondary: #ffffff;
+    --secondary-foreground: #000000;
+    --accent: #ffffff;
+    --accent-foreground: #000000;
+    --primary: #000000;
+    --primary-foreground: #ffffff;
+    --destructive: #000000;
+    --destructive-foreground: #ffffff;
+    --border: #000000;
+    --input: #000000;
+    --ring: #000000;
+    --overlay: transparent;
+
+    --status-queued: #000000;
+    --status-ready: #000000;
+    --status-served: #000000;
+    --status-voided: #000000;
+    --status-late: #000000;
+  }
+}
+
+/* Stop fighting the operating system. Boundaries survive because they are real
+   borders rather than a background shade, the focus ring survives because it is
+   an outline rather than a box shadow, and a status stays readable because it
+   carries an icon and a word as well as a colour. */
+@media (forced-colors: active) {
+  :root,
+  [data-theme='dark'],
+  [data-theme='light'] {
+    --background: Canvas;
+    --foreground: CanvasText;
+    --card: Canvas;
+    --card-foreground: CanvasText;
+    --popover: Canvas;
+    --popover-foreground: CanvasText;
+    --muted: Canvas;
+    --muted-foreground: CanvasText;
+    --secondary: Canvas;
+    --secondary-foreground: CanvasText;
+    --accent: Canvas;
+    --accent-foreground: CanvasText;
+    --primary: LinkText;
+    --primary-foreground: Canvas;
+    --destructive: LinkText;
+    --destructive-foreground: Canvas;
+    --border: CanvasText;
+    --input: CanvasText;
+    --ring: Highlight;
+    --overlay: Canvas;
+
+    --status-queued: CanvasText;
+    --status-ready: CanvasText;
+    --status-served: CanvasText;
+    --status-voided: CanvasText;
+    --status-late: CanvasText;
+  }
+}
+
+/* --- Layer 3: density. One attribute, three very different rooms. --------- */
+
+/* Admin: a laptop on a desk, a mouse and a keyboard, and paperwork to get
+   through. Dense on purpose. */
+[data-surface='admin'] {
+  --spacing: 0.25rem;
+  --radius: 0.5rem;
+  --border-width: 1px;
+  --ring-width: 2px;
+  --target-min: 2rem;
+  --icon-stroke: 1.75;
+  --shell-width: 80rem;
+
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.25rem;
+}
+
+/* Waiter: a phone at arm's length, held in one hand and tapped with the thumb
+   of that same hand. 16px is also the size below which iOS zooms the page on a
+   focused input, so body text and both form controls stay at or above it. */
+[data-surface='waiter'] {
+  --spacing: 0.3125rem;
+  --radius: 0.625rem;
+  --border-width: 1px;
+  --ring-width: 2px;
+  --target-min: 2.75rem;
+  --icon-stroke: 2;
+  --shell-width: 36rem;
+
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.5rem;
+  --text-base: 1.125rem;
+  --text-base--line-height: 1.75rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.875rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.5rem;
+}
+
+/* Kitchen: a screen on a wall, read from two or three metres away, tapped with
+   a hand that is wet or gloved or both. Everything is bigger, the borders are
+   thicker, and the icon strokes are heavier. */
+[data-surface='kitchen'] {
+  --spacing: 0.5rem;
+  --radius: 0.875rem;
+  --border-width: 2px;
+  --ring-width: 3px;
+  --target-min: 4.5rem;
+  --icon-stroke: 2.5;
+  --shell-width: none;
+
+  --text-xs: 1.5rem;
+  --text-xs--line-height: 2rem;
+  --text-sm: 1.75rem;
+  --text-sm--line-height: 2.25rem;
+  --text-base: 2rem;
+  --text-base--line-height: 2.5rem;
+  --text-lg: 2.25rem;
+  --text-lg--line-height: 2.75rem;
+  --text-xl: 2.75rem;
+  --text-xl--line-height: 3.25rem;
+  --text-2xl: 3.25rem;
+  --text-2xl--line-height: 3.75rem;
+  --text-3xl: 4rem;
+  --text-3xl--line-height: 4.5rem;
+}
+
+/* --- Layer 4: the Tailwind bridge. Plumbing, nothing to decide here. ------ */
+
+@theme inline {
+  --font-sans:
+    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    'Geist Mono Variable', ui-monospace, 'SFMono-Regular', 'Liberation Mono', Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+
+  --color-status-queued: var(--status-queued);
+  --color-status-ready: var(--status-ready);
+  --color-status-served: var(--status-served);
+  --color-status-voided: var(--status-voided);
+  --color-status-late: var(--status-late);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* --- The handful of utilities the density tokens need. -------------------- */
+
+/* A border whose weight follows the surface: a hairline for an admin at a desk,
+   a line you can actually see from across a kitchen. */
+@utility border-line {
+  border-style: solid;
+  border-width: var(--border-width);
+}
+
+@utility border-b-line {
+  border-block-end-style: solid;
+  border-block-end-width: var(--border-width);
+}
+
+@utility border-t-line {
+  border-block-start-style: solid;
+  border-block-start-width: var(--border-width);
+}
+
+/* An icon's stroke weight. A presentation attribute cannot hold a var(), so
+   this has to be a real CSS declaration, which also beats the strokeWidth
+   attribute Lucide writes onto the SVG. */
+@utility stroke-token {
+  stroke-width: var(--icon-stroke);
+}
+
+/* The smallest an interactive element may be on this surface. */
+@utility target-min {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+@utility target-h {
+  min-block-size: var(--target-min);
+}
+
+/* The content column, per surface. `max-w-*` lives in Tailwind's container
+   namespace and does not ride --spacing, so the shell takes it from here. */
+@utility shell-width {
+  max-inline-size: var(--shell-width);
+  margin-inline: auto;
+}
+
+@layer base {
+  /* Always an outline, never a box shadow: a box shadow is erased in forced
+     colours mode and the ring would silently disappear for the people who most
+     need it. The offset puts the ring on the surface behind the element, which
+     is what its 3:1 contrast is measured against. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: var(--ring-width) solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  html {
+    /* Every surface defines its own, but a document that has not been told yet
+       still needs a scale. */
+    --spacing: 0.25rem;
+    --radius: 0.5rem;
+    --border-width: 1px;
+    --ring-width: 2px;
+    --target-min: 2rem;
+    --icon-stroke: 1.75;
+    --shell-width: 80rem;
+  }
+
   body {
-    @apply bg-slate-950 text-slate-100;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Money, elapsed times, and bill numbers. Fixed width digits so a value whose
+     digits change does not change width, and a column of prices lines up on the
+     decimal point. */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* Respect a person who has asked their system for less motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  @media print {
+    /* No fill and no knockout text survives onto paper, whatever a component
+       asked for. The print token block already turns every surface white and
+       every ink black, but a filled control asks for the opposite by name:
+       `bg-primary` with `text-primary-foreground` is white on black by design,
+       which prints as a solid rectangle and empties a restaurant's toner. The
+       tokens cannot simply be swapped, because the contrast gate needs a dark
+       `--primary` to sit on a white page. So the fill is dropped here instead,
+       at the one place that knows the destination is paper, and the label falls
+       back to ink. Boundaries are untouched: every border is a real border in a
+       print colour, so a button stays a button, drawn rather than blocked in. */
+    *,
+    *::before,
+    *::after {
+      background-color: transparent !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      color: #000000 !important;
+    }
+
+    body {
+      background-color: #ffffff !important;
+    }
   }
 }

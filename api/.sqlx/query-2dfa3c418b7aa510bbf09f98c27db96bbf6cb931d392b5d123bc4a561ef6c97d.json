@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO bill_number_counters (restaurant_id, next_number, updated_at)\n        VALUES ($1, 1, now())\n        ON CONFLICT (restaurant_id) DO UPDATE\n            SET next_number = bill_number_counters.next_number + 1,\n                updated_at = now()\n        RETURNING next_number\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "next_number",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "bill_number_counters",
+            "name": "next_number"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2dfa3c418b7aa510bbf09f98c27db96bbf6cb931d392b5d123bc4a561ef6c97d"
+}

@@ -27,9 +27,13 @@ axum = { version = "0.8", features = ["macros"] }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde", "std"] }
 dotenvy = "0.15.7"
 futures = "0.3"
+# Money is `NUMERIC` in Postgres and `Decimal` here, never a float. The `serde`
+# feature is what lets a bill figure cross into a wire shape without a detour
+# through a string in every DTO.
+rust_decimal = { version = "1.38", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "macros", "migrate"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "macros", "migrate", "rust_decimal"] }
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }
 tokio-stream = "0.1.19"
@@ -38,7 +42,10 @@ tower-http = { version = "0.6", features = ["trace", "compression-gzip", "timeou
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 utoipa = { version = "5.5.0", features = ["axum_extras", "uuid"] }
-uuid = { version = "1", features = ["v4", "serde"] }
+# `v7` because Postgres 17 has no built in `uuidv7()`, so version 7 identifiers
+# are generated here. They sort by creation time, which keeps the primary key
+# index appending rather than scattering writes across it the way v4 does.
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
 
 [dev-dependencies]
 # `test-util` only: it provides the paused clock the listener timeout test uses

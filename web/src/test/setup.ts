@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom/vitest'
+// Translations, initialised before any component renders. Without this every
+// component renders raw keys, which would make an axe run judge markup nobody
+// will ever see and let a missing translation pass unnoticed.
+import '@/shared/i18n'
 
 import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'

@@ -6,8 +6,8 @@ export function NotFound() {
 
   return (
     <div>
-      <h1 className="text-xl font-semibold">{t('notFound.title')}</h1>
-      <p className="mt-2 text-slate-500">{t('notFound.body')}</p>
+      <h1 className="text-2xl font-semibold text-foreground">{t('notFound.title')}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{t('notFound.body')}</p>
     </div>
   )
 }

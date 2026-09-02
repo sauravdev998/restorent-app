@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT coalesce(max(sequence_no), 0) + 1 AS \"next!\"\n        FROM order_rounds\n        WHERE visit_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "next!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "bc59cd0b2bc88497373d1bfce003e3e22f29ecdb06f6fc007f45ad49b6b46aba"
+}

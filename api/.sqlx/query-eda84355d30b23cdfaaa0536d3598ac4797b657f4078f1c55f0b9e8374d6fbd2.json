@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            EXISTS (\n                SELECT 1 FROM bills\n                WHERE visit_id = $1 AND status = 'open'\n            ) AS \"bill_still_open!\",\n            EXISTS (\n                SELECT 1\n                FROM order_lines AS l\n                JOIN order_rounds AS r ON r.id = l.round_id\n                WHERE r.visit_id = $1 AND l.status <> 'voided' AND l.bill_id IS NULL\n            ) AS \"line_unassigned!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bill_still_open!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "line_unassigned!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "eda84355d30b23cdfaaa0536d3598ac4797b657f4078f1c55f0b9e8374d6fbd2"
+}

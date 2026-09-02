@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO order_rounds\n            (id, restaurant_id, visit_id, sequence_no, status, sent_by_staff_id,\n             sent_at, updated_at)\n        VALUES ($1, $2, $3, $4, 'queued', $5, now(), now())\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "59027e3550e81e150a6c5e9955302ff907d97423245fc8bfaa575e9d7ede880d"
+}
