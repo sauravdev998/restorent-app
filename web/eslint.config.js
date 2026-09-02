@@ -74,6 +74,17 @@ export default tseslint.config(
       ],
       '@typescript-eslint/no-non-null-assertion': 'error',
       'no-restricted-syntax': ['error', ...noPhysicalDirection],
+      // A named region is allowed to be focusable, on top of the rule's own
+      // `tabpanel`. This is the sanctioned fix for a box that scrolls: axe
+      // fails a scrollable container nobody can focus, because a keyboard or
+      // switch user can never reach the far side of it, and the remedy is
+      // exactly `role="region"` plus a name plus `tabIndex={0}`. Without this
+      // the two rules contradict each other and one of them has to be muted at
+      // every call site instead of decided once, here.
+      'jsx-a11y/no-noninteractive-tabindex': [
+        'error',
+        { tags: [], roles: ['tabpanel', 'region'], allowExpressionValues: true },
+      ],
     },
   },
 

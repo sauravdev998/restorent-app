@@ -1,16 +1,19 @@
-import { Inbox } from 'lucide-react'
+import { Inbox, Plus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { StreamStatus } from '@/shared/events/use-live-events'
 import { Alert } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { cn } from '@/shared/ui/cn'
+import { ConnectionStatus } from '@/shared/ui/connection-status'
 import { DataTable, type DataTableColumn, type SortDirection } from '@/shared/ui/data-table'
 import { Dialog } from '@/shared/ui/dialog'
 import { ElapsedTime } from '@/shared/ui/elapsed-time'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { Field } from '@/shared/ui/field'
+import { Icon, type IconSize } from '@/shared/ui/icon'
 import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Skeleton } from '@/shared/ui/skeleton'
@@ -24,6 +27,11 @@ const INK_ROLES = ['foreground', 'muted-foreground', 'primary', 'destructive'] a
 const LINE_ROLES = ['border', 'input', 'ring'] as const
 
 const TYPE_STEPS = ['text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl'] as const
+
+const ICON_SIZES: readonly IconSize[] = ['sm', 'md', 'lg']
+
+/** Every state the live stream indicator has, including the two you cannot sit and wait for. */
+const STREAM_STATES: readonly StreamStatus[] = ['connecting', 'open', 'closed']
 
 const DENSITIES = ['admin', 'waiter', 'kitchen'] as const
 type Density = (typeof DENSITIES)[number]
@@ -123,6 +131,31 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
         </div>
       </Section>
 
+      <Section title={t('design.statusesCompact')}>
+        {/* The word is still there, just only for a screen reader. */}
+        <div className="flex flex-wrap gap-3">
+          {STATUS_TONES.map((status) => (
+            <StatusPill key={status} status={status} compact />
+          ))}
+        </div>
+      </Section>
+
+      <Section title={t('design.icons')}>
+        <div className="flex flex-wrap items-center gap-4">
+          {ICON_SIZES.map((size) => (
+            <Icon key={size} icon={Plus} size={size} label={t(`design.icon.${size}`)} />
+          ))}
+        </div>
+      </Section>
+
+      <Section title={t('design.connection')}>
+        <div className="flex flex-wrap items-center gap-4">
+          {STREAM_STATES.map((state) => (
+            <ConnectionStatus key={state} status={state} />
+          ))}
+        </div>
+      </Section>
+
       <Section title={t('design.type')}>
         <div className="flex flex-col gap-1">
           {TYPE_STEPS.map((step) => (
@@ -146,6 +179,12 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
           <Button size="sm">sm</Button>
           <Button size="md">md</Button>
           <Button size="lg">lg</Button>
+          {/* The icon size has no text, so it says what it does in a label
+              instead. A button whose only content is a glyph is unnamed
+              otherwise, and an unnamed button is an unusable one. */}
+          <Button size="icon" variant="secondary" aria-label={t('design.addDish')}>
+            <Icon icon={Plus} size="md" />
+          </Button>
         </div>
       </Section>
 
@@ -166,11 +205,37 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
         <Field label={t('design.sampleField')} error={t('design.sampleError')}>
           <Input defaultValue="" />
         </Field>
+        {/* Both at once, because that is the case that goes wrong: the hint has
+            to survive the error rather than being replaced by it, and both ids
+            have to end up in one `aria-describedby`. */}
+        <Field
+          label={t('design.sampleField')}
+          hint={t('design.sampleHint')}
+          error={t('design.sampleError')}
+        >
+          <Input defaultValue="" />
+        </Field>
+        <Field label={t('design.disabledField')}>
+          <Input defaultValue="Table 4" disabled />
+        </Field>
         <Field label={t('design.sampleSelect')}>
           <Select defaultValue="main">
             <option value="starter">{t('course.starter')}</option>
             <option value="main">{t('course.main')}</option>
             <option value="dessert">{t('course.dessert')}</option>
+          </Select>
+        </Field>
+        <Field label={t('design.sampleSelect')} error={t('design.selectError')}>
+          <Select defaultValue="">
+            <option value="">{t('design.selectPlaceholder')}</option>
+            <option value="starter">{t('course.starter')}</option>
+            <option value="main">{t('course.main')}</option>
+            <option value="dessert">{t('course.dessert')}</option>
+          </Select>
+        </Field>
+        <Field label={t('design.disabledSelect')}>
+          <Select defaultValue="main" disabled>
+            <option value="main">{t('course.main')}</option>
           </Select>
         </Field>
       </Section>
@@ -182,6 +247,12 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
           description={t('design.alertBody')}
           sound={false}
         />
+        {/* The other tones, without a description, which is the alert's second
+            shape. `sound={false}` throughout: a gallery that chimed five times
+            on load would be a gallery nobody opens twice. */}
+        {STATUS_TONES.filter((tone) => tone !== 'ready').map((tone) => (
+          <Alert key={tone} open tone={tone} title={t(`status.${tone}`)} sound={false} />
+        ))}
         <div className="flex flex-col gap-2">
           <Skeleton label={t('loading.label')} className="w-2/3" />
           <Skeleton className="w-full" />
@@ -193,11 +264,12 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
           description={t('design.emptyBody')}
           action={<Button variant="secondary">{t('design.emptyAction')}</Button>}
         />
+        <EmptyState icon={Inbox} title={t('design.emptyTitle')} />
       </Section>
 
       <Section title={t('design.data')}>
         <DataTable
-          caption={t('design.data')}
+          caption={`${t('design.data')} · ${t(`design.${appearance}`)}`}
           captionHidden
           columns={columns}
           rows={SAMPLE_ROWS}
@@ -212,6 +284,14 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
                   : 'ascending',
             }))
           }}
+        />
+        {/* The same table with nothing in it, which is what a kitchen screen
+            looks like for most of the afternoon. */}
+        <DataTable
+          caption={`${t('design.dataEmpty')} · ${t(`design.${appearance}`)}`}
+          columns={columns}
+          rows={[]}
+          rowKey={(row) => row.id}
         />
       </Section>
     </div>
@@ -294,19 +374,32 @@ export function DesignGallery() {
           <Button
             variant="secondary"
             onClick={() => {
-              showToast({ title: t('design.toastBody'), tone: 'ready' })
-            }}
-          >
-            {t('design.showToast')}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
               setAlertOpen(true)
             }}
           >
             {t('design.raiseAlert')}
           </Button>
+        </div>
+
+        {/* One per tone, because a toast's tone is a state and a gallery that
+            only ever shows the happy one is how the others ship unlooked at.
+            Each button says what it does in its label rather than leaving a
+            screen reader with five buttons called "Cooking". */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-muted-foreground">{t('design.showToast')}</span>
+          {STATUS_TONES.map((tone) => (
+            <Button
+              key={tone}
+              variant="secondary"
+              size="sm"
+              aria-label={`${t('design.showToast')}: ${t(`status.${tone}`)}`}
+              onClick={() => {
+                showToast({ title: t('design.toastBody'), tone })
+              }}
+            >
+              {t(`status.${tone}`)}
+            </Button>
+          ))}
         </div>
 
         <Alert

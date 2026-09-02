@@ -517,17 +517,27 @@
   }
 
   @media print {
-    body {
-      background: #ffffff;
-      color: #000000;
-    }
-
-    /* No dark fill survives onto paper, whatever a component asked for. */
+    /* No fill and no knockout text survives onto paper, whatever a component
+       asked for. The print token block already turns every surface white and
+       every ink black, but a filled control asks for the opposite by name:
+       `bg-primary` with `text-primary-foreground` is white on black by design,
+       which prints as a solid rectangle and empties a restaurant's toner. The
+       tokens cannot simply be swapped, because the contrast gate needs a dark
+       `--primary` to sit on a white page. So the fill is dropped here instead,
+       at the one place that knows the destination is paper, and the label falls
+       back to ink. Boundaries are untouched: every border is a real border in a
+       print colour, so a button stays a button, drawn rather than blocked in. */
     *,
     *::before,
     *::after {
+      background-color: transparent !important;
       background-image: none !important;
       box-shadow: none !important;
+      color: #000000 !important;
+    }
+
+    body {
+      background-color: #ffffff !important;
     }
   }
 }

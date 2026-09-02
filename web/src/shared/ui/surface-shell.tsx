@@ -60,7 +60,7 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
           its own edges. Sliding it into view keeps every other style intact. */}
       <a
         href="#main-content"
-        className="fixed top-0 start-4 z-50 -translate-y-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:translate-y-4"
+        className="fixed top-0 start-4 z-50 -translate-y-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus:translate-y-4 print:hidden"
       >
         {t('a11y.skipToMain')}
       </a>
@@ -101,7 +101,12 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
         </div>
       </header>
 
-      <main id="main-content" className="shell-width w-full flex-1 px-4 py-8">
+      {/* `tabIndex={-1}` is what makes the skip link actually skip. Following a
+          fragment link moves where the next Tab starts, but it only moves focus
+          itself if the target can hold focus, and a `<main>` cannot by default.
+          Without it, Safari and several screen readers leave focus on the body
+          and the link does nothing for exactly the people it exists for. */}
+      <main id="main-content" tabIndex={-1} className="shell-width w-full flex-1 px-4 py-8">
         {children}
       </main>
 

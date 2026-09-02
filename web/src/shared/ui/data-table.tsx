@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cn } from './cn'
@@ -60,11 +60,24 @@ export function DataTable<Row>({
   className,
 }: DataTableProps<Row>) {
   const { t } = useTranslation()
+  const captionId = useId()
 
   return (
-    <div className={cn('w-full overflow-x-auto', className)}>
+    /* The scroll container is focusable and named, which matters most on the
+       waiter surface: a three column table does not fit a phone, so this box
+       scrolls sideways, and a box that scrolls but cannot be focused is one a
+       keyboard or switch user can never reach the end of. Naming it by the
+       caption keeps the announcement honest ("Data, region") rather than
+       landing on an anonymous focus stop. */
+    <div
+      role="region"
+      aria-labelledby={captionId}
+      tabIndex={0}
+      className={cn('w-full overflow-x-auto', className)}
+    >
       <table className="w-full border-collapse text-sm">
         <caption
+          id={captionId}
           className={cn(
             'text-start',
             captionHidden ? 'sr-only' : 'pb-3 text-base font-semibold text-foreground',

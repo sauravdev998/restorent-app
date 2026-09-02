@@ -81,13 +81,22 @@ export function ToastViewport() {
   if (toasts.length === 0) return null
 
   return (
-    <ul
+    /* A named `<section>`, which is a landmark, wrapping the list rather than
+       replacing it. Toasts are pinned to the viewport instead of sitting inside
+       `<main>`, so without a landmark of their own they are content outside
+       every landmark, which is content a screen reader user navigating by
+       landmark never arrives at. The role goes on the wrapper and not on the
+       `<ul>` itself, because a list that is told it is a region stops being a
+       list and its items stop being counted. */
+    <section
       aria-label={t('toast.region')}
-      className="fixed end-4 bottom-4 z-50 flex w-96 max-w-[calc(100%-2rem)] flex-col gap-3"
+      className="fixed end-4 bottom-4 z-50 w-96 max-w-[calc(100%-2rem)]"
     >
-      {toasts.map((toast) => (
-        <Toast key={toast.id} toast={toast} />
-      ))}
-    </ul>
+      <ul className="flex flex-col gap-3">
+        {toasts.map((toast) => (
+          <Toast key={toast.id} toast={toast} />
+        ))}
+      </ul>
+    </section>
   )
 }

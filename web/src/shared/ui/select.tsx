@@ -25,6 +25,11 @@ export function Select({ className, children, ...rest }: SelectProps) {
       className={cn(
         'border-line target-h h-9 w-full rounded-md border-input bg-background px-3 text-sm text-foreground',
         'aria-invalid:border-status-late',
+        // A disabled control has to look disabled. The `Button` says so with
+        // opacity and hands forced colours the one colour an operating system
+        // reserves for it; these do the same, so the state is carried the same
+        // way everywhere rather than left to whatever the browser does.
+        'disabled:opacity-50 forced-colors:disabled:text-[color:GrayText] forced-colors:disabled:opacity-100',
         className,
       )}
       {...rest}
