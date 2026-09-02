@@ -88,10 +88,10 @@ spec [0004](../specs/0004-design-system-and-accessibility/index.md) · design in
   - [x] The three gates and the gallery: the contrast script, the lint and axe rules, and the development only `/design` route (AC-1, AC-4, AC-6, AC-11, AC-13, AC-15)
   - [x] The rest of the components: `Field`, `Input`, `Select`, `Dialog`, `LiveRegion`, `Toast`, `Alert`, `Skeleton`, `EmptyState`, `DataTable` (AC-4, AC-7, AC-8, AC-9, AC-10)
   - [x] Finishing: the logical property sweep, the forced colours pass, the print block, and `docs/design.md` (AC-11, AC-13, AC-16, AC-17)
-- [ ] Verify it: `/check verify design system and accessibility baseline`
-- [ ] Test it: `/test design system and accessibility baseline`
-- [ ] Review it (fresh model): `/check review design system and accessibility baseline`
-- [ ] Document it: `/document design system and accessibility baseline`
+- [x] Verify it: `/check verify design system and accessibility baseline`
+- [x] Test it: `/test design system and accessibility baseline`
+- [x] Review it (fresh model): `/check review design system and accessibility baseline`
+- [x] Document it: `/document design system and accessibility baseline`
 
 ### 6. Language and text foundation · needs a decision
 Every piece of text in the app comes from a translation file from the first screen onward, plus how a user's language is chosen and stored. Cheap now, painful to retrofit once twenty screens exist.

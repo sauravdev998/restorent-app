@@ -109,7 +109,13 @@ path segment decides, and anything unmatched is `admin`.
   `/design` gallery and the axe tests only. Nothing in the product ever sets it.** It exists because
   a media query is document wide: without it the gallery could not show both appearances at once and
   jsdom could not put a component in light for its axe run, so the light theme would ship unproven.
-- `@media print` is ink on white with visible borders and no dark fills.
+- `@media print` is ink on white with visible borders and no dark fills. Two halves, and both are
+  needed. The token half turns every surface white and every ink black. The rule half drops every
+  background and forces every label to ink, because a filled control asks for the opposite by name:
+  `bg-primary` with `text-primary-foreground` is white on black by design and would print as a solid
+  rectangle. The tokens cannot simply be swapped instead, because the contrast gate needs a dark
+  `--primary` sitting on a white page. Borders are left alone, so a button still prints as a button,
+  drawn rather than blocked in. Screen only chrome, the skip link so far, carries `print:hidden`.
 - `@media (forced-colors: active)` hands every role to the operating system. Boundaries survive
   because they are real borders, the focus ring survives because it is an outline, and status
   survives because it carries an icon and a word.
@@ -161,21 +167,21 @@ All in `web/src/shared/ui/`, one file each.
 
 | Component | States it carries | The accessibility promise it holds |
 |---|---|---|
-| `SurfaceShell` | one per surface, header + main | skip link, landmarks, one `<h1>` per screen, mounts the live regions and the toast viewport, primes the audio unlock |
+| `SurfaceShell` | one per surface, header + main | skip link onto a `tabindex="-1"` `<main>` so following it really moves focus, landmarks, one `<h1>` per screen, mounts the live regions and the toast viewport, primes the audio unlock |
 | `Button` | primary, secondary, ghost, destructive × sm, md, lg, icon; hover, focus, disabled | `--target-min` floor, real border, outline focus ring, `aria-disabled` so it stays in the tab order and stays announced |
 | `Card` | default | a real border, so it survives forced colours and reads at kitchen distance |
 | `Icon` | sm, md, lg | sized by class, stroke from `--icon-stroke`, `aria-hidden` unless labelled |
 | `StatusPill` | five statuses × full, compact | colour plus word plus icon, always all three |
 | `ElapsedTime` | ticking, late | a `<time>` element, the whole duration in hidden text beside the clock face, mono tabular digits |
 | `Field` | default, required, hint, error | binds the label, sets `aria-invalid`, links messages through `aria-describedby`, announces the error |
-| `Input`, `Select` | default, invalid, disabled | never used bare; `Field` throws if you try |
+| `Input`, `Select` | default, invalid, disabled | never used bare; `Field` throws if you try. Disabled dims like a `Button` does and hands forced colours `GrayText` |
 | `Dialog` | open, closed | focus trapped, Escape closes, focus handed back to the opener, titled and described |
 | `LiveRegion` | polite, assertive | the one announcement mechanism, mounted once, always in the document |
-| `Toast` | one tone per status, auto dismiss, manual dismiss | announces politely, never takes focus, dismissible by keyboard |
+| `Toast` | one tone per status, auto dismiss, manual dismiss | announces politely, never takes focus, dismissible by keyboard; the viewport is a named landmark, because a toast is pinned to the viewport rather than sitting inside `<main>` and would otherwise be content inside no landmark at all |
 | `Alert` | open, closed, per status | fires visually, then through the live region, then optionally a chime |
 | `Skeleton` | pulsing, still under reduced motion, labelled or decorative | one announcement per group, a border under forced colours |
 | `EmptyState` | with and without an action | the one empty pattern every list uses |
-| `DataTable` | sorted, unsorted, empty | real table semantics, a caption, one row header per row, `aria-sort` |
+| `DataTable` | sorted, unsorted, empty | real table semantics, a caption, one row header per row, `aria-sort`; the scroll box is a focusable region named by the caption, which is what lets a keyboard user reach the far side of a table that does not fit a phone |
 | `ConnectionStatus` | connecting, open, closed | announced politely |
 
 ### The late threshold
