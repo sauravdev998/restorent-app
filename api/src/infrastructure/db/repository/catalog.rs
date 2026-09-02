@@ -22,6 +22,7 @@ use crate::domain::event::EntityKind;
 use crate::domain::ids::{
     DiningTableId, DishId, MenuCategoryId, RestaurantId, StaffId, TableSectionId, TaxComponentId,
 };
+use crate::domain::language::{FormattingLocale, LanguageCode};
 use crate::domain::money::Currency;
 use crate::domain::people::Staff;
 
@@ -42,6 +43,7 @@ pub async fn restaurant(tx: &mut ScopedTx<'_>) -> DomainResult<Restaurant> {
     let row = sqlx::query!(
         r#"
         SELECT id, name, currency_code, currency_decimals, timezone,
+               default_language, formatting_locale,
                service_charge_percent, address, tax_registration_number, deactivated_at
         FROM restaurants
         "#
@@ -55,6 +57,8 @@ pub async fn restaurant(tx: &mut ScopedTx<'_>) -> DomainResult<Restaurant> {
         name: row.name,
         currency: currency_from(&row.currency_code, row.currency_decimals)?,
         timezone: row.timezone,
+        default_language: LanguageCode::new(&row.default_language)?,
+        formatting_locale: FormattingLocale::new(&row.formatting_locale)?,
         service_charge_percent: row.service_charge_percent,
         address: row.address,
         tax_registration_number: row.tax_registration_number,
@@ -237,7 +241,7 @@ pub async fn live_dining_tables(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<Dinin
 pub async fn active_staff(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<Staff>> {
     let rows = sqlx::query!(
         r#"
-        SELECT id, email, display_name, role AS "role: StaffRole", deactivated_at
+        SELECT id, email, display_name, role AS "role: StaffRole", language, deactivated_at
         FROM staff
         WHERE deactivated_at IS NULL
         ORDER BY display_name
@@ -246,16 +250,22 @@ pub async fn active_staff(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<Staff>> {
     .fetch_all(tx.connection())
     .await?;
 
-    Ok(rows
-        .into_iter()
-        .map(|row| Staff {
-            id: StaffId::from_uuid(row.id),
-            email: row.email,
-            display_name: row.display_name,
-            role: row.role,
-            deactivated_at: row.deactivated_at,
+    // Not `.map(...).collect()`: building a `LanguageCode` validates against
+    // the catalogue and so can fail, and a `?` inside a closure would only
+    // return from the closure. Collecting into a `DomainResult` keeps the first
+    // bad row as the answer for the whole read.
+    rows.into_iter()
+        .map(|row| {
+            Ok(Staff {
+                id: StaffId::from_uuid(row.id),
+                email: row.email,
+                display_name: row.display_name,
+                role: row.role,
+                language: row.language.as_deref().map(LanguageCode::new).transpose()?,
+                deactivated_at: row.deactivated_at,
+            })
         })
-        .collect())
+        .collect()
 }
 
 /// What an edit to a dish may change.
@@ -578,6 +588,84 @@ pub async fn set_service_charge(
         Some(json!({ "service_charge_percent": percent })),
     )
     .await?;
+
+    Ok(())
+}
+
+/// Changes the restaurant's language and formatting settings.
+///
+/// Both are set together because they are read together and because setting one
+/// alone is almost always a mistake: a restaurant switching to Hindi wants its
+/// figures in `hi-IN` or `en-IN`, not left on `en-US` because the form only
+/// carried one field.
+///
+/// No audit entry. A language setting carries no personal data and no money, so
+/// it is not one of the changes the audit log exists for.
+///
+/// Neither value can be a code this platform does not offer: the only way to
+/// build the arguments is through the catalogue checked constructors, so an
+/// unknown code is refused before a statement is ever prepared.
+///
+/// # Errors
+///
+/// Returns [`DomainError::NotFound`] if the scoped restaurant does not exist,
+/// and [`DomainError::Unavailable`] if the statement fails.
+pub async fn set_restaurant_languages(
+    tx: &mut ScopedTx<'_>,
+    default_language: &LanguageCode,
+    formatting_locale: &FormattingLocale,
+) -> DomainResult<()> {
+    let updated = sqlx::query!(
+        r#"
+        UPDATE restaurants
+        SET default_language = $1, formatting_locale = $2, updated_at = now()
+        "#,
+        default_language.as_str(),
+        formatting_locale.as_str()
+    )
+    .execute(tx.connection())
+    .await?
+    .rows_affected();
+
+    if updated == 0 {
+        return Err(DomainError::NotFound);
+    }
+
+    Ok(())
+}
+
+/// Sets, or clears, one staff member's own interface language.
+///
+/// [`None`] clears it, which puts them back on the restaurant's default. That is
+/// a real choice a person makes ("just give me whatever everyone else gets"),
+/// not an absence, which is why it is expressed rather than left out.
+///
+/// Scoped like every other write here, so this can only ever reach a staff row
+/// belonging to the transaction's own restaurant. Which staff member a signed in
+/// person may write is feature 7's rule, and it is a rule about the caller
+/// rather than about the row, so it belongs there and not here.
+///
+/// # Errors
+///
+/// Returns [`DomainError::NotFound`] if no such staff member belongs to this
+/// restaurant, and [`DomainError::Unavailable`] if the statement fails.
+pub async fn set_staff_language(
+    tx: &mut ScopedTx<'_>,
+    staff_id: StaffId,
+    language: Option<&LanguageCode>,
+) -> DomainResult<()> {
+    let updated = sqlx::query!(
+        "UPDATE staff SET language = $1, updated_at = now() WHERE id = $2",
+        language.map(LanguageCode::as_str),
+        staff_id.as_uuid()
+    )
+    .execute(tx.connection())
+    .await?
+    .rows_affected();
+
+    if updated == 0 {
+        return Err(DomainError::NotFound);
+    }
 
     Ok(())
 }

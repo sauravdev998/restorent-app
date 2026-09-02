@@ -98,8 +98,8 @@ Every piece of text in the app comes from a translation file from the first scre
 **Done when:** no screen has hard coded user facing text, a second language can be added by dropping in one file, and a staff member's language choice sticks across sessions.
 spec [0005](../specs/0005-language-and-text-foundation/index.md) · catalogue in `locales/` · code in `web/src/shared/i18n/`, `web/src/shared/format/`, `web/src/locales/`, `api/src/domain/language.rs`, `api/migrations/0003_language_and_formatting.sql` · gates in `web/scripts/check-locales.ts`, `web/eslint.config.js`
 - [x] Design it (spec): `/architect language and text foundation`
-- [ ] Build it: `/develop language and text foundation`
-  - [ ] The thread, top to bottom: the shared catalogue, migration 0003, the Rust newtypes, the two resolvers, loading on demand, the switcher, and Hindi for the shell (AC-2, AC-3, AC-4, AC-5, AC-6, AC-7, AC-8, AC-9, AC-10, AC-15, AC-17)
+- [x] Build it: `/develop language and text foundation`
+  - [x] The thread, top to bottom: the shared catalogue, migration 0003, the Rust newtypes, the two resolvers, loading on demand, the switcher, and Hindi for the shell (AC-2, AC-3, AC-4, AC-5, AC-6, AC-7, AC-8, AC-9, AC-10, AC-15, AC-17)
   - [x] Every string moved into the split: the four namespaces, the sixteen call sites, and full Hindi key parity (AC-1, AC-2, AC-5)
   - [x] Formatting cut loose from language: the memoised Intl formatters, money from an exact decimal, the restaurant's timezone, and error codes mapped to keys (AC-1, AC-3, AC-12, AC-13)
   - [x] The three gates and the font: the lint rule, the parity check in continuous integration, the pseudo language, and Devanagari (AC-1, AC-2, AC-14, AC-16)

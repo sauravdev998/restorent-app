@@ -7,6 +7,7 @@ use rust_decimal::Decimal;
 use super::ids::{
     DiningTableId, DishId, MenuCategoryId, RestaurantId, TableSectionId, TaxComponentId,
 };
+use super::language::{FormattingLocale, LanguageCode};
 use super::money::Currency;
 
 /// One restaurant on the platform, and the settings every bill it prints
@@ -22,8 +23,18 @@ pub struct Restaurant {
     /// Its own timezone, as an IANA name such as `Europe/Berlin`. The local day
     /// a bill belongs to is worked out from this, never from the server's clock,
     /// because a restaurant closing at one in the morning would otherwise post
-    /// half its evening to the wrong day.
+    /// half its evening to the wrong day. Every timestamp on a screen is
+    /// converted with it too, so a chef and an owner in different rooms read the
+    /// same clock.
     pub timezone: String,
+    /// What the kitchen screen reads, what a printed bill is written in, and
+    /// what a member of staff with no personal setting sees.
+    pub default_language: LanguageCode,
+    /// How money, numbers, dates, and times are written here. Deliberately not
+    /// derived from [`Self::default_language`]: an owner in India reading
+    /// English still wants Indian grouping on their own figures, and a bill has
+    /// to look identical to every member of staff whatever each of them reads.
+    pub formatting_locale: FormattingLocale,
     /// The service charge it adds, if any. [`None`] means none, which yields an
     /// amount of zero on a bill rather than a null.
     pub service_charge_percent: Option<Decimal>,

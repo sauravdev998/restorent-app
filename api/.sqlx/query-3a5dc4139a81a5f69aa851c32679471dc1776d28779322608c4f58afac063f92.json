@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, currency_code, currency_decimals, timezone,\n               service_charge_percent, address, tax_registration_number, deactivated_at\n        FROM restaurants\n        ",
+  "query": "\n        SELECT id, name, currency_code, currency_decimals, timezone,\n               default_language, formatting_locale,\n               service_charge_percent, address, tax_registration_number, deactivated_at\n        FROM restaurants\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,28 @@
       },
       {
         "ordinal": 5,
+        "name": "default_language",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "default_language"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "formatting_locale",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "formatting_locale"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "service_charge_percent",
         "type_info": "Numeric",
         "origin": {
@@ -70,7 +92,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "address",
         "type_info": "Text",
         "origin": {
@@ -81,7 +103,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "tax_registration_number",
         "type_info": "Text",
         "origin": {
@@ -92,7 +114,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "deactivated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -112,11 +134,13 @@
       false,
       false,
       false,
+      false,
+      false,
       true,
       true,
       true,
       true
     ]
   },
-  "hash": "38f262ecbe3504e0e9b51af60d1b1d4171d3e129608a2604b1fc4924436e303c"
+  "hash": "3a5dc4139a81a5f69aa851c32679471dc1776d28779322608c4f58afac063f92"
 }

@@ -9,6 +9,7 @@ use anyhow::Context as _;
 use tokio::net::TcpListener;
 use tokio::signal;
 
+use api::domain::language;
 use api::infrastructure::config::Config;
 use api::infrastructure::db::Database;
 use api::infrastructure::events::{self, EventRegistry};
@@ -28,8 +29,18 @@ async fn main() -> anyhow::Result<()> {
     // middle of a service.
     let config = Config::from_env().context("configuration is not usable")?;
 
+    // The same rule, applied to the one committed file the API reads as data.
+    // Touching it here parses it once, at the boot, so a malformed catalogue is
+    // a refused start rather than a puzzling 400 on the first request that
+    // happens to write a language.
+    let catalogue = language::catalogue().context("locales/catalogue.json is not usable")?;
+
     telemetry::init(config.environment);
-    tracing::info!(environment = ?config.environment, "starting the api");
+    tracing::info!(
+        environment = ?config.environment,
+        languages = catalogue.languages.len(),
+        "starting the api"
+    );
 
     let database = Database::connect(&config)
         .await

@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 
 use super::enums::StaffRole;
 use super::ids::{RestaurantId, SessionId, StaffId};
+use super::language::LanguageCode;
 
 /// Somebody who works at a restaurant.
 ///
@@ -21,6 +22,14 @@ pub struct Staff {
     /// What they are allowed to be. Which role may do what is feature 7's
     /// decision; this layer carries the role and nothing more.
     pub role: StaffRole,
+    /// Which language they personally read the interface in. [`None`] means
+    /// they take the restaurant's default, which is what a newly created
+    /// account has and what most accounts keep.
+    ///
+    /// Never consulted on the kitchen surface. That screen is a shared
+    /// appliance which several people read across a shift handover, so it
+    /// follows the restaurant and not whoever last signed in.
+    pub language: Option<LanguageCode>,
     /// When their account was switched off, if it was. A deactivated account
     /// keeps its row so historical bills stay attributable.
     pub deactivated_at: Option<DateTime<Utc>>,
