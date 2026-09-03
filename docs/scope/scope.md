@@ -104,10 +104,10 @@ spec [0005](../specs/0005-language-and-text-foundation/index.md) · catalogue in
   - [x] Formatting cut loose from language: the memoised Intl formatters, money from an exact decimal, the restaurant's timezone, and error codes mapped to keys (AC-1, AC-3, AC-12, AC-13)
   - [x] The three gates and the font: the lint rule, the parity check in continuous integration, the pseudo language, and Devanagari (AC-1, AC-2, AC-14, AC-16)
   - [x] Mixed language text and the written rules: the language marked wrapper for restaurant typed data, and `docs/design.md` (AC-11, AC-12)
-- [ ] Verify it: `/check verify language and text foundation`
-- [ ] Test it: `/test language and text foundation`
-- [ ] Review it (fresh model): `/check review language and text foundation`
-- [ ] Document it: `/document language and text foundation`
+- [x] Verify it: `/check verify language and text foundation`
+- [x] Test it: `/test language and text foundation`
+- [x] Review it (fresh model): `/check review language and text foundation`
+- [x] Document it: `/document language and text foundation`
 
 ### 7. Accounts, restaurants, and roles · needs a decision
 An owner registers a restaurant and becomes its admin, staff sign in, and every request is limited to that person's restaurant and role. Real authentication and real data separation from the very first slice, never faked.
