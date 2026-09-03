@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                count(*) FILTER (WHERE email = $1)                       AS \"by_email!\",\n                count(*) FILTER (WHERE $2::inet IS NOT NULL AND ip = $2) AS \"by_address!\"\n            FROM login_attempts\n            WHERE attempted_at > now() - make_interval(secs => $3)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "by_email!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "by_address!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Inet",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "c594039d8337a7b8392663fa68bbd2040d072e694695cc5ceccd13c4c2a94859"
+}

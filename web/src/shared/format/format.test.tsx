@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type { RestaurantSettings } from '@/shared/session/restaurant-settings'
+import type { RestaurantFormatting } from '@/shared/session/identity'
+
+import i18next from '@/shared/i18n'
 
 import { formatMoney, formatNumber, formatTimestamp, formatUnitList } from './index'
 
@@ -13,8 +15,7 @@ import { formatMoney, formatNumber, formatTimestamp, formatUnitList } from './in
  * locale or the runner's timezone instead of the restaurant's.
  */
 
-const BASE: RestaurantSettings = {
-  defaultLanguage: 'en',
+const BASE: RestaurantFormatting = {
   formattingLocale: 'en-US',
   timezone: 'Asia/Kolkata',
   currencyCode: 'INR',
@@ -25,12 +26,12 @@ const BASE: RestaurantSettings = {
  * Runs a body with the restaurant configured a particular way.
  *
  * The module reads the settings on every call rather than closing over them at
- * import time, which is what makes this possible and is also what lets feature
- * 7 swap the placeholder for a real session read without touching a formatter.
+ * import time, which is what makes this possible and is also what lets the
+ * identity change under a screen without touching a formatter.
  */
-async function withSettings<T>(settings: Partial<RestaurantSettings>, body: () => T): Promise<T> {
-  const module = await import('@/shared/session/restaurant-settings')
-  const spy = vi.spyOn(module, 'restaurantSettings').mockReturnValue({ ...BASE, ...settings })
+async function withSettings<T>(settings: Partial<RestaurantFormatting>, body: () => T): Promise<T> {
+  const module = await import('@/shared/session/identity')
+  const spy = vi.spyOn(module, 'restaurantFormatting').mockReturnValue({ ...BASE, ...settings })
 
   try {
     return body()
@@ -58,16 +59,22 @@ describe('formatMoney', () => {
     // Formatting follows the restaurant, never the interface language. A bill
     // has to read the same to the waiter reading Hindi and the one reading
     // English, because it is the same bill.
-    const forEnglishReader = await withSettings(
-      { formattingLocale: 'en-IN', defaultLanguage: 'en' },
-      () => formatMoney('123456.78', 'INR', 2),
-    )
-    const forHindiReader = await withSettings(
-      { formattingLocale: 'en-IN', defaultLanguage: 'hi' },
-      () => formatMoney('123456.78', 'INR', 2),
+    //
+    // The language is not even reachable from here any more, which is a
+    // stronger statement of the same rule than the test used to make:
+    // `RestaurantFormatting` carries the four values a formatter needs and no
+    // language at all, so there is no longer a way to write one that read it.
+    const before = await withSettings({ formattingLocale: 'en-IN' }, () =>
+      formatMoney('123456.78', 'INR', 2),
     )
 
-    expect(forHindiReader).toBe(forEnglishReader)
+    await i18next.changeLanguage('hi')
+    const after = await withSettings({ formattingLocale: 'en-IN' }, () =>
+      formatMoney('123456.78', 'INR', 2),
+    )
+    await i18next.changeLanguage('en')
+
+    expect(after).toBe(before)
   }) // covers: AC-12
 
   it('writes Latin digits even where the locale would not', async () => {

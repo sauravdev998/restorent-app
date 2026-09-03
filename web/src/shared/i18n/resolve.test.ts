@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { RestaurantSettings } from '@/shared/session/restaurant-settings'
+import type { Identity } from '@/shared/session/identity'
 import { SURFACES, type Surface } from '@/shared/surface'
 
 import { FALLBACK_LANGUAGE } from './catalogue'
@@ -23,39 +23,33 @@ import {
  * exists to prevent is a screen following the wrong one of them.
  */
 
-const BASE: RestaurantSettings = {
-  defaultLanguage: 'en',
-  formattingLocale: 'en-US',
-  timezone: 'Asia/Kolkata',
-  currencyCode: 'INR',
-  currencyDecimals: 2,
-}
-
 /**
- * Runs a body with a restaurant and a signed in person configured.
+ * An identity bundle, of the shape the API really returns.
  *
- * The resolvers read the settings on every call rather than closing over them
- * at import time, which is what makes this possible and what lets feature 7
- * swap the placeholder for a real session read without touching a resolver.
+ * Built here rather than mocked, because the signed in resolver now takes the
+ * bundle as an argument. There is nothing left to stub: what it reads is what it
+ * is handed, which is the whole improvement over the placeholder it replaced.
  */
-async function withSession<T>(
-  session: { restaurant?: Partial<RestaurantSettings>; staff?: string | null },
-  body: () => T,
-): Promise<T> {
-  const module = await import('@/shared/session/restaurant-settings')
-
-  const restaurant = vi
-    .spyOn(module, 'restaurantSettings')
-    .mockReturnValue({ ...BASE, ...session.restaurant })
-  const staff = vi
-    .spyOn(module, 'staffSettings')
-    .mockReturnValue({ language: session.staff ?? null })
-
-  try {
-    return body()
-  } finally {
-    restaurant.mockRestore()
-    staff.mockRestore()
+function identity(restaurantLanguage: string, staffLanguage: string | null): Identity {
+  return {
+    staff: {
+      id: '00000000-0000-7000-8000-000000000001',
+      displayName: 'Ada Owner',
+      email: 'ada@example.test',
+      role: 'admin',
+      language: staffLanguage,
+    },
+    restaurant: {
+      id: '00000000-0000-7000-8000-000000000002',
+      name: 'The Test Kitchen',
+      address: null,
+      countryCode: 'IN',
+      currencyCode: 'INR',
+      currencyDecimals: 2,
+      timezone: 'Asia/Kolkata',
+      defaultLanguage: restaurantLanguage,
+      formattingLocale: 'en-IN',
+    },
   }
 }
 
@@ -187,102 +181,91 @@ describe('resolveSignedOutLanguage', () => {
 })
 
 describe('resolveSignedInLanguage', () => {
-  it('follows the person’s own setting on the surfaces they own', async () => {
-    await withSession({ restaurant: { defaultLanguage: 'en' }, staff: 'hi' }, () => {
-      expect(resolveSignedInLanguage('waiter')).toBe('hi')
-      expect(resolveSignedInLanguage('admin')).toBe('hi')
-    })
+  it('follows the person’s own setting on the surfaces they own', () => {
+    expect(resolveSignedInLanguage(identity('en', 'hi'), 'waiter')).toBe('hi')
+    expect(resolveSignedInLanguage(identity('en', 'hi'), 'admin')).toBe('hi')
   }) // covers: AC-6
 
-  it('leaves the kitchen on the restaurant’s language even for a chef who has one', async () => {
+  it('leaves the kitchen on the restaurant’s language even for a chef who has one', () => {
     // The row a single shared resolver gets wrong, and the reason there are
     // two. The kitchen screen is a shared appliance read across a shift
     // handover, and a screen that changes language under somebody who has
     // learned to read it at a glance is worse than one they cannot personalise.
-    await withSession({ restaurant: { defaultLanguage: 'en' }, staff: 'hi' }, () => {
-      expect(resolveSignedInLanguage('kitchen')).toBe('en')
-    })
+    expect(resolveSignedInLanguage(identity('en', 'hi'), 'kitchen')).toBe('en')
   }) // covers: AC-6
 
-  it('sends everybody to the restaurant’s language when nobody has set their own', async () => {
+  it('sends everybody to the restaurant’s language when nobody has set their own', () => {
     // What a newly created account has, and what most accounts keep.
-    await withSession({ restaurant: { defaultLanguage: 'hi' }, staff: null }, () => {
-      for (const surface of SURFACES) {
-        expect(resolveSignedInLanguage(surface)).toBe('hi')
-      }
-    })
+    for (const surface of SURFACES) {
+      expect(resolveSignedInLanguage(identity('hi', null), surface)).toBe('hi')
+    }
   }) // covers: AC-6
 
-  it('ignores a personal code that is no longer offered', async () => {
-    await withSession({ restaurant: { defaultLanguage: 'hi' }, staff: 'xx' }, () => {
-      expect(resolveSignedInLanguage('waiter')).toBe('hi')
-    })
+  it('ignores a personal code that is no longer offered', () => {
+    expect(resolveSignedInLanguage(identity('hi', 'xx'), 'waiter')).toBe('hi')
   }) // covers: AC-6
 
-  it('falls back to English when the restaurant’s own column is no longer offered', async () => {
+  it('falls back to English when the restaurant’s own column is no longer offered', () => {
     // A column can outlive a catalogue entry.
-    await withSession({ restaurant: { defaultLanguage: 'xx' }, staff: null }, () => {
-      for (const surface of SURFACES) {
-        expect(resolveSignedInLanguage(surface)).toBe(FALLBACK_LANGUAGE)
-      }
-    })
+    for (const surface of SURFACES) {
+      expect(resolveSignedInLanguage(identity('xx', null), surface)).toBe(FALLBACK_LANGUAGE)
+    }
   }) // covers: AC-6
 
-  it('prefers a valid personal code even when the restaurant’s is broken', async () => {
-    await withSession({ restaurant: { defaultLanguage: 'xx' }, staff: 'hi' }, () => {
-      expect(resolveSignedInLanguage('waiter')).toBe('hi')
-      // And the kitchen, which skips the personal setting, still lands
-      // somewhere readable rather than on the broken code.
-      expect(resolveSignedInLanguage('kitchen')).toBe(FALLBACK_LANGUAGE)
-    })
+  it('prefers a valid personal code even when the restaurant’s is broken', () => {
+    expect(resolveSignedInLanguage(identity('xx', 'hi'), 'waiter')).toBe('hi')
+    // And the kitchen, which skips the personal setting, still lands
+    // somewhere readable rather than on the broken code.
+    expect(resolveSignedInLanguage(identity('xx', 'hi'), 'kitchen')).toBe(FALLBACK_LANGUAGE)
   }) // covers: AC-6
 
-  it('never lets a code left on a shared phone beat the signed in person', async () => {
+  it('never lets a code left on a shared phone beat the signed in person', () => {
     // A stale code from the previous shift on a borrowed handset. Storage is
     // not in this chain at any point, and this is the test that says so.
     writeStoredLanguage('hi')
 
-    await withSession({ restaurant: { defaultLanguage: 'en' }, staff: null }, () => {
-      for (const surface of SURFACES) {
-        expect(resolveSignedInLanguage(surface)).toBe('en')
-      }
-    })
+    for (const surface of SURFACES) {
+      expect(resolveSignedInLanguage(identity('en', null), surface)).toBe('en')
+    }
 
     // Untouched by the read, so the next sign in screen still opens in it.
     expect(readStoredLanguage()).toBe('hi')
   }) // covers: AC-6
 
-  it('answers even when storage cannot be reached at all', async () => {
+  it('answers even when storage cannot be reached at all', () => {
     // Proof by construction that the signed in path does not read storage: it
     // still resolves in a browser where every read throws.
-    await withSession({ restaurant: { defaultLanguage: 'hi' }, staff: null }, () => {
-      withRefusedStorage(() => {
-        expect(resolveSignedInLanguage('waiter')).toBe('hi')
-      })
+    withRefusedStorage(() => {
+      expect(resolveSignedInLanguage(identity('hi', null), 'waiter')).toBe('hi')
     })
   }) // covers: AC-6
 })
 
 describe('resolveLanguage', () => {
-  it('hands a signed in screen to the signed in resolver', async () => {
-    // Nobody can sign in until feature 7, so every screen resolves through the
-    // signed in path today. Both resolvers are checked in full above; this
-    // pins which one a screen actually reaches.
-    await withSession({ restaurant: { defaultLanguage: 'hi' }, staff: 'en' }, () => {
-      const surfaces: Surface[] = [...SURFACES]
+  it('hands a signed in screen to the signed in resolver', () => {
+    const signedIn = identity('hi', 'en')
+    const surfaces: Surface[] = [...SURFACES]
 
-      for (const surface of surfaces) {
-        expect(resolveLanguage(surface)).toBe(resolveSignedInLanguage(surface))
-      }
-    })
+    for (const surface of surfaces) {
+      expect(resolveLanguage(signedIn, surface)).toBe(resolveSignedInLanguage(signedIn, surface))
+    }
   }) // covers: AC-6
 
-  it('keeps the kitchen on the restaurant’s language through the front door too', async () => {
+  it('hands a signed out screen to the signed out resolver', () => {
+    // The state the app boots into: the identity has not come back yet, and the
+    // sign in screen has to be readable before it does.
+    writeStoredLanguage('hi')
+
+    for (const surface of SURFACES) {
+      expect(resolveLanguage(null, surface)).toBe('hi')
+    }
+  }) // covers: AC-6, AC-7
+
+  it('keeps the kitchen on the restaurant’s language through the front door too', () => {
     writeStoredLanguage('en')
 
-    await withSession({ restaurant: { defaultLanguage: 'hi' }, staff: 'en' }, () => {
-      expect(resolveLanguage('kitchen')).toBe('hi')
-      expect(resolveLanguage('waiter')).toBe('en')
-    })
+    const signedIn = identity('hi', 'en')
+    expect(resolveLanguage(signedIn, 'kitchen')).toBe('hi')
+    expect(resolveLanguage(signedIn, 'waiter')).toBe('en')
   }) // covers: AC-6
 })

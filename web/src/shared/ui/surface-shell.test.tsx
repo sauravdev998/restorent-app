@@ -3,10 +3,36 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import type { Identity } from '@/shared/session/identity'
 import { type Surface } from '@/shared/surface'
 import { expectAccessible } from '@/test/axe'
 
 import { SurfaceShell } from './surface-shell'
+
+/**
+ * Somebody signed in, which the shell now needs: the navigation shows the one
+ * surface their role holds rather than all three.
+ */
+const WAITER: Identity = {
+  staff: {
+    id: '00000000-0000-7000-8000-000000000001',
+    displayName: 'Wes Waiter',
+    email: 'wes@example.test',
+    role: 'waiter',
+    language: null,
+  },
+  restaurant: {
+    id: '00000000-0000-7000-8000-000000000002',
+    name: 'The Test Kitchen',
+    address: null,
+    countryCode: 'IN',
+    currencyCode: 'INR',
+    currencyDecimals: 2,
+    timezone: 'Asia/Kolkata',
+    defaultLanguage: 'en',
+    formattingLocale: 'en-IN',
+  },
+}
 
 /**
  * The shell reaches for `NavLink`, so it only renders inside a router. A memory
@@ -21,7 +47,7 @@ function renderShell(
       {
         path: '/',
         element: (
-          <SurfaceShell stream={stream} surface={surface}>
+          <SurfaceShell stream={stream} surface={surface} identity={WAITER}>
             <h1>Waiter surface</h1>
             <button type="button">Send the round</button>
           </SurfaceShell>
@@ -41,7 +67,7 @@ describe('SurfaceShell', () => {
         {
           path: '/',
           element: (
-            <SurfaceShell stream="open" surface="waiter">
+            <SurfaceShell stream="open" surface="waiter" identity={WAITER}>
               <h1>Waiter surface</h1>
             </SurfaceShell>
           ),

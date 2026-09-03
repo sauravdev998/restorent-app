@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE restaurants\n           SET name              = COALESCE($1, name),\n               address           = CASE WHEN $2::boolean THEN $3::text ELSE address END,\n               timezone          = COALESCE($4, timezone),\n               default_language  = COALESCE($5, default_language),\n               formatting_locale = COALESCE($6, formatting_locale),\n               updated_at        = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5b4e115454dc4566a6abcaab8d9c4d8d66a56f65c4870a5920c4d9e873a31718"
+}

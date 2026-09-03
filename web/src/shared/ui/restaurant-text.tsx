@@ -1,6 +1,6 @@
 import type { ElementType, ReactNode } from 'react'
 
-import { restaurantLanguage } from '@/shared/session/restaurant-settings'
+import { restaurantLanguage } from '@/shared/session/identity'
 
 import { cn } from './cn'
 

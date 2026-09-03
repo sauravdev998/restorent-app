@@ -20,6 +20,9 @@ use crate::domain::error::{DomainError, DomainResult};
 use crate::domain::event::EntityKind;
 use crate::domain::ids::{RestaurantId, SessionId, StaffId};
 use crate::domain::people::{ResolvedSession, StaffCredentials};
+use crate::domain::throttle::{
+    ATTEMPT_RETENTION, MAX_ATTEMPTS_PER_EMAIL, MAX_ATTEMPTS_PER_IP, THROTTLE_WINDOW,
+};
 
 use super::config::Config;
 pub use scoped::ScopedTx;
@@ -250,6 +253,118 @@ impl Database {
             role: row.role,
             expires_at: row.expires_at,
         }))
+    }
+
+    /// Counts the recent attempts for this address and this caller, records
+    /// this one, and refuses if either bucket is already full.
+    ///
+    /// Called before the password is checked, on both `/api/auth/sign-in` and
+    /// `/api/auth/register`. Registration is included because it answers
+    /// whether an address is taken, so without a throttle it would be a way to
+    /// work through a list of addresses at speed.
+    ///
+    /// # Why this is unscoped, and why that is not a third door
+    ///
+    /// `login_attempts` has no `restaurant_id`, no foreign key, and no row
+    /// level security. It could not have one: a failed sign in happens before
+    /// anybody knows which restaurant the address belongs to, and often for an
+    /// address that belongs to none. It holds nothing that answers a question
+    /// about any restaurant, so the two cross tenant reads spec 0003 named are
+    /// still the only two.
+    ///
+    /// # Why the advisory lock
+    ///
+    /// The count and this attempt's own insert have to be one atomic step. Ten
+    /// requests for one address arriving together would otherwise every one of
+    /// them read a count below the limit, before any of them had committed a
+    /// row, and every one of them would be allowed. The lock is transaction
+    /// level and keyed on the lowered address, so it is released by the commit
+    /// and two different addresses never wait on each other.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Throttled`] with the seconds until the window
+    /// clears when either bucket is full, and [`DomainError::Unavailable`] if a
+    /// statement fails.
+    pub async fn record_login_attempt(
+        &self,
+        email: &str,
+        client_address: Option<std::net::IpAddr>,
+    ) -> DomainResult<()> {
+        let lowered = email.trim().to_lowercase();
+        let window = THROTTLE_WINDOW.as_secs_f64();
+
+        let mut tx = self.pool.begin().await?;
+
+        // `hashtext` rather than a hash computed in Rust, so the key is a pure
+        // function of the address that anybody reading this SQL can reproduce.
+        sqlx::query!("SELECT pg_advisory_xact_lock(hashtext($1))", lowered)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        let counts = sqlx::query!(
+            r#"
+            SELECT
+                count(*) FILTER (WHERE email = $1)                       AS "by_email!",
+                count(*) FILTER (WHERE $2::inet IS NOT NULL AND ip = $2) AS "by_address!"
+            FROM login_attempts
+            WHERE attempted_at > now() - make_interval(secs => $3)
+            "#,
+            lowered,
+            client_address.map(sqlx::types::ipnetwork::IpNetwork::from),
+            window,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if counts.by_email >= MAX_ATTEMPTS_PER_EMAIL || counts.by_address >= MAX_ATTEMPTS_PER_IP {
+            // The transaction is dropped, so this attempt is not recorded.
+            // Recording it would let somebody hold a locked out account locked
+            // out for as long as they kept knocking, which turns a fifteen
+            // minute wait into an indefinite one.
+            return Err(DomainError::Throttled(THROTTLE_WINDOW.as_secs()));
+        }
+
+        sqlx::query!(
+            "INSERT INTO login_attempts (id, email, ip) VALUES ($1, $2, $3)",
+            uuid::Uuid::now_v7(),
+            lowered,
+            client_address.map(sqlx::types::ipnetwork::IpNetwork::from),
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(())
+    }
+
+    /// Clears this one address's long dead attempt rows.
+    ///
+    /// Run on a successful sign in, and scoped to that address on purpose:
+    /// nobody's routine sign in should be a delete across the whole table.
+    /// Returns how many rows went.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Unavailable`] if the delete fails.
+    pub async fn sweep_login_attempts(&self, email: &str) -> DomainResult<u64> {
+        let lowered = email.trim().to_lowercase();
+
+        let affected = sqlx::query!(
+            r#"
+            DELETE FROM login_attempts
+             WHERE email = $1
+               AND attempted_at < now() - make_interval(secs => $2)
+            "#,
+            lowered,
+            ATTEMPT_RETENTION.as_secs_f64(),
+        )
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+
+        Ok(affected)
     }
 }
 

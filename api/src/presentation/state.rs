@@ -9,6 +9,7 @@ use crate::infrastructure::config::Environment;
 use crate::infrastructure::db::Database;
 use crate::infrastructure::events::EventRegistry;
 use crate::infrastructure::health::SystemHealth;
+use crate::infrastructure::passwords::Argon2Passwords;
 
 /// Shared application state. Cheap to clone: everything inside is already
 /// reference counted.
@@ -21,7 +22,10 @@ pub struct AppState {
     pub events: Arc<EventRegistry>,
     /// What the health endpoint asks.
     pub health: SystemHealth,
-    /// Which environment this is. Read by the request scope extractor, which
-    /// behaves differently and fails closed outside development.
+    /// Hashes and verifies passwords, off the async runtime.
+    pub passwords: Argon2Passwords,
+    /// Which environment this is. Read by the cookie builder, which sets
+    /// `Secure` everywhere except development, and by the router, which mounts
+    /// the development only routes.
     pub environment: Environment,
 }

@@ -1,8 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
-import { currentRestaurantId } from '@/shared/session/current-restaurant'
-
 /** One message from the server. A kind and an id, never row content. */
 export interface StreamEvent {
   entity: string
@@ -34,20 +32,22 @@ export interface LiveEvents {
  *    an id, so the client goes back and asks for the row. That keeps row level
  *    security the single authority on who may see what. Trusting event contents
  *    would create a second, unguarded way to read data.
+ *
+ * @param onFatal what to do when the stream fails in a way the browser will not
+ * retry, which in practice means the session ended. It takes the same path an
+ * ordinary request's `401` does.
  */
-export function useLiveEvents(): LiveEvents {
+export function useLiveEvents(onFatal: () => void): LiveEvents {
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<StreamStatus>('connecting')
   const [last, setLast] = useState<StreamEvent | null>(null)
   const [received, setReceived] = useState(0)
 
   useEffect(() => {
-    const restaurantId = currentRestaurantId()
-    const url = restaurantId
-      ? `/api/events?restaurant_id=${encodeURIComponent(restaurantId)}`
-      : '/api/events'
-
-    const source = new EventSource(url, { withCredentials: true })
+    // No restaurant in the address. `EventSource` cannot set a header, but it
+    // does send cookies, and the session cookie is the only thing that says
+    // which restaurant this stream belongs to.
+    const source = new EventSource('/api/events', { withCredentials: true })
 
     const resynchronise = () => {
       void queryClient.refetchQueries({ type: 'active' })
@@ -73,7 +73,14 @@ export function useLiveEvents(): LiveEvents {
       // Reporting "connecting" for a stream that is never coming back is worse
       // than reporting nothing, because it tells staff to wait when what they
       // need to do is reload.
-      setStatus(source.readyState === EventSource.CLOSED ? 'closed' : 'connecting')
+      const fatal = source.readyState === EventSource.CLOSED
+      setStatus(fatal ? 'closed' : 'connecting')
+
+      // A fatal error on this stream is almost always a `401`: the session was
+      // revoked, or expired, and the browser will not retry a response it
+      // cannot use. It is the same event an ordinary request's `401` is, so it
+      // takes the same path rather than a second one that could drift.
+      if (fatal) onFatal()
     }
 
     source.addEventListener('entity_changed', (message: MessageEvent<string>) => {
@@ -102,7 +109,7 @@ export function useLiveEvents(): LiveEvents {
       source.close()
       setStatus('closed')
     }
-  }, [queryClient])
+  }, [queryClient, onFatal])
 
   return { status, last, received }
 }

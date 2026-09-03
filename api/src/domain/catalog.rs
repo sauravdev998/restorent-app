@@ -18,6 +18,10 @@ pub struct Restaurant {
     pub id: RestaurantId,
     /// What it is called.
     pub name: String,
+    /// Where it is, as an ISO 3166-1 alpha-2 code. Names the row in
+    /// `locales/countries.json` that registration took the currency, the
+    /// timezone, the default language, and the formatting locale from.
+    pub country_code: String,
     /// What it charges in.
     pub currency: Currency,
     /// Its own timezone, as an IANA name such as `Europe/Berlin`. The local day

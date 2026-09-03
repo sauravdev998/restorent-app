@@ -14,6 +14,7 @@
     "db:reset": "docker compose down -v && docker compose up -d --wait && pnpm migrate",
     "migrate": "set -a && . ./.env && set +a && sqlx migrate run --source api/migrations --database-url \"$OWNER_DATABASE_URL\"",
     "migrate:add": "sqlx migrate add --source api/migrations",
+    "db:seed": "cargo run --manifest-path api/Cargo.toml --bin seed",
     "dev:api": "cargo run --manifest-path api/Cargo.toml",
     "dev:web": "pnpm --filter web dev",
     "build": "cargo build --release --manifest-path api/Cargo.toml && pnpm --filter web build",

@@ -285,8 +285,10 @@ async fn the_two_sign_in_lookups_read_across_restaurants_and_nothing_else_does()
 
     sqlx::query(
         "INSERT INTO sessions
-             (id, restaurant_id, staff_id, token_hash, expires_at, last_seen_at, updated_at)
-         VALUES ($1, $2, $3, $4, now() + interval '1 hour', now(), now())",
+             (id, restaurant_id, staff_id, token_hash, expires_at, last_seen_at,
+              absolute_expires_at, updated_at)
+         VALUES ($1, $2, $3, $4, now() + interval '1 hour', now(),
+                 now() + interval '90 days', now())",
     )
     .bind(SessionId::new().as_uuid())
     .bind(restaurant_id.as_uuid())
@@ -373,8 +375,10 @@ async fn an_expired_or_revoked_session_resolves_to_nothing() {
 
     sqlx::query(
         "INSERT INTO sessions
-             (id, restaurant_id, staff_id, token_hash, expires_at, last_seen_at, updated_at)
-         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(), now())",
+             (id, restaurant_id, staff_id, token_hash, expires_at, last_seen_at,
+              absolute_expires_at, updated_at)
+         VALUES ($1, $2, $3, $4, now() - interval '1 hour', now(),
+                 now() + interval '90 days', now())",
     )
     .bind(SessionId::new().as_uuid())
     .bind(restaurant_id.as_uuid())
@@ -387,8 +391,9 @@ async fn an_expired_or_revoked_session_resolves_to_nothing() {
     sqlx::query(
         "INSERT INTO sessions
              (id, restaurant_id, staff_id, token_hash, expires_at, last_seen_at,
-              revoked_at, updated_at)
-         VALUES ($1, $2, $3, $4, now() + interval '1 hour', now(), now(), now())",
+              absolute_expires_at, revoked_at, updated_at)
+         VALUES ($1, $2, $3, $4, now() + interval '1 hour', now(),
+                 now() + interval '90 days', now(), now())",
     )
     .bind(SessionId::new().as_uuid())
     .bind(restaurant_id.as_uuid())

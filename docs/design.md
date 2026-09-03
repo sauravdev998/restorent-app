@@ -207,6 +207,19 @@ layout and paints nothing, so the rule cannot see what is actually behind an ele
 end to end by the contrast script. Two gates both claiming colour, one of them unreliable, is worse
 than one gate that is trusted.
 
+### The two screens outside the shell
+
+Sign in and registration render without `SurfaceShell` around them, because there is nobody signed
+in yet and the shell's navigation, connection badge, and account menu would all be lying. That means
+each of them provides for itself the three things the shell would have provided: a `<main
+id="main-content" tabIndex={-1}>` so there is a landmark and the focus lands somewhere, one `<h1>`
+naming the screen, and the language switcher, so somebody who cannot read the current language can
+still change it before they sign in.
+
+Adding a third screen outside the shell means writing those three again. Nothing enforces it: axe
+checks the components, and only a page level render catches a missing landmark, which is why each of
+these two carries its own accessibility test.
+
 ### What the gates do not cover
 
 Checked by hand for now, and by Playwright once it joins continuous integration at slice 1:

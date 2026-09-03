@@ -9,11 +9,12 @@ use anyhow::Context as _;
 use tokio::net::TcpListener;
 use tokio::signal;
 
-use api::domain::language;
+use api::domain::{country, language};
 use api::infrastructure::config::Config;
 use api::infrastructure::db::Database;
 use api::infrastructure::events::{self, EventRegistry};
 use api::infrastructure::health::SystemHealth;
+use api::infrastructure::passwords::Argon2Passwords;
 use api::infrastructure::telemetry;
 use api::presentation::router;
 use api::presentation::state::AppState;
@@ -34,11 +35,13 @@ async fn main() -> anyhow::Result<()> {
     // a refused start rather than a puzzling 400 on the first request that
     // happens to write a language.
     let catalogue = language::catalogue().context("locales/catalogue.json is not usable")?;
+    let countries = country::countries().context("locales/countries.json is not usable")?;
 
     telemetry::init(config.environment);
     tracing::info!(
         environment = ?config.environment,
         languages = catalogue.languages.len(),
+        countries = countries.countries.len(),
         "starting the api"
     );
 
@@ -57,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
         health: SystemHealth::new(database.clone(), listener_handle),
         database,
         events: registry,
+        passwords: Argon2Passwords::new(),
         environment: config.environment,
     };
 
@@ -68,10 +72,17 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(address = %config.bind_address, "listening");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("the http server stopped unexpectedly")?;
+    // `into_make_service_with_connect_info` rather than the plain one, so the
+    // socket's peer address reaches the request. It is what the client address
+    // extractor reads in development, where there is no CloudFront to set the
+    // header it reads everywhere else.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("the http server stopped unexpectedly")?;
 
     tracing::info!("shut down cleanly");
     Ok(())

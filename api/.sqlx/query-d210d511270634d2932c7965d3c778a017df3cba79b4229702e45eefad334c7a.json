@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        DELETE FROM sessions\n         WHERE staff_id = $1\n           AND (\n                 (revoked_at IS NOT NULL AND revoked_at < now() - make_interval(secs => $2))\n              OR (expires_at < now() - make_interval(secs => $2))\n               )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d210d511270634d2932c7965d3c778a017df3cba79b4229702e45eefad334c7a"
+}

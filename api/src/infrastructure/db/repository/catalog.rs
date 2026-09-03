@@ -42,7 +42,7 @@ use super::audit;
 pub async fn restaurant(tx: &mut ScopedTx<'_>) -> DomainResult<Restaurant> {
     let row = sqlx::query!(
         r#"
-        SELECT id, name, currency_code, currency_decimals, timezone,
+        SELECT id, name, country_code, currency_code, currency_decimals, timezone,
                default_language, formatting_locale,
                service_charge_percent, address, tax_registration_number, deactivated_at
         FROM restaurants
@@ -55,6 +55,9 @@ pub async fn restaurant(tx: &mut ScopedTx<'_>) -> DomainResult<Restaurant> {
     Ok(Restaurant {
         id: RestaurantId::from_uuid(row.id),
         name: row.name,
+        // `char(2)` pads with spaces on the way out, the same as the currency
+        // code does, so the trim is not optional.
+        country_code: row.country_code.trim().to_owned(),
         currency: currency_from(&row.currency_code, row.currency_decimals)?,
         timezone: row.timezone,
         default_language: LanguageCode::new(&row.default_language)?,

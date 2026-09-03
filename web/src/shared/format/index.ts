@@ -1,5 +1,5 @@
 import { FALLBACK_FORMATTING_LOCALE } from '@/shared/i18n/catalogue'
-import { restaurantSettings } from '@/shared/session/restaurant-settings'
+import { restaurantFormatting } from '@/shared/session/identity'
 
 /**
  * How money, numbers, dates, and times are written.
@@ -63,7 +63,7 @@ function usableLocale(locale: string): string {
 
 /** The context every formatter on this screen is built from. */
 export function formattingContext(): FormattingContext {
-  const settings = restaurantSettings()
+  const settings = restaurantFormatting()
   return {
     locale: usableLocale(settings.formattingLocale),
     timeZone: settings.timezone,
@@ -176,7 +176,7 @@ export function formatMoney(amount: string, currencyCode: string, decimals: numb
  * copy instead.
  */
 export function formatRestaurantMoney(amount: string): string {
-  const { currencyCode, currencyDecimals } = restaurantSettings()
+  const { currencyCode, currencyDecimals } = restaurantFormatting()
   return formatMoney(amount, currencyCode, currencyDecimals)
 }
 

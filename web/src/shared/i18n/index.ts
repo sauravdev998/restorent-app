@@ -7,7 +7,7 @@ import { surfaceForPath, type Surface } from '@/shared/surface'
 import { catalogue, FALLBACK_LANGUAGE } from './catalogue'
 import { DEFAULT_NAMESPACE, NAMESPACES, namespacesForSurface, type Namespace } from './namespaces'
 import { pseudoAvailable, pseudoBundle, PSEUDO_LANGUAGE } from './pseudo'
-import { resolveLanguage } from './resolve'
+import { resolveSignedOutLanguage } from './resolve'
 
 /**
  * Translations, set up before the first screen renders.
@@ -140,11 +140,18 @@ async function installBundles(language: string, namespaces: readonly Namespace[]
 /**
  * The language the very first paint uses.
  *
- * Resolved from the settings and the surface in the address bar, never from the
+ * The signed out one, always, because at this point nobody has asked the server
+ * who is looking: the app has not booted, so the identity has not arrived. That
+ * is what somebody explicitly chose on this device, else English, and never the
  * browser's own language. See `resolve.ts` for why that is deliberate.
+ *
+ * Once the identity does arrive, `useIdentityLanguage` moves the screen to the
+ * language that person's own setting and their restaurant's default resolve to.
+ * The two halves are separate on purpose: the sign in screen has to be readable
+ * before anybody is signed in.
  */
 const initialSurface: Surface = surfaceForPath(window.location.pathname)
-const initialLanguage: string = resolveLanguage(initialSurface)
+const initialLanguage: string = resolveSignedOutLanguage()
 
 /**
  * What is in memory before the first render.

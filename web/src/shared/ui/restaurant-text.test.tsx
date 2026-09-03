@@ -10,7 +10,7 @@ import { RestaurantText } from './restaurant-text'
  * inside a page declared as another.
  */
 async function withRestaurantLanguage<T>(language: string, body: () => T): Promise<T> {
-  const module = await import('@/shared/session/restaurant-settings')
+  const module = await import('@/shared/session/identity')
   const spy = vi.spyOn(module, 'restaurantLanguage').mockReturnValue(language)
 
   try {

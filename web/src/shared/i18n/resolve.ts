@@ -1,4 +1,4 @@
-import { restaurantSettings, staffSettings } from '@/shared/session/restaurant-settings'
+import type { Identity } from '@/shared/session/identity'
 import { followsRestaurantLanguage, type Surface } from '@/shared/surface'
 
 import { FALLBACK_LANGUAGE, isKnownLanguage } from './catalogue'
@@ -76,33 +76,26 @@ export function resolveSignedOutLanguage(): string {
  * the personal setting is skipped entirely, even when a chef who has one is
  * signed in: that screen is a shared appliance read across a shift handover.
  *
- * `localStorage` is not in this chain at any point.
+ * `localStorage` is not in this chain at any point. Both values come from the
+ * identity bundle, which came from the session, which came from the database.
  */
-export function resolveSignedInLanguage(surface: Surface): string {
-  const restaurant = restaurantSettings().defaultLanguage
-
+export function resolveSignedInLanguage(identity: Identity, surface: Surface): string {
   if (!followsRestaurantLanguage(surface)) {
-    const personal = staffSettings().language
+    const personal = identity.staff.language
     if (isKnownLanguage(personal)) return personal
   }
 
+  const restaurant = identity.restaurant.defaultLanguage
   return isKnownLanguage(restaurant) ? restaurant : FALLBACK_LANGUAGE
 }
 
 /**
- * Whether anybody is signed in.
+ * The language a screen on this surface should currently be drawn in.
  *
- * A placeholder while feature 7 does not exist. Nobody can sign in yet, so every
- * screen resolves through the signed in path against the restaurant's own
- * settings, which is what the product does the rest of the time. Feature 7
- * replaces this body with a real session check and the two resolvers above are
- * already written for both answers.
+ * `null` means nobody is signed in, which is the state the app boots into: the
+ * identity has not come back yet, and the sign in screen has to be readable
+ * before it does.
  */
-export function isSignedIn(): boolean {
-  return true
-}
-
-/** The language a screen on this surface should currently be drawn in. */
-export function resolveLanguage(surface: Surface): string {
-  return isSignedIn() ? resolveSignedInLanguage(surface) : resolveSignedOutLanguage()
+export function resolveLanguage(identity: Identity | null, surface: Surface): string {
+  return identity ? resolveSignedInLanguage(identity, surface) : resolveSignedOutLanguage()
 }

@@ -1,5 +1,9 @@
 //! Request extractors: the typed things handlers ask for.
 
-pub mod scoped;
+pub mod actor;
+pub mod client_address;
+pub mod json;
 
-pub use scoped::RestaurantScope;
+pub use actor::{Actor, Admin, AnyRole, Chef, RoleRequirement, Waiter};
+pub use client_address::ClientAddress;
+pub use json::JsonBody;

@@ -4,6 +4,93 @@
  */
 
 export interface paths {
+  '/api/auth/register': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Registers a restaurant and signs its owner in as the admin.
+     * @description One transaction. Any failure inside it, a duplicate address in particular,
+     *     leaves no restaurant, no staff row, and no session: the transaction is
+     *     simply dropped, and everything it wrote goes with it.
+     *
+     *     The five settings the restaurant starts with come from the country's row in
+     *     `locales/countries.json` and from nowhere else.
+     *
+     *     # Errors
+     *
+     *     Returns a `400` naming each field that was not accepted, including
+     *     `fields.email=already_taken` for an address that already has an account, and
+     *     a `503` if the database or the password hash is unavailable.
+     */
+    post: operations['register']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/auth/sign-in': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Signs somebody in.
+     * @description The address is looked up across every restaurant, because sign in has a
+     *     chicken and egg problem: there is no restaurant to scope to until the
+     *     account is found. That lookup is one of exactly two in the system that read
+     *     across restaurants, and it is `SECURITY DEFINER` in the database with a
+     *     fixed narrow shape.
+     *
+     *     # Errors
+     *
+     *     Returns `401` for a wrong password, an address nobody has, and a deactivated
+     *     account alike, and a `503` if the database or the password hash is
+     *     unavailable.
+     */
+    post: operations['sign_in']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/auth/sign-out': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Signs out exactly the session that made the request.
+     * @description Every other session belonging to the same person keeps working, which is
+     *     what makes signing out on the house phone at the end of a shift safe to do.
+     *
+     *     # Errors
+     *
+     *     Returns `401` if nobody is signed in, and a `503` if the database is
+     *     unavailable.
+     */
+    post: operations['sign_out']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/events': {
     parameters: {
       query?: never
@@ -56,10 +143,106 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/me': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Who is signed in, and where they work.
+     * @description The same bundle sign in returns, so a browser that has reloaded gets back to
+     *     exactly the state it had without a second endpoint or a second shape.
+     *
+     *     # Errors
+     *
+     *     Returns `401` if nobody is signed in, and a `503` if the database is
+     *     unavailable.
+     */
+    get: operations['me']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Changes the caller's own display name or personal language.
+     * @description # Errors
+     *
+     *     Returns a `400` naming the field that was not accepted, `401` if nobody is
+     *     signed in, and a `503` if the database is unavailable.
+     */
+    patch: operations['update_me']
+    trace?: never
+  }
+  '/api/me/password': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Changes the caller's own password, and signs their other devices out.
+     * @description The session that made the request keeps working, so somebody changing their
+     *     password on the screen in front of them is not immediately signed out of it.
+     *     Every other session of theirs is revoked in the same transaction, which is
+     *     what makes "I think somebody has my password" a thing they can act on alone.
+     *
+     *     # Errors
+     *
+     *     Returns a `400` with `fields.currentPassword=incorrect` for a wrong current
+     *     password, `401` if nobody is signed in, and a `503` if the database or the
+     *     password hash is unavailable.
+     */
+    post: operations['change_password']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/restaurant': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    /**
+     * Changes the restaurant's settings. Admins only.
+     * @description The role requirement is in the signature: `Actor<Admin>` refuses a waiter and
+     *     a chef with `403` before this body runs, so there is no line here to forget.
+     *
+     *     # Errors
+     *
+     *     Returns a `400` naming each field that was not accepted, `403` for a waiter
+     *     or a chef, `401` if nobody is signed in, and a `503` if the database is
+     *     unavailable.
+     */
+    patch: operations['update_restaurant']
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** @description What changing your own password asks for. */
+    ChangePasswordRequest: {
+      /** @description The password they are signing in with now. */
+      currentPassword: string
+      /** @description What they want it to be. */
+      newPassword: string
+    }
     /**
      * @description Whether one dependency is answering.
      * @enum {string}
@@ -73,7 +256,27 @@ export interface components {
        */
       error: string
       /**
+       * @description What is wrong with each named field, when the problem is a form rather
+       *     than the request as a whole.
+       *
+       *     Absent from every response that has no field level problem, which is
+       *     most of them, so nothing that was already reading this body changes.
+       *     Each value is one of a closed set of codes: `already_taken`,
+       *     `too_short`, `too_long`, `invalid_format`, `unknown_country`,
+       *     `not_in_catalogue`, `incorrect`, `required`.
+       * @example {
+       *       "email": "already_taken"
+       *     }
+       */
+      fields?: {
+        [key: string]: string
+      } | null
+      /**
        * @description A human readable sentence. Never contains internal detail.
+       *
+       *     English, and for a log. The web app renders a translation of
+       *     [`Self::error`] instead, because the API is a data API and knows nothing
+       *     about what language anybody reads.
        * @example The requested resource does not exist.
        */
       message: string
@@ -92,6 +295,126 @@ export interface components {
       listener: components['schemas']['Component']
       /** @description True only when every dependency is up. */
       serving: boolean
+    }
+    /**
+     * @description Everything the browser needs to know who it is talking for.
+     *
+     *     Returned identically by register, sign in, `GET /api/me`, `PATCH /api/me`,
+     *     and `PATCH /api/restaurant`, so the browser has one type and one cache
+     *     entry. Five endpoints returning five nearly identical shapes is how a client
+     *     ends up with five slightly different ideas of who is signed in.
+     */
+    IdentityBundle: {
+      /** @description Where they work. */
+      restaurant: components['schemas']['RestaurantDto']
+      /** @description Who is signed in. */
+      staff: components['schemas']['StaffDto']
+    }
+    /**
+     * @description What registration asks for.
+     *
+     *     Five fields, and that is the product decision showing through: trying this
+     *     costs a minute, not an afternoon of settings. Everything else about the
+     *     restaurant is derived from the country or changed later.
+     */
+    RegisterRequest: {
+      /**
+       * @description Where the restaurant is, as an ISO 3166-1 alpha-2 code. Accepted in any
+       *     case.
+       */
+      countryCode: string
+      /** @description What to call the owner on screen. */
+      displayName: string
+      /** @description The address they will sign in with. */
+      email: string
+      /** @description Their password. At least 10 characters. */
+      password: string
+      /** @description What the restaurant is called. */
+      restaurantName: string
+    }
+    /**
+     * @description The restaurant the signed in person works at, as every screen reads it.
+     *
+     *     Carries the five settings spec 0005's formatting layer needs and nothing
+     *     about money beyond the currency: figures on a bill come from the bill.
+     */
+    RestaurantDto: {
+      /** @description Where it is, for printing on a bill. `null` when nobody has set one. */
+      address?: string | null
+      /** @description Where it is, as an ISO 3166-1 alpha-2 code. */
+      countryCode: string
+      /** @description What it charges in. */
+      currencyCode: string
+      /**
+       * Format: int32
+       * @description How many decimal places that currency uses.
+       */
+      currencyDecimals: number
+      /**
+       * @description What the kitchen screen reads, and the fallback for anybody with no
+       *     personal setting.
+       */
+      defaultLanguage: string
+      /**
+       * @description How money, numbers, dates, and times are written here. Deliberately not
+       *     derived from the language.
+       */
+      formattingLocale: string
+      /**
+       * Format: uuid
+       * @description Which restaurant this is.
+       */
+      id: string
+      /** @description What it is called. */
+      name: string
+      /**
+       * @description Its own IANA timezone. Every timestamp on a screen is converted with it,
+       *     never with the device's.
+       */
+      timezone: string
+    }
+    /**
+     * @description What a member of staff is allowed to be, on the wire.
+     *
+     *     A separate enum from [`StaffRole`] because that one lives in the domain and
+     *     may not learn that `utoipa` exists. The strings are identical, and the two
+     *     tests below are what keep them that way.
+     * @enum {string}
+     */
+    RoleDto: 'admin' | 'waiter' | 'chef'
+    /** @description What signing in asks for. */
+    SignInRequest: {
+      /** @description The address the account was registered with. Matched case insensitively. */
+      email: string
+      /** @description The password. */
+      password: string
+    }
+    /** @description Who the signed in person is. */
+    StaffDto: {
+      /** @description What to call them on screen. */
+      displayName: string
+      /**
+       * @description The address they sign in with, exactly as they typed it when they
+       *     registered. Handed back unflattened so the account screen shows them
+       *     their own capitalisation.
+       */
+      email: string
+      /**
+       * Format: uuid
+       * @description Which staff member this is.
+       *
+       *     A bare uuid rather than the domain's `StaffId`, because a newtype in
+       *     `domain/` may not learn that `utoipa` exists. The wire has always been
+       *     where identifiers lose their types.
+       */
+      id: string
+      /**
+       * @description Their own interface language, or `null` for "whatever the restaurant
+       *     uses", which is what a new account has.
+       */
+      language?: string | null
+      /** @description What they are allowed to be. */
+      role: components['schemas']['RoleDto']
     }
     /**
      * @description What one message on the stream looks like.
@@ -113,6 +436,48 @@ export interface components {
        */
       entity_id: string
     }
+    /**
+     * @description What somebody may change about their own account.
+     *
+     *     Both fields are optional and absent means "leave it alone". `language` is
+     *     deliberately `Option<Option<String>>`: absent leaves it, and an explicit
+     *     `null` clears it, which is a real choice somebody makes rather than an
+     *     absence. Collapsing the two would make "follow the restaurant" unsayable.
+     */
+    UpdateMeRequest: {
+      /** @description What to call them on screen. */
+      displayName?: string | null
+      /**
+       * @description Their own interface language, or `null` to follow the restaurant.
+       *
+       *     Clippy is overruled here, and the reason is the whole point of the
+       *     field. The three states are genuinely different and all three have to be
+       *     sayable: absent means "do not touch my language", `null` means "follow
+       *     the restaurant", and a code means that code. A custom enum would say the
+       *     same thing with a hand written `Deserialize` and a hand written
+       *     `ToSchema`, and the wire shape would be identical.
+       */
+      language?: string | null
+    }
+    /**
+     * @description What an admin may change about the restaurant.
+     *
+     *     No money setting appears here at all. The currency and its decimals were
+     *     fixed by the country at registration and changing them under bills that have
+     *     already closed would rewrite history.
+     */
+    UpdateRestaurantRequest: {
+      /** @description Where it is, for printing on a bill. An empty string clears it. */
+      address?: string | null
+      /** @description What the kitchen screen reads. */
+      defaultLanguage?: string | null
+      /** @description How it writes money, numbers, and dates. */
+      formattingLocale?: string | null
+      /** @description What the restaurant is called. */
+      name?: string | null
+      /** @description Its IANA timezone. */
+      timezone?: string | null
+    }
   }
   responses: never
   parameters: never
@@ -122,6 +487,99 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  register: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RegisterRequest']
+      }
+    }
+    responses: {
+      /** @description The restaurant and its admin now exist, and the response sets the session cookie. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['IdentityBundle']
+        }
+      }
+      /** @description A field was not accepted. `fields.email=already_taken` when that address already has an account. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  sign_in: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SignInRequest']
+      }
+    }
+    responses: {
+      /** @description Signed in, and the response sets the session cookie. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['IdentityBundle']
+        }
+      }
+      /** @description Identical for a wrong password and for an address nobody has. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  sign_out: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Signed out, and the response clears the cookie. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Nobody was signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   events: {
     parameters: {
       query?: never
@@ -140,7 +598,7 @@ export interface operations {
           'text/event-stream': components['schemas']['StreamEvent']
         }
       }
-      /** @description No session, so no restaurant to stream. */
+      /** @description Nobody is signed in, so there is no restaurant to stream. */
       401: {
         headers: {
           [name: string]: unknown
@@ -176,6 +634,168 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['HealthResponse']
+        }
+      }
+    }
+  }
+  me: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The signed in identity. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['IdentityBundle']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  update_me: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateMeRequest']
+      }
+    }
+    responses: {
+      /** @description The updated identity. Any signed in role, own row only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['IdentityBundle']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  change_password: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ChangePasswordRequest']
+      }
+    }
+    responses: {
+      /** @description Changed. Any signed in role, own row only. */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description The current password was wrong, or the new one broke a rule. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  update_restaurant: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateRestaurantRequest']
+      }
+    }
+    responses: {
+      /** @description The updated identity. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['IdentityBundle']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description A waiter or a chef asked. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
         }
       }
     }

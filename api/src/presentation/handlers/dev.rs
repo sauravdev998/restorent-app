@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::domain::event::EntityKind;
 use crate::infrastructure::db::Database;
 use crate::presentation::error::ApiError;
-use crate::presentation::extract::RestaurantScope;
+use crate::presentation::extract::Actor;
 use crate::presentation::state::AppState;
 
 /// What the probe returns, so a caller can match it against what arrived on the
@@ -28,19 +28,23 @@ pub struct ProbeSent {
 
 /// Publishes one probe event to the caller's restaurant.
 ///
+/// Signed in like every other route, even though it only exists in
+/// development. The probe has to travel the same path a real write does, and
+/// "which restaurant" is now part of that path.
+///
 /// # Errors
 ///
-/// Returns [`ApiError`] if the request carries no restaurant scope, or if the
-/// database refuses the transaction, the notify, or the commit.
+/// Returns [`ApiError`] if nobody is signed in, or if the database refuses the
+/// transaction, the notify, or the commit.
 pub async fn notify(
     State(state): State<AppState>,
-    scope: RestaurantScope,
+    actor: Actor,
 ) -> Result<Json<ProbeSent>, ApiError> {
     let entity_id = Uuid::new_v4();
 
     // Exactly the shape every real write will take: open a scoped transaction,
     // do the work, notify inside it, commit.
-    let mut tx = state.database.begin_scoped(scope.restaurant_id()).await?;
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
     Database::notify_entity_change(&mut tx, EntityKind::Probe, entity_id).await?;
     tx.commit().await?;
 

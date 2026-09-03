@@ -93,10 +93,13 @@ pub struct Fixture {
 
 /// Seeds a whole restaurant into an already scoped transaction.
 ///
-/// Written as raw statements rather than through the repository on purpose:
-/// registering a restaurant and creating staff belong to feature 7, and a test
-/// harness that invented those paths now would be inventing the very thing that
-/// feature has to decide.
+/// Written as raw statements rather than through the repository, because these
+/// tests roll back and never commit: they need a whole restaurant inside one
+/// transaction, with a second one alongside it to prove the isolation, and
+/// registration cannot give them that.
+///
+/// The tests that need a real account go through [`register_and_sign_in`]
+/// instead, which uses the same repository calls the endpoints do.
 pub async fn seed(tx: &mut ScopedTx<'_>, restaurant_id: RestaurantId) -> Fixture {
     seed_with(
         tx,
@@ -124,9 +127,9 @@ pub async fn seed_with(
 
     sqlx::query(
         "INSERT INTO restaurants
-             (id, name, currency_code, currency_decimals, timezone,
+             (id, name, country_code, currency_code, currency_decimals, timezone,
               service_charge_percent, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, now())",
+         VALUES ($1, $2, 'IN', $3, $4, $5, $6, now())",
     )
     .bind(raw)
     .bind(format!("Test Restaurant {suffix}"))
@@ -437,3 +440,88 @@ pub const TENANT_TABLES: &[&str] = &[
     "bill_number_counters",
     "audit_log",
 ];
+
+/// One restaurant, registered the way the product registers one.
+pub struct RegisteredAccount {
+    /// Which restaurant registration created.
+    pub restaurant_id: RestaurantId,
+    /// The admin it created.
+    pub admin: StaffId,
+    /// The address they signed in with, exactly as it was typed.
+    pub email: String,
+    /// The password they signed in with.
+    pub password: String,
+    /// The session cookie value, as the browser would hold it.
+    pub cookie_value: String,
+    /// The stored hash of that value, for resolving the session.
+    pub token_hash: Vec<u8>,
+}
+
+/// Registers a restaurant and opens a session, through the real code path.
+///
+/// The point of going through `accounts::register` and `sessions::open` rather
+/// than inserting rows is that everything derived on the way is really derived:
+/// the password is really hashed, the five settings really come from the country
+/// row, the audit entry is really written, and the session token is really
+/// hashed the way a request will hash it back. A fixture that inserted rows
+/// would be the one account in existence that none of that had happened to.
+///
+/// It commits, because a resolved session is looked up on its own connection
+/// outside any transaction a test holds open. Call [`drop_restaurant`] after.
+pub async fn register_and_sign_in(database: &Database, role_suffix: &str) -> RegisteredAccount {
+    use api::application::ports::PasswordHasher as _;
+    use api::domain::country::CountryCode;
+    use api::domain::credentials::{EmailAddress, Password};
+    use api::domain::session::SessionToken;
+    use api::infrastructure::db::repository::{accounts, sessions};
+    use api::infrastructure::passwords::Argon2Passwords;
+
+    let restaurant_id = RestaurantId::new();
+    let suffix = restaurant_id.as_uuid().simple().to_string();
+
+    let email_text = format!("Owner-{role_suffix}-{suffix}@Example.test");
+    let password_text = format!("a-real-password-{suffix}");
+
+    let email = EmailAddress::new(&email_text).expect("the fixture address is valid");
+    let password = Password::new(&password_text).expect("the fixture password is valid");
+    let country = CountryCode::new("IN").expect("IN is a country the platform serves");
+
+    let password_hash = Argon2Passwords::new()
+        .hash(password)
+        .await
+        .expect("hashing the fixture password");
+
+    let mut tx = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening the fixture transaction");
+
+    let admin = accounts::register(
+        &mut tx,
+        &accounts::Registration {
+            restaurant_name: &format!("Fixture Restaurant {suffix}"),
+            country: country.settings().expect("the country row"),
+            display_name: "Ada Owner",
+            email: &email,
+            password_hash: &password_hash,
+        },
+    )
+    .await
+    .expect("registering the fixture restaurant");
+
+    let token = SessionToken::mint().expect("minting the fixture session token");
+    sessions::open(&mut tx, admin, &token.hash())
+        .await
+        .expect("opening the fixture session");
+
+    tx.commit().await.expect("committing the fixture");
+
+    RegisteredAccount {
+        restaurant_id,
+        admin,
+        email: email_text,
+        password: password_text,
+        cookie_value: token.cookie_value(),
+        token_hash: token.hash(),
+    }
+}

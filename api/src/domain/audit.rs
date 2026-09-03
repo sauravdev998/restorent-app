@@ -20,6 +20,12 @@ use super::ids::{AuditEntryId, StaffId};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum AuditAction {
+    /// An owner registered a restaurant and became its admin.
+    RestaurantRegistered,
+    /// Somebody changed their own password.
+    PasswordChanged,
+    /// An admin edited the restaurant's settings.
+    RestaurantSettingsUpdated,
     /// A dish was cancelled off a ticket.
     LineVoided,
     /// A bill was closed, numbered, and totalled.
@@ -43,6 +49,9 @@ impl AuditAction {
     #[must_use]
     pub const fn as_label(self) -> &'static str {
         match self {
+            Self::RestaurantRegistered => "restaurant_registered",
+            Self::PasswordChanged => "password_changed",
+            Self::RestaurantSettingsUpdated => "restaurant_settings_updated",
             Self::LineVoided => "line_voided",
             Self::BillClosed => "bill_closed",
             Self::DishEdited => "dish_edited",
@@ -85,7 +94,10 @@ mod tests {
     ///
     /// Kept honest by [`position`]: adding a variant stops that match compiling,
     /// and filling it in stops this array being the right length.
-    const ALL: [AuditAction; 8] = [
+    const ALL: [AuditAction; 11] = [
+        AuditAction::RestaurantRegistered,
+        AuditAction::PasswordChanged,
+        AuditAction::RestaurantSettingsUpdated,
         AuditAction::LineVoided,
         AuditAction::BillClosed,
         AuditAction::DishEdited,
@@ -103,14 +115,17 @@ mod tests {
     /// enum and the tests quietly covering less than they claim to.
     const fn position(action: AuditAction) -> usize {
         match action {
-            AuditAction::LineVoided => 0,
-            AuditAction::BillClosed => 1,
-            AuditAction::DishEdited => 2,
-            AuditAction::DishArchived => 3,
-            AuditAction::TaxComponentEdited => 4,
-            AuditAction::ServiceChargeEdited => 5,
-            AuditAction::StaffRoleChanged => 6,
-            AuditAction::StaffDeactivated => 7,
+            AuditAction::RestaurantRegistered => 0,
+            AuditAction::PasswordChanged => 1,
+            AuditAction::RestaurantSettingsUpdated => 2,
+            AuditAction::LineVoided => 3,
+            AuditAction::BillClosed => 4,
+            AuditAction::DishEdited => 5,
+            AuditAction::DishArchived => 6,
+            AuditAction::TaxComponentEdited => 7,
+            AuditAction::ServiceChargeEdited => 8,
+            AuditAction::StaffRoleChanged => 9,
+            AuditAction::StaffDeactivated => 10,
         }
     }
 
@@ -135,6 +150,15 @@ mod tests {
     /// rename and pin nothing.
     #[test]
     fn every_action_writes_the_exact_string_the_log_is_read_back_by() {
+        assert_eq!(
+            AuditAction::RestaurantRegistered.as_label(),
+            "restaurant_registered"
+        );
+        assert_eq!(AuditAction::PasswordChanged.as_label(), "password_changed");
+        assert_eq!(
+            AuditAction::RestaurantSettingsUpdated.as_label(),
+            "restaurant_settings_updated"
+        );
         assert_eq!(AuditAction::LineVoided.as_label(), "line_voided");
         assert_eq!(AuditAction::BillClosed.as_label(), "bill_closed");
         assert_eq!(AuditAction::DishEdited.as_label(), "dish_edited");

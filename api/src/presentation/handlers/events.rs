@@ -9,8 +9,9 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::response::Sse;
-use axum::response::sse::{Event, KeepAlive};
+use axum::response::sse::Event;
 use futures::Stream;
 use serde::Serialize;
 use tokio::sync::broadcast::error::RecvError;
@@ -18,7 +19,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::event::DomainEvent;
-use crate::presentation::extract::RestaurantScope;
+use crate::presentation::extract::{Actor, actor};
 use crate::presentation::state::AppState;
 
 /// How often to send a comment line so nothing between here and the browser
@@ -27,6 +28,12 @@ use crate::presentation::state::AppState;
 /// The Application Load Balancer's idle timeout is raised to 300 seconds in
 /// `infra/`, and this sits far enough inside it that a quiet dinner service
 /// never drops a kitchen screen.
+///
+/// It is also how often the session behind an open stream is re resolved, and
+/// that is the more interesting job of the two. A screen held open all shift
+/// makes no other request, so its session would expire under the person
+/// watching it; and a session revoked while the stream is open has to stop
+/// delivering, which it does within one of these.
 const HEARTBEAT: Duration = Duration::from_secs(15);
 
 /// The SSE event name every change is published under.
@@ -84,15 +91,21 @@ impl From<DomainEvent> for StreamEvent {
             content_type = "text/event-stream",
             body = StreamEvent,
         ),
-        (status = 401, description = "No session, so no restaurant to stream.", body = crate::presentation::error::ErrorBody),
+        (status = 401, description = "Nobody is signed in, so there is no restaurant to stream.", body = crate::presentation::error::ErrorBody),
     )
 )]
 pub async fn events(
     State(state): State<AppState>,
-    scope: RestaurantScope,
+    headers: HeaderMap,
+    signed_in: Actor,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let restaurant_id = scope.restaurant_id();
+    let restaurant_id = signed_in.restaurant_id();
     let mut receiver = state.events.subscribe(restaurant_id).await;
+
+    // The stream outlives the request that opened it, so it cannot hold the
+    // extractor's answer and call it current. It keeps the hash of the cookie
+    // instead and asks again on every heartbeat.
+    let token_hash = actor::token_hash_from(&headers);
 
     tracing::info!(restaurant_id = %restaurant_id, "event stream opened");
 
@@ -110,42 +123,77 @@ pub async fn events(
         // exists to close.
         yield Ok(Event::default().comment("open"));
 
-        loop {
-            match receiver.recv().await {
-                Ok(event) => {
-                    let payload = StreamEvent::from(event);
+        // The heartbeat is ours rather than `KeepAlive`'s, because it does two
+        // jobs and `KeepAlive` can only do one of them: it keeps the connection
+        // from looking idle, and it is where the session is checked again.
+        let mut heartbeat = tokio::time::interval(HEARTBEAT);
+        // The first tick fires immediately, and the stream has only just
+        // resolved a session. Taking it here means the first real check is one
+        // interval away, as intended.
+        heartbeat.tick().await;
 
-                    match Event::default().event(EVENT_NAME).json_data(&payload) {
-                        Ok(sse_event) => yield Ok(sse_event),
-                        Err(error) => {
-                            tracing::error!(error = %error, "could not serialise a stream event");
+        loop {
+            tokio::select! {
+                published = receiver.recv() => match published {
+                    Ok(event) => {
+                        let payload = StreamEvent::from(event);
+
+                        match Event::default().event(EVENT_NAME).json_data(&payload) {
+                            Ok(sse_event) => yield Ok(sse_event),
+                            Err(error) => {
+                                tracing::error!(error = %error, "could not serialise a stream event");
+                            }
                         }
                     }
-                }
-                Err(RecvError::Lagged(missed)) => {
-                    // This screen fell too far behind to be sure of its state.
-                    // Telling it to resynchronise is the only honest move.
-                    tracing::warn!(
-                        restaurant_id = %restaurant_id,
-                        missed,
-                        "a screen lagged behind; asking it to resynchronise"
-                    );
-                    if let Ok(sse_event) = Event::default().event("resync").json_data(()) {
-                        yield Ok(sse_event);
+                    Err(RecvError::Lagged(missed)) => {
+                        // This screen fell too far behind to be sure of its state.
+                        // Telling it to resynchronise is the only honest move.
+                        tracing::warn!(
+                            restaurant_id = %restaurant_id,
+                            missed,
+                            "a screen lagged behind; asking it to resynchronise"
+                        );
+                        if let Ok(sse_event) = Event::default().event("resync").json_data(()) {
+                            yield Ok(sse_event);
+                        }
                     }
-                }
-                Err(RecvError::Closed) => {
-                    // The listener died, so this instance is delivering
-                    // nothing. Ending the stream makes the browser reconnect
-                    // and refetch, which beats a screen that looks fine.
-                    tracing::warn!(restaurant_id = %restaurant_id, "event stream closed");
-                    break;
+                    Err(RecvError::Closed) => {
+                        // The listener died, so this instance is delivering
+                        // nothing. Ending the stream makes the browser reconnect
+                        // and refetch, which beats a screen that looks fine.
+                        tracing::warn!(restaurant_id = %restaurant_id, "event stream closed");
+                        break;
+                    }
+                },
+
+                _ = heartbeat.tick() => {
+                    let still_signed_in = match token_hash.as_deref() {
+                        Some(hash) => actor::resolve_and_slide(&state, hash).await.is_some(),
+                        None => false,
+                    };
+
+                    if !still_signed_in {
+                        // Revoked, expired, or past its ceiling. Ending the
+                        // stream is what makes revocation instant inside a
+                        // screen that is making no other request. The browser
+                        // reconnects on its own, receives a 401, and the client
+                        // treats that as signed out.
+                        tracing::info!(
+                            restaurant_id = %restaurant_id,
+                            "a stream's session stopped resolving; closing it"
+                        );
+                        break;
+                    }
+
+                    // A comment rather than an event, so nothing on the client
+                    // has to know this line exists.
+                    yield Ok(Event::default().comment("beat"));
                 }
             }
         }
     };
 
-    Sse::new(stream).keep_alive(KeepAlive::new().interval(HEARTBEAT))
+    Sse::new(stream)
 }
 
 #[cfg(test)]

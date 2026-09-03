@@ -75,5 +75,22 @@
     "starter": "Starter",
     "main": "Main",
     "dessert": "Dessert"
+  },
+  "settings": {
+    "title": "Restaurant settings",
+    "currencyFixed": "Prices are in {{currency}}, set when you registered in {{country}}. Ask support to change it.",
+    "name": "Restaurant name",
+    "address": "Address",
+    "addressHint": "Printed on bills. Leave empty for none.",
+    "timezone": "Timezone",
+    "timezoneHint": "An IANA zone name, such as Asia/Kolkata. Every time on every screen is written in it.",
+    "defaultLanguage": "Restaurant language",
+    "defaultLanguageHint": "What the kitchen screen reads, and what staff with no language of their own see.",
+    "formattingLocale": "Number and date format",
+    "formattingLocaleHint": "How money, numbers, and dates are written. Separate from the language on purpose.",
+    "save": "Save settings",
+    "saving": "Saving",
+    "saved": "Settings saved",
+    "failed": "Those settings could not be saved."
   }
 }

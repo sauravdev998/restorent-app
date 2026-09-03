@@ -5,7 +5,10 @@
   "nav": {
     "admin": "Admin",
     "waiter": "Waiter",
-    "kitchen": "Kitchen"
+    "kitchen": "Kitchen",
+    "chef": "Kitchen",
+    "settings": "Settings",
+    "account": "Account"
   },
   "a11y": {
     "skipToMain": "Skip to main content",
@@ -69,7 +72,65 @@
     "invalid": "That could not be saved as it stands. Check what you entered and try again.",
     "conflict": "Somebody else changed this first. Reload to see where it stands now.",
     "unavailable": "The service is not answering right now. Try again in a moment.",
-    "unknown": "Something went wrong. Try again in a moment."
+    "unknown": "Something went wrong. Try again in a moment.",
+    "throttled": "Too many attempts. Wait a few minutes and try again."
   },
-  "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land."
+  "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land.",
+  "signIn": {
+    "title": "Sign in",
+    "subtitle": "Your restaurant, your orders, your kitchen.",
+    "email": "Email address",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in",
+    "refused": "That email address and password do not match an account.",
+    "noAccount": "No account yet?",
+    "register": "Register a restaurant"
+  },
+  "register": {
+    "title": "Register your restaurant",
+    "subtitle": "One short form, then you are working. Everything else can be changed later.",
+    "restaurantName": "Restaurant name",
+    "country": "Country",
+    "countryHint": "Sets your currency, timezone, and how figures are written. Changeable later.",
+    "displayName": "Your name",
+    "email": "Email address",
+    "password": "Password",
+    "passwordHint": "At least 10 characters.",
+    "submit": "Register",
+    "submitting": "Registering",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in"
+  },
+  "account": {
+    "title": "Your account",
+    "profileTitle": "Your details",
+    "displayName": "Your name",
+    "language": "Your language",
+    "languageHint": "What you read the app in, on every device you sign in on.",
+    "followRestaurant": "Whatever the restaurant uses",
+    "save": "Save",
+    "saving": "Saving",
+    "saved": "Saved",
+    "saveFailed": "That could not be saved. Try again in a moment.",
+    "passwordTitle": "Password",
+    "passwordHint": "Changing it signs you out everywhere else, and leaves you signed in here.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "changePassword": "Change password",
+    "passwordChanged": "Password changed. Your other devices have been signed out.",
+    "signOutTitle": "Sign out",
+    "signOutHint": "Signs out this device only. Anywhere else you are signed in stays signed in.",
+    "signOut": "Sign out"
+  },
+  "fieldError": {
+    "already_taken": "That is already taken.",
+    "too_short": "That is too short.",
+    "too_long": "That is too long.",
+    "invalid_format": "That is not in the right form.",
+    "unknown_country": "That is not a country this platform serves yet.",
+    "not_in_catalogue": "That is not a language this platform offers.",
+    "incorrect": "That is not right.",
+    "required": "This is required."
+  }
 }
