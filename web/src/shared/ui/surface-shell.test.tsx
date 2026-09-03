@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import { type Surface } from '@/shared/surface'
 import { expectAccessible } from '@/test/axe'
 
 import { SurfaceShell } from './surface-shell'
@@ -11,13 +12,16 @@ import { SurfaceShell } from './surface-shell'
  * The shell reaches for `NavLink`, so it only renders inside a router. A memory
  * router keeps that true without a browser history.
  */
-function renderShell(stream: 'connecting' | 'open' | 'closed' = 'open') {
+function renderShell(
+  stream: 'connecting' | 'open' | 'closed' = 'open',
+  surface: Surface = 'waiter',
+) {
   const router = createMemoryRouter(
     [
       {
         path: '/',
         element: (
-          <SurfaceShell stream={stream} surface="waiter">
+          <SurfaceShell stream={stream} surface={surface}>
             <h1>Waiter surface</h1>
             <button type="button">Send the round</button>
           </SurfaceShell>
@@ -106,4 +110,32 @@ describe('SurfaceShell', () => {
 
     expect(screen.getByRole('banner')).toHaveTextContent('Closed')
   }) // covers: AC-9
+
+  /**
+   * Where the language is a choice and where it is not, from spec 0005.
+   *
+   * The shell is the only place that decides this, so it is the only place it
+   * can be checked. `followsRestaurantLanguage` is what it asks, and
+   * `surface.test.ts` pins the answer that question gives.
+   */
+  it('offers the language on the shell an admin reads at a desk', () => {
+    renderShell('open', 'admin')
+
+    expect(screen.getByRole('combobox', { name: 'Language' })).toBeInTheDocument()
+  }) // covers: 0005 AC-17
+
+  it('offers the language on the shell a waiter carries', () => {
+    renderShell('open', 'waiter')
+
+    expect(screen.getByRole('combobox', { name: 'Language' })).toBeInTheDocument()
+  }) // covers: 0005 AC-17
+
+  it('offers no language on the kitchen shell', () => {
+    // The shared appliance. Several chefs read it across a shift handover, so
+    // it follows the restaurant rather than whoever last walked past it, and a
+    // control that could change it under them does not belong there.
+    renderShell('open', 'kitchen')
+
+    expect(screen.queryByRole('combobox', { name: 'Language' })).not.toBeInTheDocument()
+  }) // covers: 0005 AC-17
 })

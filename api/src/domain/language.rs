@@ -240,6 +240,110 @@ mod tests {
         LanguageCode::new("en-US").expect_err("a formatting locale is not a language");
     }
 
+    /// A whole catalogue as JSON, to vary one part of at a time.
+    ///
+    /// Written out rather than built from the committed file, because what is
+    /// under test is the parse itself: this is the shape the API promises to
+    /// accept, and a language added to the real file has to arrive through it.
+    const THREE_LANGUAGES: &str = r#"{
+        "languages": [
+            { "code": "en", "englishName": "English", "nativeName": "English", "direction": "ltr" },
+            { "code": "hi", "englishName": "Hindi", "nativeName": "हिन्दी", "direction": "ltr" },
+            { "code": "ar", "englishName": "Arabic", "nativeName": "العربية", "direction": "rtl" }
+        ],
+        "formattingLocales": ["en-US", "ar-AE"],
+        "defaults": { "language": "en", "formattingLocale": "en-US" }
+    }"#;
+
+    #[test]
+    fn a_language_added_to_the_catalogue_needs_no_code_change_here() {
+        // AC-4 from the API's side. Adding Arabic is one entry in the file, and
+        // this crate has to read it without a migration, a new variant, or a
+        // line changed anywhere else.
+        let catalogue: Catalogue =
+            serde_json::from_str(THREE_LANGUAGES).expect("a third language should parse");
+
+        let arabic = catalogue
+            .language("ar")
+            .expect("the added language should be found by its code");
+
+        assert_eq!(arabic.direction, Direction::Rtl);
+        assert_eq!(arabic.native_name, "العربية");
+        assert_eq!(catalogue.languages.len(), 3);
+    }
+
+    #[test]
+    fn a_right_to_left_language_survives_the_parse() {
+        // Both shipped languages are written left to right, so nothing else
+        // exercises this arm at all. It is the difference between adding Arabic
+        // later being a catalogue entry and being a change to this enum.
+        let catalogue: Catalogue = serde_json::from_str(THREE_LANGUAGES).expect("parsing");
+
+        let directions: Vec<Direction> = catalogue
+            .languages
+            .iter()
+            .map(|language| language.direction)
+            .collect();
+
+        assert_eq!(
+            directions,
+            vec![Direction::Ltr, Direction::Ltr, Direction::Rtl]
+        );
+    }
+
+    #[test]
+    fn a_direction_that_is_neither_way_round_is_refused() {
+        // Refused at the parse rather than defaulted, so a typo in the shared
+        // file fails the boot instead of laying a screen out the wrong way.
+        let broken = THREE_LANGUAGES.replace("\"rtl\"", "\"sideways\"");
+
+        serde_json::from_str::<Catalogue>(&broken)
+            .expect_err("a direction outside the two should be refused");
+    }
+
+    #[test]
+    fn a_language_missing_a_field_is_refused() {
+        // The web app parses the same file and refuses the same entry. A field
+        // that is optional on one side and required on the other is how the two
+        // lists drift apart.
+        let missing_native_name = r#"{
+            "languages": [
+                { "code": "en", "englishName": "English", "direction": "ltr" }
+            ],
+            "formattingLocales": ["en-US"],
+            "defaults": { "language": "en", "formattingLocale": "en-US" }
+        }"#;
+
+        serde_json::from_str::<Catalogue>(missing_native_name)
+            .expect_err("a language with no native name should be refused");
+    }
+
+    #[test]
+    fn the_two_lists_stay_separate_through_the_parse() {
+        // A formatting locale is not a language and never becomes one, whatever
+        // the file happens to hold.
+        let catalogue: Catalogue = serde_json::from_str(THREE_LANGUAGES).expect("parsing");
+
+        for locale in &catalogue.formatting_locales {
+            assert!(
+                catalogue.language(locale).is_none(),
+                "{locale} is being offered as a language"
+            );
+        }
+    }
+
+    #[test]
+    fn a_validated_code_hands_back_exactly_what_went_in() {
+        // The newtype carries the code through to a statement, so a constructor
+        // that normalised or trimmed it would write something else to the
+        // column than the caller asked for.
+        let language = LanguageCode::new("hi").expect("hi is in the catalogue");
+        let locale = FormattingLocale::new("en-IN").expect("en-IN is in the catalogue");
+
+        assert_eq!(language.as_str(), "hi");
+        assert_eq!(locale.as_str(), "en-IN");
+    }
+
     #[test]
     fn every_catalogue_language_carries_a_native_name() {
         let catalogue = catalogue().expect("the committed catalogue should parse");
