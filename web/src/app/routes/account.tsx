@@ -1,12 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useRouteLoaderData } from 'react-router'
+import { useNavigate } from 'react-router'
 
 import { api } from '@/shared/api/client'
 import { fieldErrorProps, fieldErrorsFrom, type FieldErrorCode } from '@/shared/api/field-errors'
 import { catalogue } from '@/shared/i18n/catalogue'
 import { forgetIdentity, rememberIdentity, type Identity } from '@/shared/session/identity'
+import { useIdentity } from '@/shared/session/use-identity'
 import { SIGN_IN_PATH } from '@/shared/session/signed-out'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -33,7 +34,7 @@ export function Account() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const identity = useRouteLoaderData('root') as Identity
+  const identity = useIdentity()
 
   return (
     <div className="space-y-8">

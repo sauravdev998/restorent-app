@@ -4,12 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router'
 
 import { api } from '@/shared/api/client'
-import { LanguageSwitcher } from '@/shared/i18n/language-switcher'
 import { rememberIdentity } from '@/shared/session/identity'
 import { landingFor, REGISTER_PATH, returnPathFrom } from '@/shared/session/signed-out'
-import { DEFAULT_SURFACE } from '@/shared/surface'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
+import { SignedOutShell } from '@/shared/ui/signed-out-shell'
 import { Field } from '@/shared/ui/field'
 import { Input } from '@/shared/ui/input'
 
@@ -75,74 +74,64 @@ export function SignIn() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex items-center justify-between px-4 py-3">
-        <span className="text-base font-semibold text-foreground">{t('app.name')}</span>
-        {/* Signed out, so there is no personal setting to read. The switcher
-            writes to this device, which is what the next person to pick this
-            phone up will open the screen in. */}
-        <LanguageSwitcher surface={DEFAULT_SURFACE} />
-      </header>
+    <SignedOutShell>
+      <Card className="w-full max-w-sm">
+        <h1 className="text-xl font-semibold text-foreground">{t('signIn.title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('signIn.subtitle')}</p>
 
-      <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <h1 className="text-xl font-semibold text-foreground">{t('signIn.title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t('signIn.subtitle')}</p>
-
-          {/* `role="alert"` rather than a field error, because what failed was
+        {/* `role="alert"` rather than a field error, because what failed was
               the pair and not either half of it. */}
-          {failed && (
-            <p role="alert" className="mt-4 text-sm font-medium text-status-late">
-              {t('signIn.refused')}
-            </p>
-          )}
-          {unavailable && (
-            <p role="alert" className="mt-4 text-sm font-medium text-status-late">
-              {t('apiError.unavailable')}
-            </p>
-          )}
-
-          <form className="mt-6 flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
-            <Field label={t('signIn.email')} required>
-              <Input
-                type="email"
-                name="email"
-                autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value)
-                }}
-              />
-            </Field>
-
-            <Field label={t('signIn.password')} required>
-              <Input
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value)
-                }}
-              />
-            </Field>
-
-            <Button type="submit" disabled={submitting} className="mt-2">
-              {submitting ? t('signIn.submitting') : t('signIn.submit')}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-sm text-muted-foreground">
-            {t('signIn.noAccount')}{' '}
-            <Link to={REGISTER_PATH} className="font-medium text-primary underline">
-              {t('signIn.register')}
-            </Link>
+        {failed && (
+          <p role="alert" className="mt-4 text-sm font-medium text-status-late">
+            {t('signIn.refused')}
           </p>
-        </Card>
-      </main>
-    </div>
+        )}
+        {unavailable && (
+          <p role="alert" className="mt-4 text-sm font-medium text-status-late">
+            {t('apiError.unavailable')}
+          </p>
+        )}
+
+        <form className="mt-6 flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
+          <Field label={t('signIn.email')} required>
+            <Input
+              type="email"
+              name="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value)
+              }}
+            />
+          </Field>
+
+          <Field label={t('signIn.password')} required>
+            <Input
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value)
+              }}
+            />
+          </Field>
+
+          <Button type="submit" disabled={submitting} className="mt-2">
+            {submitting ? t('signIn.submitting') : t('signIn.submit')}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-sm text-muted-foreground">
+          {t('signIn.noAccount')}{' '}
+          <Link to={REGISTER_PATH} className="font-medium text-primary underline">
+            {t('signIn.register')}
+          </Link>
+        </p>
+      </Card>
+    </SignedOutShell>
   )
 }

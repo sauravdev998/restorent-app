@@ -1,12 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useRouteLoaderData } from 'react-router'
 
 import { api } from '@/shared/api/client'
 import { fieldErrorProps, fieldErrorsFrom, type FieldErrorCode } from '@/shared/api/field-errors'
 import { catalogue } from '@/shared/i18n/catalogue'
-import { rememberIdentity, type Identity } from '@/shared/session/identity'
+import { rememberIdentity } from '@/shared/session/identity'
+import { useIdentity } from '@/shared/session/use-identity'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Field } from '@/shared/ui/field'
@@ -35,7 +35,7 @@ export function RestaurantSettings() {
   const { t } = useTranslation('admin')
   const { t: common } = useTranslation()
   const queryClient = useQueryClient()
-  const identity = useRouteLoaderData('root') as Identity
+  const identity = useIdentity()
   const { restaurant } = identity
 
   const [name, setName] = useState(restaurant.name)

@@ -1,9 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { Identity } from '@/shared/session/identity'
+import { changeLanguage } from '@/shared/i18n'
+import { FALLBACK_LANGUAGE } from '@/shared/i18n/catalogue'
+import { IDENTITY_KEY, type Identity } from '@/shared/session/identity'
+import { DEFAULT_SURFACE } from '@/shared/surface'
 import { expectAccessible } from '@/test/axe'
 
 import { RootLayout } from './root-layout'
@@ -46,9 +49,18 @@ const IDENTITY: Identity = {
  * document rather than at the shell.
  */
 async function renderAt(path: string) {
+  // Both halves of what the real route does, because the shell reads the
+  // identity from the query and falls back to this route's loader data. The
+  // `id` is what `useRouteLoaderData('root')` looks itself up by, and the
+  // primed entry is what the real loader's `ensureQueryData` leaves behind, so
+  // nothing here fetches.
+  const queryClient = new QueryClient()
+  queryClient.setQueryData<Identity | null>(IDENTITY_KEY, IDENTITY)
+
   const router = createMemoryRouter(
     [
       {
+        id: 'root',
         path: '/',
         element: <RootLayout />,
         loader: () => IDENTITY,
@@ -64,7 +76,7 @@ async function renderAt(path: string) {
   )
 
   const view = render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
@@ -75,11 +87,14 @@ async function renderAt(path: string) {
     await Promise.resolve()
   })
 
-  return { ...view, router }
+  return { ...view, router, queryClient }
 }
 
-afterEach(() => {
+afterEach(async () => {
   delete document.documentElement.dataset['surface']
+  await act(async () => {
+    await changeLanguage(FALLBACK_LANGUAGE, DEFAULT_SURFACE)
+  })
 })
 
 describe('RootLayout', () => {
@@ -113,10 +128,41 @@ describe('RootLayout', () => {
     expect(document.documentElement.dataset['surface']).toBe('admin')
   })
 
+  it('follows the identity as it is now, not as the loader left it', async () => {
+    const { queryClient } = await renderAt('/')
+    expect(document.documentElement.lang).toBe('en')
+
+    // What `PATCH /api/me` does when somebody changes their own language: it
+    // writes the fresh bundle into this entry and nothing else.
+    const withHindi: Identity = {
+      ...IDENTITY,
+      staff: { ...IDENTITY.staff, language: 'hi' },
+    }
+
+    act(() => {
+      queryClient.setQueryData<Identity | null>(IDENTITY_KEY, withHindi)
+    })
+
+    // The regression this guards: the shell used to read the route loader's
+    // answer, which React Router takes once and never revisits. So the write
+    // above reached the cache and no screen, and changing your own language did
+    // nothing at all until somebody reloaded the page.
+    await waitFor(() => {
+      expect(document.documentElement.lang).toBe('hi')
+    })
+  }) // covers: AC-16
+
   it('is accessible as a whole page, landmarks and headings included', async () => {
+    // Built the same way as every other case here, `id` and primed entry
+    // included, so this checks the shell the app really renders rather than
+    // whatever a route missing half its wiring falls back to.
+    const queryClient = new QueryClient()
+    queryClient.setQueryData<Identity | null>(IDENTITY_KEY, IDENTITY)
+
     const router = createMemoryRouter(
       [
         {
+          id: 'root',
           path: '/',
           element: <RootLayout />,
           loader: () => IDENTITY,
@@ -127,7 +173,7 @@ describe('RootLayout', () => {
     )
 
     await expectAccessible(
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>,
       { page: true },

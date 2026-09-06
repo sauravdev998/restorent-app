@@ -1,12 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Suspense, useCallback, useEffect } from 'react'
-import { Outlet, useLoaderData, useLocation, useNavigate } from 'react-router'
+import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import { useLiveEvents } from '@/shared/events/use-live-events'
 import { useDocumentLanguage } from '@/shared/i18n/use-document-language'
 import { useIdentityLanguage } from '@/shared/i18n/use-identity-language'
-import type { Identity } from '@/shared/session/identity'
 import { signedOut } from '@/shared/session/signed-out'
+import { useIdentity } from '@/shared/session/use-identity'
 import { surfaceForPath } from '@/shared/surface'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { SurfaceShell } from '@/shared/ui/surface-shell'
@@ -40,7 +40,11 @@ import { SurfaceShell } from '@/shared/ui/surface-shell'
  * renders for even a frame on its way to the sign in screen.
  */
 export function RootLayout() {
-  const identity = useLoaderData<Identity>()
+  // Through the hook rather than from this route's own loader data, so that a
+  // bundle written back by `PATCH /api/me` or `PATCH /api/restaurant` reaches
+  // the shell. The loader is a snapshot and never revisits itself, which is why
+  // changing your language used to do nothing until a reload.
+  const identity = useIdentity()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { pathname } = useLocation()

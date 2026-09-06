@@ -1,11 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/shared/api/client'
 import { countries } from '@/shared/countries'
+import { FALLBACK_LANGUAGE } from '@/shared/i18n/catalogue'
+import { changeLanguage } from '@/shared/i18n'
+import { LANGUAGE_STORAGE_KEY, writeStoredLanguage } from '@/shared/i18n/resolve'
+import { DEFAULT_SURFACE } from '@/shared/surface'
 import { expectAccessible } from '@/test/axe'
 
 import { Register } from './register'
@@ -62,6 +66,24 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// Two things to put back, and the second one is the interesting one.
+//
+// i18next is one instance for the whole file, so a test that switches language
+// and leaves it switched is every later test hunting for English words on a
+// Hindi screen. Restored here rather than in the test that switches, because
+// the switch resolves after the assertion that wanted it.
+//
+// And the device's own remembered choice, because these screens read it back on
+// every mount. That is the behaviour, not a leak: a house phone opens in the
+// language the last person chose on it. It does mean a test that switches has
+// to hand the device back as it found it.
+afterEach(async () => {
+  window.localStorage.removeItem(LANGUAGE_STORAGE_KEY)
+  await act(async () => {
+    await changeLanguage(FALLBACK_LANGUAGE, DEFAULT_SURFACE)
+  })
+})
+
 describe('the screens outside the shell', () => {
   it('are accessible as whole pages, landmarks and headings included', async () => {
     await expectAccessible(mount(<SignIn />), { page: true })
@@ -90,6 +112,75 @@ describe('the screens outside the shell', () => {
 
       view.unmount()
     }
+  }) // covers: AC-21
+
+  it('offer the skip link the shell gives every other screen', () => {
+    for (const [name, element] of [
+      ['sign in', <SignIn key="in" />],
+      ['register', <Register key="up" />],
+    ] as const) {
+      const view = render(mount(element))
+
+      // Both screens always had the `main` to skip to and neither had the link
+      // that skips to it, which is the half a keyboard user actually presses.
+      const skip = view.getByRole('link', { name: 'Skip to main content' })
+
+      expect(skip, `${name} has no skip link`).toBeInTheDocument()
+      expect(skip.getAttribute('href'), `${name}'s skip link points nowhere`).toBe('#main-content')
+      expect(view.getByRole('main').id, `${name}'s skip link has nothing to land on`).toBe(
+        'main-content',
+      )
+
+      // First in the tab order, or it is not a skip link: a link the reader
+      // reaches after the form has skipped nothing.
+      expect(view.container.querySelector('a')).toBe(skip)
+
+      view.unmount()
+    }
+  }) // covers: AC-21
+
+  it('mark the document as the language they are actually drawn in', async () => {
+    const view = render(mount(<SignIn />))
+
+    expect(document.documentElement.lang).toBe('en')
+
+    await userEvent.selectOptions(view.getByRole('combobox', { name: 'Language' }), 'hi')
+
+    // Waited for rather than asserted straight away: switching fetches the
+    // language's files before it moves, so the screen is still English for a
+    // tick afterwards by design.
+    //
+    // The regression: these two screens render outside the shell, and the
+    // shell was the only caller of the hook that writes `lang`. So Devanagari
+    // was served under `lang="en"` and a screen reader read it with English
+    // phonetics, which is noise rather than an accent.
+    await waitFor(() => {
+      expect(document.documentElement.lang).toBe('hi')
+    })
+
+    view.unmount()
+  }) // covers: AC-21
+
+  it('open in the language this device last chose, not the last person\u2019s', async () => {
+    // What a shared house phone in a Hindi speaking restaurant needs. Signing
+    // in moves the screen to the person's own language, and signing out has to
+    // hand the device back the way its owner set it.
+    //
+    // The regression: nothing re resolved the language once the shell
+    // unmounted, so after an English speaker's shift the sign in screen stayed
+    // English until somebody reloaded the page, however the phone was set.
+    writeStoredLanguage('hi')
+
+    const view = render(mount(<SignIn />))
+
+    await waitFor(() => {
+      expect(view.getByRole('heading', { level: 1 })).toHaveTextContent(
+        '\u0938\u093e\u0907\u0928 \u0907\u0928',
+      )
+    })
+    expect(document.documentElement.lang).toBe('hi')
+
+    view.unmount()
   }) // covers: AC-21
 })
 
