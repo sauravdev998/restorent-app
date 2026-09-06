@@ -17,7 +17,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 4 | Core data model | Foundation | in-progress |
 | 5 | Design system and accessibility baseline | Foundation | in-progress |
 | 6 | Language and text foundation | Foundation | in-progress |
-| 7 | Accounts, restaurants, and roles | Foundation | in-progress |
+| 7 | Accounts, restaurants, and roles | Foundation | done |
 | 8 | The thin order thread | Slice 1 | planned |
 | 9 | Menu management | Slice 2 | planned |
 | 10 | Staff accounts | Slice 2 | planned |
@@ -110,7 +110,7 @@ spec [0005](../specs/0005-language-and-text-foundation/index.md) · catalogue in
 - [x] Review it (fresh model): `/check review language and text foundation`
 - [x] Document it: `/document language and text foundation`
 
-### 7. Accounts, restaurants, and roles
+### 7. Accounts, restaurants, and roles · done
 An owner registers a restaurant and becomes its admin, staff sign in, and every request is limited to that person's restaurant and role. Real authentication and real data separation from the very first slice, never faked.
 **Done when:** an owner can register a restaurant and sign in as its admin; a signed in user only ever sees their own restaurant's data; a waiter cannot reach admin or chef screens and a chef cannot reach admin or waiter screens, on the server as well as in the interface.
 spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) · verify [0006](../specs/0006-accounts-restaurants-and-roles/verify.md) · shared list in `locales/countries.json` · api in `api/migrations/0004_accounts_and_sessions.sql`, `api/src/domain/{country,credentials,session,throttle}.rs`, `api/src/infrastructure/passwords.rs`, `api/src/infrastructure/db/repository/{accounts,sessions}.rs`, `api/src/presentation/{cookie,dto,origin}.rs`, `api/src/presentation/extract/{actor,client_address,json}.rs`, `api/src/presentation/handlers/{auth,me}.rs`, `api/src/bin/seed.rs` · web in `web/src/shared/session/`, `web/src/shared/countries.ts`, `web/src/shared/api/field-errors.ts`, `web/src/app/routes/`, `web/src/admin/routes/restaurant-settings.tsx` · infra in `infra/lib/platform-stack.ts`
@@ -121,10 +121,10 @@ spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) · verify [00
   - [x] Roles made structural: the role requirement carried in the handler's own type, and the three route groups with their landing redirect (AC-8, AC-20)
   - [x] Standing in front of the door: both throttle buckets counted in Postgres, the client address plus the two `infra/` changes, and the origin check (AC-10, AC-11, AC-12)
   - [x] The rest of the surface: the register, account, and settings screens, their three write endpoints, the audit rows, the two sweeps, the seed command, and deleting both placeholders (AC-14, AC-15, AC-16, AC-17, AC-21, AC-22)
-- [ ] Verify it: `/check verify accounts, restaurants, and roles`
-- [ ] Test it: `/test accounts, restaurants, and roles`
-- [ ] Review it (fresh model): `/check review accounts, restaurants, and roles`
-- [ ] Document it: `/document accounts, restaurants, and roles`
+- [x] Verify it: `/check verify accounts, restaurants, and roles`
+- [x] Test it: `/test accounts, restaurants, and roles`
+- [x] Review it (fresh model): `/check review accounts, restaurants, and roles`
+- [x] Document it: `/document accounts, restaurants, and roles`
 
 ## Slice 1: the thin order thread
 

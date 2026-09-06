@@ -1,7 +1,7 @@
 # 0006. Accounts, restaurants, and roles
 
 **Date**: 2026-09-03
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

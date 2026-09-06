@@ -13,13 +13,14 @@ project wide rules; this file holds what is true only here.
 | File | Owns |
 |---|---|
 | `src/main.tsx` | Mounts the app: query client, router, i18n, styles |
-| `src/app/router.tsx` | The route table, React Router in data mode. Three route groups |
+| `src/app/router.tsx` | The route table, React Router in data mode. Three role guarded groups, plus sign in and register outside the shell |
 | `src/app/root-layout.tsx` | The shell, and the one place the live stream is held open |
 | `src/app/query-client.ts` | Cache defaults. Deliberately quiet on automatic refetching |
 | `src/shared/api/client.ts` | The typed client. Every real API call goes through it |
 | `src/shared/api/schema.d.ts` | Generated from `api/openapi.json`. Never edit it |
 | `src/shared/events/use-live-events.ts` | The stream, and the two rules that keep the cache honest |
-| `src/shared/session/current-restaurant.ts` | A development only placeholder for the restaurant id |
+| `src/shared/session/identity.ts` | Who is signed in, their role, and their restaurant's settings, as one cached bundle |
+| `src/shared/session/signed-out.ts` | The one path a `401` takes: clear the identity, go to sign in, keep the path for after |
 | `src/shared/i18n/index.ts` | Translations, set up before the first screen renders |
 | `src/test/setup.ts` | The `EventSource` stand in jsdom does not provide |
 | `vite.config.ts` | Dev server, the `/api` proxy, and the event stream handling inside it |
@@ -56,7 +57,9 @@ Formatting is a root command, `pnpm format`. This package has no format script o
 - **jsdom has no `EventSource`**, so `src/test/setup.ts` stubs it. The stub carries `readyState` and the three state constants on purpose: without them both sides of that comparison are `undefined` and every error looks alike in a passing test.
 - **The Vite proxy destroys the client response when an event stream's upstream closes or errors**, and the handling is scoped to event streams only. Without it the browser hangs on a stream nobody is writing to and never reconnects. Unscoped, it would replace Vite's diagnosable `502` with a bare connection reset on every ordinary `/api/*` call made while the API is down.
 - **One stream per browser, held in `RootLayout`**, not one per screen. Screens read it from the outlet context.
-- **`currentRestaurantId()` is a placeholder** that only returns a value in development. The server refuses a client supplied restaurant outside development, so it cannot become a way into production data. Feature 7 deletes the file.
+- **The app never names a restaurant; the session does.** `identity.ts` holds what the server returned for the signed in person, and it is a cache of that answer, not a second source of truth. Nothing sends a restaurant id to the API.
+- **Sign in and register render outside `RootLayout`.** They are the two screens a signed out visitor reaches, so the shell that sets `lang` and `dir` and holds the event stream is not above them. `signed-out-shell.tsx` gives them their own frame and they set the document language themselves, which is easy to forget when adding a third such screen.
+- **A `401` from anywhere takes one path**, `signed-out.ts`: clear the cached identity, go to sign in, and keep the path the person was on so signing back in returns them to it. The stream's fatal error, told apart by `readyState`, uses that same path rather than its own.
 - **shadcn/ui is chosen but not installed yet.** Feature 5 (design system and accessibility baseline) brings it in. Current screens are plain Tailwind.
 
 ## Agent skills
