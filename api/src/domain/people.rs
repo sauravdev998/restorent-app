@@ -89,4 +89,9 @@ pub struct ResolvedSession {
     pub role: StaffRole,
     /// When the session stops being valid.
     pub expires_at: DateTime<Utc>,
+    /// When it was last used, which is what decides whether this use should
+    /// move the expiry. Read rather than derived: the slide stops at the
+    /// absolute ceiling, so `expires_at` is no longer always this plus one
+    /// session lifetime.
+    pub last_seen_at: DateTime<Utc>,
 }

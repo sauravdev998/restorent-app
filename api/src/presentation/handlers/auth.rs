@@ -141,9 +141,22 @@ pub async fn register(
 
     tx.commit().await?;
 
+    // Same reason as the one in `sign_in`: the attempt above was recorded
+    // before any of this ran, and a registration that worked must not spend one
+    // of the five tries the owner gets at their own password a minute later.
+    let cleared = state
+        .database
+        .clear_login_attempts(email.as_str())
+        .await
+        .unwrap_or_else(|error| {
+            tracing::warn!(error = %error, "could not clear this address's login attempts");
+            0
+        });
+
     tracing::info!(
         restaurant_id = %restaurant_id,
         staff_id = %admin,
+        cleared_attempts = cleared,
         "a restaurant was registered"
     );
 
@@ -256,12 +269,16 @@ pub async fn sign_in(
     // The other sweep, on its own connection because `login_attempts` is the
     // one table outside every restaurant. Scoped to this one address, and its
     // failure is not this person's problem: they are already signed in.
+    //
+    // This is also what stops the throttle counting the sign in that just
+    // worked. The attempt was recorded before the password was checked, so the
+    // bucket only means "failures" because holding the account empties it.
     let swept_attempts = state
         .database
-        .sweep_login_attempts(&email)
+        .clear_login_attempts(&email)
         .await
         .unwrap_or_else(|error| {
-            tracing::warn!(error = %error, "could not sweep old login attempts");
+            tracing::warn!(error = %error, "could not clear this address's login attempts");
             0
         });
 

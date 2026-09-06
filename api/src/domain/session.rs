@@ -68,12 +68,12 @@ pub const SESSION_TOKEN_BYTES: usize = 32;
 
 /// Whether a session is stale enough that using it should move its expiry.
 ///
-/// Worked out from `expires_at` rather than from `last_seen_at`, because
-/// `expires_at` is exactly `last_seen_at` plus [`SESSION_LIFETIME`]: it is set
-/// that way when the session opens and again on every slide, and nothing else
-/// writes it. So the last use is `expires_at - SESSION_LIFETIME`, and the
-/// session lookup already returns `expires_at`. That is the whole reason the
-/// lookup did not have to grow a column.
+/// Takes `last_seen_at` and reads nothing into it. This used to derive the last
+/// use as `expires_at - SESSION_LIFETIME`, which was exact only while the two
+/// were always that far apart. The slide now stops at `absolute_expires_at`, so
+/// for the final [`SESSION_LIFETIME`] of a session's life they are not, and the
+/// derivation would have reported every request as due for a slide and written
+/// a row for each one.
 ///
 /// The clock here is this container's, and that is deliberate and safe. It
 /// decides only *whether* to write; the write itself uses Postgres's `now()`,
@@ -83,17 +83,12 @@ pub const SESSION_TOKEN_BYTES: usize = 32;
 /// `resolve_session`, in SQL, against the database's own clock.
 #[must_use]
 pub fn is_slide_due(
-    expires_at: chrono::DateTime<chrono::Utc>,
+    last_seen_at: chrono::DateTime<chrono::Utc>,
     now: chrono::DateTime<chrono::Utc>,
 ) -> bool {
-    let Ok(lifetime) = chrono::Duration::from_std(SESSION_LIFETIME) else {
-        return false;
-    };
     let Ok(floor) = chrono::Duration::from_std(SLIDE_AFTER) else {
         return false;
     };
-
-    let last_seen_at = expires_at - lifetime;
 
     now - last_seen_at >= floor
 }
@@ -270,31 +265,47 @@ mod tests {
     #[test]
     fn a_session_used_again_straight_away_is_not_due_a_slide() {
         let now = chrono::Utc::now();
-        let lifetime = chrono::Duration::from_std(SESSION_LIFETIME).expect("the lifetime converts");
         let floor = chrono::Duration::from_std(SLIDE_AFTER).expect("the floor converts");
 
-        // Just opened: last seen now, so expiry is a full lifetime away.
-        let fresh = now + lifetime;
         assert!(
-            !is_slide_due(fresh, now),
+            !is_slide_due(now, now),
             "a session used the instant it opened was written to anyway"
         );
 
-        // Used four minutes ago, which is inside the floor.
-        let recent = now + lifetime - chrono::Duration::minutes(4);
         assert!(
-            !is_slide_due(recent, now),
+            !is_slide_due(now - chrono::Duration::minutes(4), now),
             "four minutes is inside the floor"
         );
 
-        // Used six minutes ago, which is past it.
-        let stale = now + lifetime - chrono::Duration::minutes(6);
-        assert!(is_slide_due(stale, now), "six minutes is past the floor");
+        assert!(
+            is_slide_due(now - chrono::Duration::minutes(6), now),
+            "six minutes is past the floor"
+        );
 
         // And exactly on the floor counts, so the boundary is not a gap.
         assert!(
-            is_slide_due(now + lifetime - floor, now),
+            is_slide_due(now - floor, now),
             "a session exactly at the floor should slide"
+        );
+    }
+
+    /// covers: AC-7
+    ///
+    /// The case that made the derivation wrong. In its last
+    /// [`SESSION_LIFETIME`] a session's `expires_at` is clamped to its absolute
+    /// ceiling, so it sits much closer than one lifetime away while
+    /// `last_seen_at` is a moment ago. Reading `last_seen_at` is what keeps
+    /// that a read, rather than a write on every single request for a
+    /// fortnight.
+    #[test]
+    fn a_session_clamped_to_its_ceiling_is_not_due_on_every_request() {
+        let now = chrono::Utc::now();
+
+        // Used a second ago, and expiring in an hour because the ceiling is
+        // that close. Nothing here should ask for a write.
+        assert!(
+            !is_slide_due(now - chrono::Duration::seconds(1), now),
+            "a session near its ceiling was written to on a request it had just made"
         );
     }
 
@@ -307,12 +318,11 @@ mod tests {
     #[test]
     fn a_session_older_than_the_floor_is_always_due() {
         let now = chrono::Utc::now();
-        let lifetime = chrono::Duration::from_std(SESSION_LIFETIME).expect("the lifetime converts");
 
         for hours_since_use in [1, 24, 24 * 13] {
-            let expires_at = now + lifetime - chrono::Duration::hours(hours_since_use);
+            let last_seen_at = now - chrono::Duration::hours(hours_since_use);
             assert!(
-                is_slide_due(expires_at, now),
+                is_slide_due(last_seen_at, now),
                 "a session last used {hours_since_use} hours ago was not due a slide"
             );
         }

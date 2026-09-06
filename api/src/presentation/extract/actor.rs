@@ -237,7 +237,7 @@ async fn resolve(parts: &Parts, state: &AppState) -> Result<ResolvedSession, Api
 /// reason to refuse somebody who is genuinely signed in; it is a reason for a
 /// line in the log, which the repository writes.
 async fn slide_if_due(session: &ResolvedSession, state: &AppState) {
-    if !is_slide_due(session.expires_at, chrono::Utc::now()) {
+    if !is_slide_due(session.last_seen_at, chrono::Utc::now()) {
         return;
     }
 

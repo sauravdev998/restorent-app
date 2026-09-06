@@ -18,6 +18,7 @@ use api::domain::credentials::EmailAddress;
 use api::domain::error::DomainError;
 use api::domain::ids::RestaurantId;
 use api::domain::session::{SessionToken, hash_cookie_value};
+use api::domain::throttle::MAX_ATTEMPTS_PER_EMAIL;
 use api::infrastructure::db::repository::{accounts, catalog, sessions};
 
 /// AC-1: the five settings a new restaurant gets come from the country's row in
@@ -338,6 +339,199 @@ async fn sliding_moves_the_expiry_and_never_the_ceiling() {
     common::drop_restaurant(&database, account.restaurant_id).await;
 }
 
+/// AC-7: the slide stops exactly at the ceiling, and keeps working afterwards.
+///
+/// The regression migration 0005 exists for, and the one case the plain slide
+/// test above cannot reach, because it only ever slides a session whose ceiling
+/// is three months away.
+///
+/// Inside the last [`api::domain::session::SESSION_LIFETIME`] of a session's
+/// life, "fourteen days from now" is past the ceiling. Without the `least` the
+/// statement asks for exactly that, the table's check refuses the whole update,
+/// and `last_seen_at` never moves. So the next request is due a slide too, and
+/// the next, and every request for the final fortnight writes a database error
+/// into the log for a session that is working perfectly well.
+///
+/// Three things are asserted, and the third is the one that would have caught
+/// it: the expiry lands on the ceiling rather than past it, the ceiling itself
+/// does not move, and `last_seen_at` moves, which is what makes the next
+/// request not due.
+#[tokio::test]
+async fn sliding_stops_at_the_ceiling_rather_than_failing_against_it() {
+    let database = common::database().await;
+    let account = common::register_and_sign_in(&database, "ceiling").await;
+
+    // A session near the end of its ninety days: last used ten minutes ago, so
+    // a real request would slide it, with the ceiling only ten days out. That
+    // is inside the fourteen day lifetime, which is the whole condition.
+    let mut tx = database
+        .begin_scoped(account.restaurant_id)
+        .await
+        .expect("opening scoped");
+    sqlx::query(
+        "UPDATE sessions
+            SET last_seen_at         = now() - interval '10 minutes',
+                expires_at          = now() + interval '1 day',
+                absolute_expires_at = now() + interval '10 days'
+          WHERE token_hash = $1",
+    )
+    .bind(&account.token_hash)
+    .execute(tx.connection())
+    .await
+    .expect("ageing the session towards its ceiling");
+    tx.commit().await.expect("committing");
+
+    let (_, ceiling_before) = session_row(&database, &account).await;
+
+    let session = database
+        .resolve_session(&account.token_hash)
+        .await
+        .expect("resolving")
+        .expect("a session ten days from its ceiling still resolves");
+
+    let mut tx = database
+        .begin_scoped(account.restaurant_id)
+        .await
+        .expect("opening scoped");
+    sessions::slide(&mut tx, session.session_id)
+        .await
+        .expect("the slide was refused by the ceiling check instead of stopping at it");
+    tx.commit().await.expect("committing");
+
+    let (expires_at, ceiling_after) = session_row(&database, &account).await;
+
+    assert_eq!(
+        expires_at, ceiling_after,
+        "the expiry did not land on the ceiling, so the clamp is not doing its job"
+    );
+    assert_eq!(
+        ceiling_after, ceiling_before,
+        "the ceiling moved, so a session used every day would never end"
+    );
+    assert!(
+        last_seen_of(&database, &account).await > chrono::Utc::now() - chrono::Duration::minutes(1),
+        "last_seen_at did not move, so every later request is due a slide it cannot make"
+    );
+
+    common::drop_restaurant(&database, account.restaurant_id).await;
+}
+
+/// AC-7: a session sitting on its ceiling can be used again and again.
+///
+/// The second half of the same regression. Once the expiry equals the ceiling
+/// the two columns are equal, so a check written as strictly greater refuses
+/// every later slide. This uses the session three more times, the way a screen
+/// left open would, and each one has to succeed.
+#[tokio::test]
+async fn a_session_resting_on_its_ceiling_can_still_be_used() {
+    let database = common::database().await;
+    let account = common::register_and_sign_in(&database, "resting").await;
+
+    // Already on its ceiling, which is what the test above leaves behind.
+    let mut tx = database
+        .begin_scoped(account.restaurant_id)
+        .await
+        .expect("opening scoped");
+    sqlx::query(
+        "UPDATE sessions
+            SET last_seen_at         = now() - interval '10 minutes',
+                expires_at          = now() + interval '5 days',
+                absolute_expires_at = now() + interval '5 days'
+          WHERE token_hash = $1",
+    )
+    .bind(&account.token_hash)
+    .execute(tx.connection())
+    .await
+    .expect("resting the session on its ceiling");
+    tx.commit().await.expect("committing");
+
+    let session = database
+        .resolve_session(&account.token_hash)
+        .await
+        .expect("resolving")
+        .expect("a session on its ceiling has not expired and must still resolve");
+
+    for use_number in 1..=3 {
+        let mut tx = database
+            .begin_scoped(account.restaurant_id)
+            .await
+            .expect("opening scoped");
+
+        sessions::slide(&mut tx, session.session_id)
+            .await
+            .unwrap_or_else(|error| {
+                panic!(
+                    "use {use_number} of a session resting on its ceiling was refused: {error:?}"
+                )
+            });
+
+        tx.commit().await.expect("committing");
+    }
+
+    let (expires_at, ceiling) = session_row(&database, &account).await;
+    assert_eq!(
+        expires_at, ceiling,
+        "repeated use moved the expiry off the ceiling it was clamped to"
+    );
+
+    common::drop_restaurant(&database, account.restaurant_id).await;
+}
+
+/// AC-7: the resolved session carries the last use the row actually holds.
+///
+/// `last_seen_at` is read from the lookup now rather than worked out from
+/// `expires_at`, and everything about whether to slide hangs off it. A lookup
+/// that returned the wrong column, or the right column stale, would put every
+/// session back to deciding from a number that is no longer the truth.
+#[tokio::test]
+async fn a_resolved_session_reports_the_last_use_and_not_a_derived_one() {
+    let database = common::database().await;
+    let account = common::register_and_sign_in(&database, "lastseen").await;
+
+    // A last use that no arithmetic on `expires_at` could arrive at: the two
+    // are set independently, and nothing about one implies the other.
+    let mut tx = database
+        .begin_scoped(account.restaurant_id)
+        .await
+        .expect("opening scoped");
+    sqlx::query(
+        "UPDATE sessions
+            SET last_seen_at = now() - interval '37 minutes',
+                expires_at   = now() + interval '3 days'
+          WHERE token_hash = $1",
+    )
+    .bind(&account.token_hash)
+    .execute(tx.connection())
+    .await
+    .expect("setting a last use nothing derives");
+    tx.commit().await.expect("committing");
+
+    let session = database
+        .resolve_session(&account.token_hash)
+        .await
+        .expect("resolving")
+        .expect("the session still resolves");
+
+    let stored = last_seen_of(&database, &account).await;
+    let drift = (session.last_seen_at - stored).num_seconds().abs();
+
+    assert!(
+        drift <= 1,
+        "the resolved session reported {} rather than the stored {stored}, so the slide decides \
+         from a number the row does not hold",
+        session.last_seen_at
+    );
+
+    // And that number is what makes this session due a slide: thirty seven
+    // minutes is well past the five minute floor.
+    assert!(
+        api::domain::session::is_slide_due(session.last_seen_at, chrono::Utc::now()),
+        "a session last used thirty seven minutes ago was not due a slide"
+    );
+
+    common::drop_restaurant(&database, account.restaurant_id).await;
+}
+
 /// AC-10: five failed attempts for one address inside the window are refused,
 /// and a different address in the same window is unaffected.
 #[tokio::test]
@@ -377,10 +571,23 @@ async fn one_address_running_out_of_attempts_does_not_stop_another() {
         "capitalising the address bought a fresh set of attempts: {refused:?}"
     );
 
+    // And the way out is getting it right, which is what a successful sign in
+    // does for this address. The allowance is whole again straight after, with
+    // nobody waiting out the window and no admin unlocking anything.
+    database
+        .clear_login_attempts(&busy)
+        .await
+        .expect("clearing after a successful sign in");
+
+    database
+        .record_login_attempt(&busy, None)
+        .await
+        .expect("a locked out address was still locked out after signing in successfully");
+
     clear_attempts(&database, &[&busy, &quiet]).await;
 }
 
-/// AC-23: the sign in sweep clears only this address's old rows.
+/// AC-23: the sign in sweep clears only this address's rows.
 #[tokio::test]
 async fn the_attempt_sweep_touches_only_the_address_that_signed_in() {
     let database = common::database().await;
@@ -395,13 +602,10 @@ async fn the_attempt_sweep_touches_only_the_address_that_signed_in() {
             .expect("recording an attempt");
     }
 
-    // Age both well past the retention window.
-    age_attempts(&database, &[&mine, &theirs]).await;
-
     let swept = database
-        .sweep_login_attempts(&mine)
+        .clear_login_attempts(&mine)
         .await
-        .expect("sweeping");
+        .expect("clearing");
 
     assert_eq!(swept, 1, "the sweep did not clear this address's own row");
     assert_eq!(
@@ -411,6 +615,46 @@ async fn the_attempt_sweep_touches_only_the_address_that_signed_in() {
     );
 
     clear_attempts(&database, &[&mine, &theirs]).await;
+}
+
+/// AC-10: the bucket counts failures, so ordinary use never fills it.
+///
+/// The regression this exists for: an attempt is recorded before the password is
+/// checked, and nothing used to take that row away again, so an owner who
+/// registered and then signed in on the till, two tablets and a phone had spent
+/// five of five tries without once getting anything wrong, and the sixth device
+/// was refused for a quarter of an hour.
+///
+/// One round more than the limit, which is the fewest that would have gone red.
+#[tokio::test]
+async fn signing_in_successfully_never_fills_the_bucket() {
+    let database = common::database().await;
+    let stem = RestaurantId::new().as_uuid().simple().to_string();
+    let address = format!("busy-{stem}@example.test");
+
+    // The sequence both handlers run: record before the password is checked,
+    // clear once it turns out to have been right.
+    for round in 0..=MAX_ATTEMPTS_PER_EMAIL {
+        database
+            .record_login_attempt(&address, None)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("sign in {round} was refused with {error:?}, and it was correct")
+            });
+
+        database
+            .clear_login_attempts(&address)
+            .await
+            .expect("clearing after a successful sign in");
+    }
+
+    assert_eq!(
+        attempts_for(&database, &address).await,
+        0,
+        "successful sign ins accumulated in the bucket, so ordinary use locks people out"
+    );
+
+    clear_attempts(&database, &[&address]).await;
 }
 
 /// AC-14: changing a password revokes every other session and keeps this one.
@@ -565,6 +809,29 @@ async fn session_row(
     row
 }
 
+/// When the session row says it was last used.
+///
+/// Separate from [`session_row`] rather than a third column on it, because the
+/// two expiries are read together everywhere and this is read on its own.
+async fn last_seen_of(
+    database: &api::infrastructure::db::Database,
+    account: &common::RegisteredAccount,
+) -> chrono::DateTime<chrono::Utc> {
+    let mut tx = database
+        .begin_scoped(account.restaurant_id)
+        .await
+        .expect("opening scoped");
+
+    let (last_seen_at,): (chrono::DateTime<chrono::Utc>,) =
+        sqlx::query_as("SELECT last_seen_at FROM sessions WHERE token_hash = $1")
+            .bind(&account.token_hash)
+            .fetch_one(tx.connection())
+            .await
+            .expect("reading the last use");
+
+    last_seen_at
+}
+
 /// How many attempt rows one address currently has.
 async fn attempts_for(database: &api::infrastructure::db::Database, email: &str) -> i64 {
     // `login_attempts` carries no restaurant, so any scope will do to reach it;
@@ -582,28 +849,6 @@ async fn attempts_for(database: &api::infrastructure::db::Database, email: &str)
             .expect("counting attempts");
 
     count
-}
-
-/// Pushes an address's attempt rows past the retention window.
-async fn age_attempts(database: &api::infrastructure::db::Database, emails: &[&str]) {
-    let mut tx = database
-        .begin_scoped(RestaurantId::new())
-        .await
-        .expect("opening scoped");
-
-    for email in emails {
-        sqlx::query(
-            "UPDATE login_attempts
-                SET attempted_at = now() - interval '48 hours'
-              WHERE email = lower($1)",
-        )
-        .bind(email)
-        .execute(tx.connection())
-        .await
-        .expect("ageing attempts");
-    }
-
-    tx.commit().await.expect("committing");
 }
 
 /// Leaves the table as it was found.

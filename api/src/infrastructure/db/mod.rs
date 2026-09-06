@@ -20,9 +20,7 @@ use crate::domain::error::{DomainError, DomainResult};
 use crate::domain::event::EntityKind;
 use crate::domain::ids::{RestaurantId, SessionId, StaffId};
 use crate::domain::people::{ResolvedSession, StaffCredentials};
-use crate::domain::throttle::{
-    ATTEMPT_RETENTION, MAX_ATTEMPTS_PER_EMAIL, MAX_ATTEMPTS_PER_IP, THROTTLE_WINDOW,
-};
+use crate::domain::throttle::{MAX_ATTEMPTS_PER_EMAIL, MAX_ATTEMPTS_PER_IP, THROTTLE_WINDOW};
 
 use super::config::Config;
 pub use scoped::ScopedTx;
@@ -238,7 +236,8 @@ impl Database {
                    staff_id      AS "staff_id!",
                    restaurant_id AS "restaurant_id!",
                    role          AS "role!: StaffRole",
-                   expires_at    AS "expires_at!"
+                   expires_at    AS "expires_at!",
+                   last_seen_at  AS "last_seen_at!"
             FROM resolve_session($1)
             "#,
             token_hash
@@ -252,6 +251,7 @@ impl Database {
             restaurant_id: RestaurantId::from_uuid(row.restaurant_id),
             role: row.role,
             expires_at: row.expires_at,
+            last_seen_at: row.last_seen_at,
         }))
     }
 
@@ -262,6 +262,10 @@ impl Database {
     /// `/api/auth/register`. Registration is included because it answers
     /// whether an address is taken, so without a throttle it would be a way to
     /// work through a list of addresses at speed.
+    ///
+    /// Recording before the check is what keeps a flood cheap to refuse, and it
+    /// is why [`Database::clear_login_attempts`] exists: the attempt that works
+    /// takes its own row with it, so what is left to count is failures.
     ///
     /// # Why this is unscoped, and why that is not a third door
     ///
@@ -339,30 +343,32 @@ impl Database {
         Ok(())
     }
 
-    /// Clears this one address's long dead attempt rows.
+    /// Empties this one address's bucket, every row of it.
     ///
-    /// Run on a successful sign in, and scoped to that address on purpose:
-    /// nobody's routine sign in should be a delete across the whole table.
-    /// Returns how many rows went.
+    /// Run on a successful sign in and a successful registration, and this is
+    /// the half that makes [`MAX_ATTEMPTS_PER_EMAIL`] a count of failures.
+    /// Attempts are recorded before the password is checked, so without this
+    /// the row a working sign in leaves behind would count against the next
+    /// one, and five ordinary sign ins on five devices would lock somebody out
+    /// of their own restaurant for a quarter of an hour.
+    ///
+    /// Only somebody who holds the account can reach it, which is what keeps it
+    /// from being a way around the throttle: an attacker guessing a password
+    /// never gets far enough to clear the rows their guesses left.
+    ///
+    /// Scoped to that address on purpose: nobody's routine sign in should be a
+    /// delete across the whole table. Returns how many rows went.
     ///
     /// # Errors
     ///
     /// Returns [`DomainError::Unavailable`] if the delete fails.
-    pub async fn sweep_login_attempts(&self, email: &str) -> DomainResult<u64> {
+    pub async fn clear_login_attempts(&self, email: &str) -> DomainResult<u64> {
         let lowered = email.trim().to_lowercase();
 
-        let affected = sqlx::query!(
-            r#"
-            DELETE FROM login_attempts
-             WHERE email = $1
-               AND attempted_at < now() - make_interval(secs => $2)
-            "#,
-            lowered,
-            ATTEMPT_RETENTION.as_secs_f64(),
-        )
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+        let affected = sqlx::query!("DELETE FROM login_attempts WHERE email = $1", lowered)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
 
         Ok(affected)
     }

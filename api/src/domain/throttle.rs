@@ -10,6 +10,14 @@
 //! Nothing here locks permanently and nothing needs an admin to unlock it. Both
 //! buckets are time windows that clear themselves, so the worst an attacker can
 //! do to somebody else's account is make them wait a quarter of an hour.
+//!
+//! An attempt is recorded before the password is checked, because a flood that
+//! each cost a full `argon2` verification before being refused is the thing a
+//! throttle exists to stop. What makes the count a count of *failures* is the
+//! other end: proving you hold the account empties the bucket for that address,
+//! so a row only survives an attempt that did not work. Without that half, five
+//! ordinary sign ins on five devices would lock somebody out of their own
+//! restaurant.
 
 use std::time::Duration;
 
@@ -23,6 +31,10 @@ pub const THROTTLE_WINDOW: Duration = Duration::from_secs(15 * 60);
 /// password wrong five times in a quarter of an hour is not going to get it on
 /// the sixth. It is also the number an attacker guessing one account's password
 /// runs into, which is the point.
+///
+/// Failed is the word that matters. A sign in or a registration that works
+/// clears every row for that address, so this is five wrong guesses in a row,
+/// not five uses of the product.
 pub const MAX_ATTEMPTS_PER_EMAIL: i64 = 5;
 
 /// How many attempts one client address gets inside the window.
@@ -33,14 +45,6 @@ pub const MAX_ATTEMPTS_PER_EMAIL: i64 = 5;
 /// somebody working through a list of addresses at speed, not to police a busy
 /// evening.
 pub const MAX_ATTEMPTS_PER_IP: i64 = 100;
-
-/// How long an attempt row is kept before the next sign in for that address
-/// clears it.
-///
-/// Longer than the window it is counted over, so the sweep can never delete a
-/// row a count still needs.
-#[allow(clippy::duration_suboptimal_units)]
-pub const ATTEMPT_RETENTION: Duration = Duration::from_secs(24 * 60 * 60);
 
 // The two limits only mean anything in relation to each other, and a runtime
 // assertion on two constants proves nothing at run time. These are compile time
@@ -58,22 +62,6 @@ const _: () = assert!(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// covers: AC-10
-    ///
-    /// The two limits are pinned at compile time above. This is the one
-    /// relationship that cannot be, because `Duration` comparison is not a
-    /// constant operation, and it is the one whose failure is silent: a sweep
-    /// that ran ahead of the window would delete attempts the throttle is still
-    /// counting, and the throttle would simply stop working.
-    #[test]
-    fn the_sweep_never_runs_ahead_of_the_window_it_clears() {
-        assert!(
-            ATTEMPT_RETENTION > THROTTLE_WINDOW,
-            "attempt rows are swept before the window that counts them has passed, so the \
-             throttle would forget attempts it is still supposed to be counting"
-        );
-    }
 
     /// A window nobody waits out is a lockout, and one nobody notices is not a
     /// throttle.

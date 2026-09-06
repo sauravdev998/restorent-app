@@ -106,6 +106,13 @@ pub async fn open(
 /// written once at sign in and never moves, and leaving it out of the statement
 /// is what makes that true rather than remembered.
 ///
+/// The `least` is not a nicety. Without it, a session inside one
+/// [`SESSION_LIFETIME`] of its ceiling slides to a moment past that ceiling, the
+/// table's check refuses the whole statement, and `last_seen_at` never moves, so
+/// the same statement fails again on every request for the rest of the
+/// session's life. Clamping makes the last stretch mean what the ceiling says:
+/// the session expires exactly there.
+///
 /// # Errors
 ///
 /// Returns [`DomainError::Unavailable`] if the update fails.
@@ -113,7 +120,10 @@ pub async fn slide(tx: &mut ScopedTx<'_>, session_id: SessionId) -> DomainResult
     let affected = sqlx::query!(
         r#"
         UPDATE sessions
-           SET expires_at   = now() + make_interval(secs => $2),
+           SET expires_at   = least(
+                   now() + make_interval(secs => $2),
+                   absolute_expires_at
+               ),
                last_seen_at = now(),
                updated_at   = now()
          WHERE id = $1
