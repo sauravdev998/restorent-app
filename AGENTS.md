@@ -5,7 +5,7 @@ in the kitchen, food is marked ready per dish, and the meal ends with a bill.
 
 ## Stack
 
-- **Language / Runtime**: Rust (stable, edition 2024, pinned in `rust-toolchain.toml`) and TypeScript on Node 24 (root `package.json` pins `engines.node >= 24`)
+- **Language / Runtime**: Rust (1.98, edition 2024, pinned in `rust-toolchain.toml`, which is also what continuous integration installs) and TypeScript on Node 24 (root `package.json` pins `engines.node >= 24`)
 - **Framework**: Axum 0.8 on Tokio for the API; React 19 with Vite and React Router 7 in data mode for the web app
 - **Key dependencies**: SQLx with the `query!` macros against PostgreSQL, TanStack Query, Tailwind CSS v4 with shadcn/ui, `utoipa` plus `openapi-typescript` for the typed API client
 - **Package manager**: `cargo` for `api/`, `pnpm` for `web/` and `infra/`
