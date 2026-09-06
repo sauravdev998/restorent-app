@@ -18,6 +18,7 @@
 //! written down here because nothing in this file can enforce it and nothing
 //! here will notice if it goes.
 
+use std::future::{Future, ready};
 use std::net::{IpAddr, SocketAddr};
 
 use axum::extract::{ConnectInfo, FromRequestParts};
@@ -50,25 +51,29 @@ impl ClientAddress {
 impl FromRequestParts<AppState> for ClientAddress {
     type Rejection = ApiError;
 
-    async fn from_request_parts(
+    // Deliberately not an `async fn`. Nothing in here awaits: both answers are
+    // already sitting on the request. Written as `async fn` it would build a
+    // future for every extraction only to have it finish on the first poll,
+    // which is what clippy's `unused_async_trait_impl` objects to. `ready` hands
+    // the trait the future it asks for without one.
+    fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        if state.environment == Environment::Development {
-            let peer = parts
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let address = if state.environment == Environment::Development {
+            parts
                 .extensions
                 .get::<ConnectInfo<SocketAddr>>()
-                .map(|ConnectInfo(socket)| socket.ip());
+                .map(|ConnectInfo(socket)| socket.ip())
+        } else {
+            parts
+                .headers
+                .get(VIEWER_ADDRESS)
+                .and_then(|value| value.to_str().ok())
+                .and_then(parse_viewer_address)
+        };
 
-            return Ok(Self(peer));
-        }
-
-        let header = parts
-            .headers
-            .get(VIEWER_ADDRESS)
-            .and_then(|value| value.to_str().ok());
-
-        Ok(Self(header.and_then(parse_viewer_address)))
+        ready(Ok(Self(address)))
     }
 }
 
