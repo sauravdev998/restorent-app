@@ -92,13 +92,16 @@ describe('useLiveEvents', () => {
   })
 
   function live() {
-    const rendered = renderHook(() => useLiveEvents(), { wrapper })
+    // The stream reports a fatal failure through this rather than navigating
+    // itself, so the tests can watch for it and the hook stays free of a router.
+    const onFatal = vi.fn()
+    const rendered = renderHook(() => useLiveEvents(onFatal), { wrapper })
     const source = ControllableEventSource.instances.at(-1)
     if (!source) {
       throw new Error('the hook did not open a stream')
     }
 
-    return { rendered, source }
+    return { rendered, source, onFatal }
   }
 
   /**
@@ -110,7 +113,7 @@ describe('useLiveEvents', () => {
       defaultOptions: { queries: { retry: false } },
     })
 
-    const rendered = renderHook(() => useLiveEvents(), {
+    const rendered = renderHook(() => useLiveEvents(() => undefined), {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       ),
@@ -272,12 +275,43 @@ describe('useLiveEvents', () => {
     expect(refetchQueries).toHaveBeenCalledWith({ type: 'active' })
   })
 
-  it('opens the stream scoped to the restaurant this browser is acting for', () => {
+  it('names no restaurant in the address, because the cookie already does', () => {
+    // The regression this guards is the placeholder coming back. `EventSource`
+    // cannot set a header, which is why the development placeholder put the
+    // restaurant in the query string; now the session cookie says which
+    // restaurant this is, and a browser that could name one would be a way to
+    // ask for somebody else's stream.
     const { source } = live()
 
-    expect(source.url).toContain('/api/events')
-    expect(source.url).toContain('restaurant_id=')
-  })
+    expect(source.url).toBe('/api/events')
+  }) // covers: AC-9
+
+  it('reports a fatal stream failure as being signed out', () => {
+    // A fatal error on this stream is almost always a 401: the session was
+    // revoked or expired and the browser will not retry a response it cannot
+    // use. It is the same event an ordinary request's 401 is, so it takes the
+    // same path rather than a second one that could drift.
+    const { source, onFatal } = live()
+
+    act(() => {
+      source.failForGood()
+    })
+
+    expect(onFatal).toHaveBeenCalledTimes(1)
+  }) // covers: AC-18, AC-19
+
+  it('does not report a dropped connection as being signed out', () => {
+    // The browser retries this one on its own. Sending somebody to the sign in
+    // screen because a phone walked behind a wall is the failure this
+    // distinction exists to prevent.
+    const { source, onFatal } = live()
+
+    act(() => {
+      source.dropMidStream()
+    })
+
+    expect(onFatal).not.toHaveBeenCalled()
+  }) // covers: AC-19
 
   it('closes the stream when the screen goes away', () => {
     const { rendered, source } = live()

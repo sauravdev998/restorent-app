@@ -18,6 +18,7 @@ import { Input } from '@/shared/ui/input'
 import { Select } from '@/shared/ui/select'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { STATUS_TONES } from '@/shared/ui/status'
+import { RestaurantText } from '@/shared/ui/restaurant-text'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
 
@@ -91,7 +92,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * light is visible rather than discovered by a restaurant.
  */
 function Panel({ appearance, density }: { appearance: string; density: Density }) {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['admin', 'common'])
   const [sort, setSort] = useState<{ key: string; direction: SortDirection }>({
     key: 'table',
     direction: 'ascending',
@@ -172,7 +173,7 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
           <Button>{t('design.confirm')}</Button>
           <Button variant="secondary">{t('design.cancel')}</Button>
           <Button variant="ghost">{t('design.cancel')}</Button>
-          <Button variant="destructive">{t('status.voided')}</Button>
+          <Button variant="destructive">{t('common:status.voided')}</Button>
           <Button disabled>{t('design.confirm')}</Button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -198,9 +199,30 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
         </Card>
       </Section>
 
+      {/* Restaurant typed text, which is data rather than copy and is never
+          translated. Two names in two scripts, because the mixed case is the
+          one that goes wrong: each is marked with the language it is actually
+          in, so a screen reader pronounces it rather than sounding it out in
+          the language of the page around it.
+
+          It is also the one place in the gallery to look at Devanagari at each
+          of the three densities, which is what the line heights in the density
+          layer were resized for. */}
+      <Section title={t('design.restaurantText')}>
+        <Card as="article" className="flex flex-col gap-2">
+          <RestaurantText as="p" className="text-base font-semibold">
+            मटर पनीर
+          </RestaurantText>
+          <RestaurantText as="p" className="text-base font-semibold">
+            Grilled sea bass
+          </RestaurantText>
+          <p className="text-sm text-muted-foreground">{t('design.restaurantTextNote')}</p>
+        </Card>
+      </Section>
+
       <Section title={t('design.forms')}>
         <Field label={t('design.sampleField')} hint={t('design.sampleHint')} required>
-          <Input placeholder="Grilled sea bass" />
+          <Input placeholder={t('design.samplePlaceholder')} />
         </Field>
         <Field label={t('design.sampleField')} error={t('design.sampleError')}>
           <Input defaultValue="" />
@@ -251,10 +273,10 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
             shape. `sound={false}` throughout: a gallery that chimed five times
             on load would be a gallery nobody opens twice. */}
         {STATUS_TONES.filter((tone) => tone !== 'ready').map((tone) => (
-          <Alert key={tone} open tone={tone} title={t(`status.${tone}`)} sound={false} />
+          <Alert key={tone} open tone={tone} title={t(`common:status.${tone}`)} sound={false} />
         ))}
         <div className="flex flex-col gap-2">
-          <Skeleton label={t('loading.label')} className="w-2/3" />
+          <Skeleton label={t('common:loading.label')} className="w-2/3" />
           <Skeleton className="w-full" />
           <Skeleton className="w-1/2" />
         </div>
@@ -316,7 +338,7 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
  * they behave in the product.
  */
 export function DesignGallery() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['admin', 'common'])
   const [density, setDensity] = useState<Density>('admin')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [alertOpen, setAlertOpen] = useState(false)
@@ -341,7 +363,7 @@ export function DesignGallery() {
               setDensity(option)
             }}
           >
-            {t(`nav.${option}`)}
+            {t(`common:nav.${option}`)}
           </Button>
         ))}
       </fieldset>
@@ -350,7 +372,7 @@ export function DesignGallery() {
         {APPEARANCES.map((appearance) => (
           <div key={appearance} className="flex flex-col gap-3">
             <h2 className="text-sm font-semibold text-foreground">
-              {t(`design.${appearance}`)} · {t(`nav.${density}`)}
+              {t(`design.${appearance}`)} · {t(`common:nav.${density}`)}
             </h2>
             <Panel appearance={appearance} density={density} />
           </div>
@@ -359,10 +381,7 @@ export function DesignGallery() {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-foreground">{t('design.feedback')}</h2>
-        <p className="max-w-prose text-sm text-muted-foreground">
-          These render into a portal on the document, so they follow the document&rsquo;s own
-          density rather than a panel&rsquo;s.
-        </p>
+        <p className="max-w-prose text-sm text-muted-foreground">{t('design.feedbackIntro')}</p>
         <div className="flex flex-wrap gap-3">
           <Button
             onClick={() => {
@@ -392,12 +411,12 @@ export function DesignGallery() {
               key={tone}
               variant="secondary"
               size="sm"
-              aria-label={`${t('design.showToast')}: ${t(`status.${tone}`)}`}
+              aria-label={`${t('design.showToast')}: ${t(`common:status.${tone}`)}`}
               onClick={() => {
                 showToast({ title: t('design.toastBody'), tone })
               }}
             >
-              {t(`status.${tone}`)}
+              {t(`common:status.${tone}`)}
             </Button>
           ))}
         </div>

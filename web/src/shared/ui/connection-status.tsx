@@ -34,7 +34,7 @@ export function ConnectionStatus({ status, className }: ConnectionStatusProps) {
       data-testid="stream-status"
     >
       <Icon icon={down ? WifiOff : Wifi} size="sm" />
-      {t(`stream.${status}`)}
+      {t(`connection.${status}`)}
     </span>
   )
 }

@@ -1,23 +1,19 @@
-import { useEffect } from 'react'
-import { Outlet, useLocation } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { Suspense, useCallback, useEffect } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import { useLiveEvents } from '@/shared/events/use-live-events'
+import { useDocumentLanguage } from '@/shared/i18n/use-document-language'
+import { useIdentityLanguage } from '@/shared/i18n/use-identity-language'
+import { signedOut } from '@/shared/session/signed-out'
+import { useIdentity } from '@/shared/session/use-identity'
+import { surfaceForPath } from '@/shared/surface'
+import { Skeleton } from '@/shared/ui/skeleton'
 import { SurfaceShell } from '@/shared/ui/surface-shell'
 
-/** The three surfaces, and what anything unrecognised falls back to. */
-const SURFACES = ['admin', 'waiter', 'kitchen'] as const
-
-type Surface = (typeof SURFACES)[number]
-
-const DEFAULT_SURFACE: Surface = 'admin'
-
-function surfaceForPath(pathname: string): Surface {
-  const first = pathname.split('/')[1] ?? ''
-  return SURFACES.find((surface) => surface === first) ?? DEFAULT_SURFACE
-}
-
 /**
- * The shell every screen sits inside, and the one owner of two global things.
+ * The shell every signed in screen sits inside, and the one owner of four
+ * global things.
  *
  * **The live stream.** Held open once here for the whole application, not once
  * per screen.
@@ -28,22 +24,56 @@ function surfaceForPath(pathname: string): Surface {
  * would leave every overlay at admin density in the kitchen, which is exactly
  * the screen where being unreadable hurts most.
  *
- * It is set here and nowhere else. If each `SurfaceShell` set it on mount, the
- * attribute would outlive the component that set it: walking from the kitchen
- * back to `/` would leave the whole document stuck at kitchen density with
- * nothing left to clear it.
+ * **The document's language.** `lang`, `dir`, and the tab title, for the same
+ * reason: they live outside the React tree and nothing else updates them.
+ *
+ * **What happens when the session ends.** One path, whether an ordinary request
+ * found out or the live stream did.
+ *
+ * All four are set here and nowhere else. If each `SurfaceShell` set them on
+ * mount, the attributes would outlive the component that set them: walking from
+ * the kitchen back to `/` would leave the whole document stuck at kitchen
+ * density with nothing left to clear it.
+ *
+ * Nobody reaches this component signed out. The route's loader resolves the
+ * identity first and redirects if there is none, so a protected screen never
+ * renders for even a frame on its way to the sign in screen.
  */
 export function RootLayout() {
-  const live = useLiveEvents()
+  // Through the hook rather than from this route's own loader data, so that a
+  // bundle written back by `PATCH /api/me` or `PATCH /api/restaurant` reaches
+  // the shell. The loader is a snapshot and never revisits itself, which is why
+  // changing your language used to do nothing until a reload.
+  const identity = useIdentity()
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const { pathname } = useLocation()
+  const surface = surfaceForPath(pathname)
+
+  // Stable, because the stream's effect depends on it and a fresh function
+  // every render would tear the stream down and rebuild it on every render.
+  const onSignedOut = useCallback(() => {
+    void navigate(signedOut(queryClient, window.location), { replace: true })
+  }, [navigate, queryClient])
+
+  const live = useLiveEvents(onSignedOut)
+
+  useDocumentLanguage()
+  useIdentityLanguage(identity, surface)
 
   useEffect(() => {
-    document.documentElement.dataset['surface'] = surfaceForPath(pathname)
-  }, [pathname])
+    document.documentElement.dataset['surface'] = surface
+  }, [surface])
 
   return (
-    <SurfaceShell stream={live.status}>
-      <Outlet context={live} />
+    <SurfaceShell stream={live.status} surface={surface} identity={identity}>
+      {/* Walking onto a surface fetches that surface's words. The boundary is
+          inside the shell and not around it, so the header, the navigation, and
+          the account menu stay on screen throughout: `common` is always in
+          hand, and only the content column is waiting. */}
+      <Suspense fallback={<Skeleton className="h-32 w-full" />}>
+        <Outlet context={live} />
+      </Suspense>
     </SurfaceShell>
   )
 }

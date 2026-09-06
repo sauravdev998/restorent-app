@@ -1,4 +1,15 @@
 [toolchain]
-channel = "stable"
+# Pinned to a version, not to `stable`, and the pin is the point.
+#
+# `rustup show` in `.github/workflows/ci.yml` installs whatever this file names,
+# so this is the one place the runner and a laptop agree on a compiler. Left as
+# `stable` they drift apart silently: on 6 September 2026 the runner was on 1.98
+# and a laptop on 1.97, clippy gained `unused_async_trait_impl` in between, and
+# the branch failed continuous integration on a lint that could not fire locally.
+#
+# A minor version, so patch releases still arrive on their own. Bumping the minor
+# is a deliberate edit here, which is where a new lint should be dealt with: once,
+# on purpose, rather than on whichever branch happened to push that week.
+channel = "1.98"
 components = ["rustfmt", "clippy"]
 profile = "minimal"

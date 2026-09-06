@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO restaurants\n            (id, name, country_code, currency_code, currency_decimals, timezone,\n             default_language, formatting_locale, updated_at)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bpchar",
+        "Bpchar",
+        "Int2",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e5fab580a4eccedb5686d3a38234e7f9962253e7acf886bc9c2060adf05a865e"
+}

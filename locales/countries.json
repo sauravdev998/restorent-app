@@ -1,0 +1,31 @@
+{
+  "countries": [
+    {
+      "code": "IN",
+      "englishName": "India",
+      "currencyCode": "INR",
+      "currencyDecimals": 2,
+      "defaultTimezone": "Asia/Kolkata",
+      "defaultLanguage": "en",
+      "formattingLocale": "en-IN"
+    },
+    {
+      "code": "GB",
+      "englishName": "United Kingdom",
+      "currencyCode": "GBP",
+      "currencyDecimals": 2,
+      "defaultTimezone": "Europe/London",
+      "defaultLanguage": "en",
+      "formattingLocale": "en-GB"
+    },
+    {
+      "code": "US",
+      "englishName": "United States",
+      "currencyCode": "USD",
+      "currencyDecimals": 2,
+      "defaultTimezone": "America/New_York",
+      "defaultLanguage": "en",
+      "formattingLocale": "en-US"
+    }
+  ]
+}

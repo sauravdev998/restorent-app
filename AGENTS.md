@@ -5,7 +5,7 @@ in the kitchen, food is marked ready per dish, and the meal ends with a bill.
 
 ## Stack
 
-- **Language / Runtime**: Rust (stable, edition 2024, pinned in `rust-toolchain.toml`) and TypeScript on Node 24 (root `package.json` pins `engines.node >= 24`)
+- **Language / Runtime**: Rust (1.98, edition 2024, pinned in `rust-toolchain.toml`, which is also what continuous integration installs) and TypeScript on Node 24 (root `package.json` pins `engines.node >= 24`)
 - **Framework**: Axum 0.8 on Tokio for the API; React 19 with Vite and React Router 7 in data mode for the web app
 - **Key dependencies**: SQLx with the `query!` macros against PostgreSQL, TanStack Query, Tailwind CSS v4 with shadcn/ui, `utoipa` plus `openapi-typescript` for the typed API client
 - **Package manager**: `cargo` for `api/`, `pnpm` for `web/` and `infra/`
@@ -29,6 +29,10 @@ cargo fetch --manifest-path api/Cargo.toml && pnpm install
 
 # Dev server (database first, then migrations, then API, then web)
 pnpm db:up && pnpm migrate && pnpm dev:api && pnpm dev:web
+
+# One restaurant and one admin to sign in as locally. Credentials are in .env.example,
+# and the command refuses to run outside development for exactly that reason.
+pnpm db:seed
 
 # Build
 pnpm build
@@ -105,12 +109,13 @@ Frontend:
 
 Skills live in `.agents/skills/`, which every agent reads. `.claude/skills/` holds symlinks to it.
 
-Declined: AWS CDK skill, Playwright skill, `softaworks/agent-toolkit@openapi-to-typescript`, AWS MCP servers, Playwright MCP, lefthook skill
+Declined: AWS CDK skill, Playwright skill, `softaworks/agent-toolkit@openapi-to-typescript`, AWS MCP servers, Playwright MCP, lefthook skill, skills for the session crates (`argon2`, `rand`, `sha2`, `base64`, `time`, ordinary utilities) and for `mise`
 
 MCP servers: Postgres (recommended, worth connecting once feature 4 creates a real schema, so the agent reads the live schema instead of trusting a migration file)
 
 ## Context files
 
+- Design system: build all UI to [docs/design.md](docs/design.md) (art direction and the product bar); token values live in CSS.
 - [api/AGENTS.md](api/AGENTS.md): the four layers, the scoped transaction, the listen connection, and the timeout ladder around them
 - [web/AGENTS.md](web/AGENTS.md): feature folders, the generated API client, and the two rules that keep the query cache honest
 - [infra/AGENTS.md](infra/AGENTS.md): the one CDK stack, not yet deployed, and the numbers that keep a stream alive

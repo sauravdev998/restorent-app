@@ -4,6 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router'
 
 import type { StreamStatus } from '@/shared/events/use-live-events'
+import { LanguageSwitcher } from '@/shared/i18n/language-switcher'
+import type { Identity } from '@/shared/session/identity'
+import { landingFor } from '@/shared/session/signed-out'
+import { followsRestaurantLanguage, type Surface } from '@/shared/surface'
 
 import { primeAudioUnlock } from './audio-unlock'
 import { cn } from './cn'
@@ -12,16 +16,14 @@ import { Icon } from './icon'
 import { LiveRegion } from './live-region'
 import { ToastViewport } from './toast'
 
-const NAV = [
-  { to: '/admin', key: 'nav.admin' },
-  { to: '/waiter', key: 'nav.waiter' },
-  { to: '/kitchen', key: 'nav.kitchen' },
-] as const
-
 export interface SurfaceShellProps {
   children: ReactNode
   /** The live stream's state, shown in the header of every surface. */
   stream: StreamStatus
+  /** Which surface this is, which decides whether the language is a choice. */
+  surface: Surface
+  /** Who is signed in, which decides what the navigation offers. */
+  identity: Identity
   className?: string
 }
 
@@ -42,15 +44,28 @@ export interface SurfaceShellProps {
  * The header is deliberately not sticky. A sticky bar is the usual way a focus
  * ring ends up hidden behind something, and no screen here needs one.
  *
+ * The navigation shows the one surface this person's role holds, and nothing
+ * else. Three links of which two are refused is a navigation that teaches
+ * people to expect to be bounced; and a chef reading a screen from across a
+ * kitchen has no use for a link to the admin reports.
+ *
  * It also mounts the two things that must exist exactly once per document: the
  * live regions every announcement goes through, and the toast viewport. And it
  * primes the audio unlock on the session's first tap or key press, because that
  * gesture is the only moment a browser will open an audio context.
  */
-export function SurfaceShell({ children, stream, className }: SurfaceShellProps) {
+export function SurfaceShell({
+  children,
+  stream,
+  surface,
+  identity,
+  className,
+}: SurfaceShellProps) {
   const { t } = useTranslation()
 
   useEffect(() => primeAudioUnlock(), [])
+
+  const home = landingFor(identity.staff.role)
 
   return (
     <div className={cn('flex min-h-screen flex-col bg-background', className)}>
@@ -68,7 +83,7 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
       <header className="border-b-line border-border bg-card">
         <div className="shell-width flex flex-wrap items-center gap-4 px-4 py-3">
           <NavLink
-            to="/"
+            to={home}
             className="inline-flex items-center gap-2 text-base font-semibold text-foreground"
           >
             <Icon icon={Utensils} size="md" className="text-primary" />
@@ -77,27 +92,28 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
 
           <nav aria-label={t('a11y.primaryNav')}>
             <ul className="flex flex-wrap items-center gap-1">
-              {NAV.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    className={({ isActive }) =>
-                      cn(
-                        'target-h inline-flex items-center rounded-md px-3 py-2 text-sm transition-colors',
-                        isActive
-                          ? 'bg-secondary font-medium text-secondary-foreground'
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                      )
-                    }
-                  >
-                    {t(item.key)}
-                  </NavLink>
+              <li>
+                <ShellLink to={home}>{t(`nav.${identity.staff.role}`)}</ShellLink>
+              </li>
+              {identity.staff.role === 'admin' && (
+                <li>
+                  <ShellLink to="/admin/settings">{t('nav.settings')}</ShellLink>
                 </li>
-              ))}
+              )}
+              <li>
+                <ShellLink to="/account">{t('nav.account')}</ShellLink>
+              </li>
             </ul>
           </nav>
 
-          <ConnectionStatus status={stream} className="ms-auto" />
+          <div className="ms-auto flex items-center gap-4">
+            <ConnectionStatus status={stream} />
+            {/* Absent from the kitchen, which is a shared appliance following
+                the restaurant's own language rather than whoever last walked
+                past it. Absent by not being rendered, not by being disabled:
+                there is nothing here for a chef to decide. */}
+            {!followsRestaurantLanguage(surface) && <LanguageSwitcher surface={surface} />}
+          </div>
         </div>
       </header>
 
@@ -113,5 +129,25 @@ export function SurfaceShell({ children, stream, className }: SurfaceShellProps)
       <LiveRegion />
       <ToastViewport />
     </div>
+  )
+}
+
+/** One link in the header, styled the same wherever it points. */
+function ShellLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      end
+      className={({ isActive }) =>
+        cn(
+          'target-h inline-flex items-center rounded-md px-3 py-2 text-sm transition-colors',
+          isActive
+            ? 'bg-secondary font-medium text-secondary-foreground'
+            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+        )
+      }
+    >
+      {children}
+    </NavLink>
   )
 }

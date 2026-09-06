@@ -17,6 +17,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // The language catalogue is shared with the API, which compiles the same
+      // file in, so it lives at the repository root rather than inside either
+      // side. The alias is what keeps that out of every import as a chain of
+      // ../.. and what keeps it importable from a package it sits outside.
+      '@catalogue': fileURLToPath(new URL('../locales/catalogue.json', import.meta.url)),
     },
   },
   server: {

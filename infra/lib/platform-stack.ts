@@ -1,4 +1,11 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib'
+import {
+  Annotations,
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  Stack,
+  type StackProps,
+} from 'aws-cdk-lib'
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront'
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins'
 import * as ec2 from 'aws-cdk-lib/aws-ec2'
@@ -38,6 +45,12 @@ import type { Construct } from 'constructs'
  *   means no CORS to configure and the session cookie simply works. Caching is
  *   disabled on that behaviour, because caching an event stream would mean
  *   delivering nothing.
+ * - **The load balancer accepts traffic only from CloudFront**, and the origin
+ *   request policy forwards `CloudFront-Viewer-Address`. The pair is one
+ *   security control: the API throttles sign in attempts by client address and
+ *   reads that address from the header, which CloudFront sets and overwrites.
+ *   With the listener reachable directly, the header could be forged and the
+ *   throttle would count somebody else. See spec 0006.
  */
 export class PlatformStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -180,7 +193,42 @@ export class PlatformStack extends Stack {
       idleTimeout: Duration.seconds(300),
     })
 
-    const listener = loadBalancer.addListener('Http', { port: 80, open: true })
+    // `open: false`, and this is load bearing rather than tidy. The default
+    // opens the listener to the whole internet, and the API trusts the
+    // `CloudFront-Viewer-Address` header to decide which client address a sign
+    // in attempt is throttled against. CloudFront sets that header itself and
+    // overwrites whatever a client sent, so it is trustworthy exactly as long
+    // as CloudFront is the only thing that can reach this listener. Anybody who
+    // found the load balancer's own name could otherwise set the header to
+    // whatever they liked, and nothing in the application would notice.
+    const listener = loadBalancer.addListener('Http', { port: 80, open: false })
+
+    // The managed prefix list holds the address ranges CloudFront actually uses,
+    // and AWS keeps it current. Naming ranges by hand would be a list that goes
+    // stale silently and takes the product down when it does.
+    //
+    // Its id is per region and there is no CDK construct that looks it up, so it
+    // comes from context. Absent, the listener is left reachable and a warning
+    // says so loudly at synth: a stack that refused to synthesise would stop
+    // anybody working on `infra/` at all, and this one is not deployed yet. The
+    // warning is what must not be ignored on the day it is.
+    const prefixListId: unknown = this.node.tryGetContext('cloudfrontOriginPrefixListId')
+
+    if (typeof prefixListId === 'string' && prefixListId.length > 0) {
+      loadBalancer.connections.allowFrom(
+        ec2.Peer.prefixList(prefixListId),
+        ec2.Port.tcp(80),
+        'only CloudFront, so the viewer address header cannot be forged',
+      )
+    } else {
+      Annotations.of(this).addWarning(
+        'No cloudfrontOriginPrefixListId in context, so the load balancer is reachable from ' +
+          'anywhere and the CloudFront-Viewer-Address header the sign in throttle trusts can ' +
+          'be forged. Find the id with: aws ec2 describe-managed-prefix-lists ' +
+          '--filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing ' +
+          'and pass it with -c cloudfrontOriginPrefixListId=pl-...',
+      )
+    }
 
     listener.addTargets('ApiTargets', {
       port: 8080,
@@ -229,7 +277,12 @@ export class PlatformStack extends Stack {
           // an authenticated API response would mean delivering it to the wrong
           // restaurant.
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
-          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+          // `ALL_VIEWER_AND_CLOUDFRONT_2022` rather than `ALL_VIEWER`, because
+          // it forwards CloudFront's own headers as well as the viewer's, and
+          // `CloudFront-Viewer-Address` is one of them. Without it the API sees
+          // only the load balancer's address, which would put every caller on
+          // the internet in one throttle bucket.
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_AND_CLOUDFRONT_2022,
           compress: false,
         },
       },

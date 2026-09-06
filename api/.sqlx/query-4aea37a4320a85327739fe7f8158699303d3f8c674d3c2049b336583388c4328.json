@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO sessions\n            (id, restaurant_id, staff_id, token_hash, expires_at, last_seen_at,\n             absolute_expires_at, updated_at)\n        VALUES ($1, $2, $3, $4,\n                now() + make_interval(secs => $5),\n                now(),\n                now() + make_interval(secs => $6),\n                now())\n        RETURNING expires_at, absolute_expires_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "expires_at"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "absolute_expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "absolute_expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4aea37a4320a85327739fe7f8158699303d3f8c674d3c2049b336583388c4328"
+}

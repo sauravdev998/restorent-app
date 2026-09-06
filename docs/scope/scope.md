@@ -16,8 +16,8 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 3 | Error and crash monitoring | Foundation | dropped |
 | 4 | Core data model | Foundation | in-progress |
 | 5 | Design system and accessibility baseline | Foundation | in-progress |
-| 6 | Language and text foundation | Foundation | planned |
-| 7 | Accounts, restaurants, and roles | Foundation | planned |
+| 6 | Language and text foundation | Foundation | in-progress |
+| 7 | Accounts, restaurants, and roles | Foundation | done |
 | 8 | The thin order thread | Slice 1 | planned |
 | 9 | Menu management | Slice 2 | planned |
 | 10 | Staff accounts | Slice 2 | planned |
@@ -34,6 +34,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 21 | Subscription plans and paid signup | Deferred | planned |
 | 22 | Customer QR self ordering | Deferred | planned |
 | 23 | Splitting and merging bills | Deferred | planned |
+| 24 | Password recovery by email | Slice 6 | planned |
 
 ## Foundations
 
@@ -93,15 +94,37 @@ spec [0004](../specs/0004-design-system-and-accessibility/index.md) · design in
 - [x] Review it (fresh model): `/check review design system and accessibility baseline`
 - [x] Document it: `/document design system and accessibility baseline`
 
-### 6. Language and text foundation · needs a decision
+### 6. Language and text foundation
 Every piece of text in the app comes from a translation file from the first screen onward, plus how a user's language is chosen and stored. Cheap now, painful to retrofit once twenty screens exist.
 **Done when:** no screen has hard coded user facing text, a second language can be added by dropping in one file, and a staff member's language choice sticks across sessions.
-- [ ] Design it (spec): `/architect language and text foundation`
+spec [0005](../specs/0005-language-and-text-foundation/index.md) · catalogue in `locales/` · code in `web/src/shared/i18n/`, `web/src/shared/format/`, `web/src/locales/`, `api/src/domain/language.rs`, `api/migrations/0003_language_and_formatting.sql` · gates in `web/scripts/check-locales.ts`, `web/eslint.config.js`
+- [x] Design it (spec): `/architect language and text foundation`
+- [x] Build it: `/develop language and text foundation`
+  - [x] The thread, top to bottom: the shared catalogue, migration 0003, the Rust newtypes, the two resolvers, loading on demand, the switcher, and Hindi for the shell (AC-2, AC-3, AC-4, AC-5, AC-6, AC-7, AC-8, AC-9, AC-10, AC-15, AC-17)
+  - [x] Every string moved into the split: the four namespaces, the sixteen call sites, and full Hindi key parity (AC-1, AC-2, AC-5)
+  - [x] Formatting cut loose from language: the memoised Intl formatters, money from an exact decimal, the restaurant's timezone, and error codes mapped to keys (AC-1, AC-3, AC-12, AC-13)
+  - [x] The three gates and the font: the lint rule, the parity check in continuous integration, the pseudo language, and Devanagari (AC-1, AC-2, AC-14, AC-16)
+  - [x] Mixed language text and the written rules: the language marked wrapper for restaurant typed data, and `docs/design.md` (AC-11, AC-12)
+- [x] Verify it: `/check verify language and text foundation`
+- [x] Test it: `/test language and text foundation`
+- [x] Review it (fresh model): `/check review language and text foundation`
+- [x] Document it: `/document language and text foundation`
 
-### 7. Accounts, restaurants, and roles · needs a decision
+### 7. Accounts, restaurants, and roles · done
 An owner registers a restaurant and becomes its admin, staff sign in, and every request is limited to that person's restaurant and role. Real authentication and real data separation from the very first slice, never faked.
 **Done when:** an owner can register a restaurant and sign in as its admin; a signed in user only ever sees their own restaurant's data; a waiter cannot reach admin or chef screens and a chef cannot reach admin or waiter screens, on the server as well as in the interface.
-- [ ] Design it (spec): `/architect accounts, restaurants, and roles`
+spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) · verify [0006](../specs/0006-accounts-restaurants-and-roles/verify.md) · shared list in `locales/countries.json` · api in `api/migrations/0004_accounts_and_sessions.sql`, `api/src/domain/{country,credentials,session,throttle}.rs`, `api/src/infrastructure/passwords.rs`, `api/src/infrastructure/db/repository/{accounts,sessions}.rs`, `api/src/presentation/{cookie,dto,origin}.rs`, `api/src/presentation/extract/{actor,client_address,json}.rs`, `api/src/presentation/handlers/{auth,me}.rs`, `api/src/bin/seed.rs` · web in `web/src/shared/session/`, `web/src/shared/countries.ts`, `web/src/shared/api/field-errors.ts`, `web/src/app/routes/`, `web/src/admin/routes/restaurant-settings.tsx` · infra in `infra/lib/platform-stack.ts`
+- [x] Design it (spec): `/architect accounts, restaurants, and roles`
+- [x] Build it: `/develop accounts, restaurants, and roles`
+  - [x] The thread, top to bottom: the countries file, migration 0004, the password and session plumbing, the four auth endpoints, the `Actor` extractor replacing the placeholder, and a sign in screen that reaches a real surface (AC-1, AC-2, AC-3, AC-4, AC-5, AC-6, AC-9, AC-13, AC-23)
+  - [x] The session's whole life: the sliding refresh and its exactly one row assertion, the absolute ceiling, the stream's heartbeat, and the one 401 path in the client (AC-7, AC-18, AC-19)
+  - [x] Roles made structural: the role requirement carried in the handler's own type, and the three route groups with their landing redirect (AC-8, AC-20)
+  - [x] Standing in front of the door: both throttle buckets counted in Postgres, the client address plus the two `infra/` changes, and the origin check (AC-10, AC-11, AC-12)
+  - [x] The rest of the surface: the register, account, and settings screens, their three write endpoints, the audit rows, the two sweeps, the seed command, and deleting both placeholders (AC-14, AC-15, AC-16, AC-17, AC-21, AC-22)
+- [x] Verify it: `/check verify accounts, restaurants, and roles`
+- [x] Test it: `/test accounts, restaurants, and roles`
+- [x] Review it (fresh model): `/check review accounts, restaurants, and roles`
+- [x] Document it: `/document accounts, restaurants, and roles`
 
 ## Slice 1: the thin order thread
 
@@ -191,6 +214,11 @@ A public page explaining what the platform does, with a clear route into registe
 The legal pages a real signup product needs, plus a consent banner that actually controls what runs before consent is given.
 **Done when:** privacy and terms pages exist and are linked from the public page and from signup; the consent banner records a choice and nothing non essential runs before consent; and the choice can be changed later.
 - [ ] Build it: `/develop privacy, terms, and cookie consent`
+
+### 24. Password recovery by email `from spec 0006` · needs a decision
+Spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) chose admin resets a password over an emailed link, which leaves one hole: an owner who is the only admin and forgets their password has nobody to ask. Closing it means an email provider (AWS SES on this stack), a single use token, and the rules around it. Worth doing before a restaurant that is not yours signs up, and before feature 21 charges anybody money.
+**Done when:** somebody who cannot sign in can request a link, set a new password from it, and every other session of theirs is revoked; the link works once and expires; and asking for a link tells a stranger nothing about whether that address has an account.
+- [ ] Design it (spec): `/architect password recovery by email`
 
 ## Deferred
 

@@ -7,6 +7,17 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 
+/* Devanagari, for Hindi. It sits after Geist in the stack rather than replacing
+   it, so Geist keeps every Latin character and only the characters it does not
+   have fall through to Noto.
+
+   The `unicode-range` this package ships is what makes that free: a browser
+   fetches a face only once a character in its range is actually on the page, so
+   an English only session never downloads a byte of it. That is a property of
+   the package rather than of this line, and it is the reason the font is a
+   dependency rather than a link to a font host. */
+@import '@fontsource/noto-sans-devanagari';
+
 /* ---------------------------------------------------------------------------
    The design system, spec 0004.
 
@@ -299,6 +310,21 @@
 
 /* --- Layer 3: density. One attribute, three very different rooms. --------- */
 
+/* A note on the line heights, because several of them look oddly generous.
+
+   They are sized for Devanagari, not for Latin. Noto Sans Devanagari's own
+   metrics give it a natural line box of 1.304em (measured from the shipped
+   font: unitsPerEm 1000, ascent 896, descent -408), because the vowel marks sit
+   above the letters and the conjuncts hang below them. Any line height under
+   that makes two stacked lines overlap, and the marks are the first thing to be
+   clipped, which is exactly the part that carries the meaning.
+
+   So no line height below is under 1.304 times its own size. Feature 5 set the
+   sizes and none of them moved; only the leading did, which is the cheaper half
+   of the pair to change. The large steps were the tight ones: a 4rem heading at
+   the old 4.5rem leading was 1.125, comfortable in Latin and unreadable in
+   Hindi. */
+
 /* Admin: a laptop on a desk, a mouse and a keyboard, and paperwork to get
    through. Dense on purpose. */
 [data-surface='admin'] {
@@ -323,7 +349,7 @@
   --text-2xl: 1.5rem;
   --text-2xl--line-height: 2rem;
   --text-3xl: 1.875rem;
-  --text-3xl--line-height: 2.25rem;
+  --text-3xl--line-height: 2.625rem;
 }
 
 /* Waiter: a phone at arm's length, held in one hand and tapped with the thumb
@@ -349,9 +375,9 @@
   --text-xl: 1.5rem;
   --text-xl--line-height: 2rem;
   --text-2xl: 1.75rem;
-  --text-2xl--line-height: 2.25rem;
+  --text-2xl--line-height: 2.375rem;
   --text-3xl: 2.25rem;
-  --text-3xl--line-height: 2.5rem;
+  --text-3xl--line-height: 3.125rem;
 }
 
 /* Kitchen: a screen on a wall, read from two or three metres away, tapped with
@@ -369,24 +395,25 @@
   --text-xs: 1.5rem;
   --text-xs--line-height: 2rem;
   --text-sm: 1.75rem;
-  --text-sm--line-height: 2.25rem;
+  --text-sm--line-height: 2.375rem;
   --text-base: 2rem;
-  --text-base--line-height: 2.5rem;
+  --text-base--line-height: 2.75rem;
   --text-lg: 2.25rem;
-  --text-lg--line-height: 2.75rem;
+  --text-lg--line-height: 3.125rem;
   --text-xl: 2.75rem;
-  --text-xl--line-height: 3.25rem;
+  --text-xl--line-height: 3.75rem;
   --text-2xl: 3.25rem;
-  --text-2xl--line-height: 3.75rem;
+  --text-2xl--line-height: 4.5rem;
   --text-3xl: 4rem;
-  --text-3xl--line-height: 4.5rem;
+  --text-3xl--line-height: 5.5rem;
 }
 
 /* --- Layer 4: the Tailwind bridge. Plumbing, nothing to decide here. ------ */
 
 @theme inline {
   --font-sans:
-    'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    'Geist Variable', 'Noto Sans Devanagari', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    Roboto, sans-serif;
   --font-mono:
     'Geist Mono Variable', ui-monospace, 'SFMono-Regular', 'Liberation Mono', Menlo, monospace;
 

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE staff\n           SET last_sign_in_at = now(),\n               updated_at      = now()\n         WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cebd49e993a2e6b479d964508647aa5521831fb2633c59dba676b436aae5ac1a"
+}

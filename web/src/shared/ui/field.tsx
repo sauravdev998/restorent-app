@@ -5,7 +5,7 @@ import { cn } from './cn'
 import { FieldContext, type FieldControl } from './field-context'
 
 export interface FieldProps {
-  /** The visible label. Always visible: a placeholder is not a label. */
+  /** The label. Always present: a placeholder is not a label. */
   label: string
   /** Exactly one control, an `Input` or a `Select`. */
   children: ReactNode
@@ -14,6 +14,16 @@ export interface FieldProps {
   /** The validation message. Its presence is what marks the control invalid. */
   error?: string
   required?: boolean
+  /**
+   * Hides the label from sight while leaving it bound to the control.
+   *
+   * Narrow on purpose. It is for a single control in a toolbar, where the
+   * surrounding context already says what the control is and a stacked label
+   * would cost a phone's whole header. It is never for a control in a form: in
+   * a form the visible label is the thing that makes the form fillable, and
+   * hiding it helps nobody but the layout.
+   */
+  labelHidden?: boolean
   className?: string
 }
 
@@ -26,7 +36,15 @@ export interface FieldProps {
  * on the page, and the error also announces itself the moment it appears
  * instead of only becoming visible to people who happen to be looking at it.
  */
-export function Field({ label, children, hint, error, required = false, className }: FieldProps) {
+export function Field({
+  label,
+  children,
+  hint,
+  error,
+  required = false,
+  labelHidden = false,
+  className,
+}: FieldProps) {
   const { t } = useTranslation()
   const id = useId()
   const hintId = `${id}-hint`
@@ -46,7 +64,13 @@ export function Field({ label, children, hint, error, required = false, classNam
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
-      <label htmlFor={id} className="flex items-center gap-2 text-sm font-medium text-foreground">
+      <label
+        htmlFor={id}
+        className={cn(
+          'flex items-center gap-2 text-sm font-medium text-foreground',
+          labelHidden && 'sr-only',
+        )}
+      >
         {label}
         {required && (
           <span className="text-xs font-normal text-muted-foreground">{t('field.required')}</span>

@@ -5,6 +5,11 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
+    <!-- The one moment before the app boots. `useDocumentLanguage` replaces
+         both this and the `lang` above with the resolved language's own, so
+         this pair is a starting value rather than the app's real title. An
+         empty title here would show the address bar's URL in the tab instead,
+         which is worse than a title in the wrong language for one frame. -->
     <title>Restaurant operations</title>
   </head>
   <body>

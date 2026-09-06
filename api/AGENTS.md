@@ -19,13 +19,16 @@ rules; this file holds what is true only here.
 | `src/infrastructure/config.rs` | The only module that reads an environment variable |
 | `src/infrastructure/db/mod.rs` | The only module that holds a `PgPool`. The field is private |
 | `src/infrastructure/db/scoped.rs` | `ScopedTx`: a transaction with `app.restaurant_id` already set |
+| `src/infrastructure/passwords.rs` | `argon2id` hashing and verification, both run off the async runtime |
 | `src/infrastructure/events/listener.rs` | The listen connection, its bounded connect and its backoff ladder |
 | `src/infrastructure/events/registry.rs` | Which open streams belong to which restaurant |
 | `src/presentation/router.rs` | Route table and the middleware around it |
 | `src/presentation/error.rs` | The one error shape every failed request returns |
-| `src/presentation/extract/scoped.rs` | Where a request's restaurant comes from. A placeholder that fails closed |
+| `src/presentation/extract/actor.rs` | Who is asking: the session lookup, the restaurant it scopes to, and the role requirement carried in the handler's own type |
+| `src/presentation/origin.rs` | The same origin check every mutating request passes before a handler runs |
 | `src/presentation/openapi.rs` | The OpenAPI document. A route missing from `paths` never reaches the client |
 | `migrations/0001_bootstrap.sql` | `current_restaurant_id()` and `notify_entity_change()`. No tables on purpose |
+| `migrations/0004_accounts_and_sessions.sql` | Credentials, sessions, `login_attempts`, and `resolve_session`, the second of the two `auth_lookup` owned lookups |
 | `scripts/init-roles.sql` | Creates `app_api` locally. Run by hand on RDS |
 | `Dockerfile` | Multi stage arm64 build. Build it from the repository root, not from here |
 | `Cargo.toml` | Dependencies, and the `[lints.clippy]` block that turns pedantic on |
@@ -50,6 +53,8 @@ pnpm openapi:generate                               # rewrite api/openapi.json
 - **Only `infrastructure::config` reads the environment.** Everything else takes a typed value.
 - **`#![deny(missing_docs)]`.** Every public item carries a doc comment. No `unwrap` or `expect` outside tests and `main`.
 - **One error shape.** Handlers return `DomainError`; `presentation/error.rs` maps it to a status code and a JSON body. A database message stays in the logs and never rides out on a response.
+- **A role restriction lives in the handler's own signature**, carried by the `Actor` extractor's type, so it reaches the OpenAPI document and a missing check is visible rather than remembered. Refusal happens before the handler body runs.
+- **Every mutating request passes the same origin check** in `presentation/origin.rs` before its handler: the `Origin` header's host must equal the request's own `Host`, with `Sec-Fetch-Site: same-origin` accepted instead, and neither header refused. It needs no configured value, so there is nothing to get wrong per environment.
 - **Nothing crosses the wire as a domain entity.** `presentation` owns its own serde DTOs, so an inner layer never learns the `utoipa` schema traits exist.
 - **A new route must be added to `paths(...)` in `presentation/openapi.rs`**, or it is absent from the document, and therefore absent from the generated TypeScript client, with nothing failing to tell you.
 - **Change SQL, run `pnpm sqlx:prepare`.** The `.sqlx` cache is committed and the Docker build reads it with `SQLX_OFFLINE=true`.
@@ -61,7 +66,8 @@ pnpm openapi:generate                               # rewrite api/openapi.json
 - **`PgListener::connect` is deliberately not used.** It builds its own pool and leaves SQLx's 30 second acquire timeout on it, unreachable from outside. `connect_bounded` builds the pool here so the bound also covers the reconnect the listener does internally.
 - **`/api/events` is mounted outside the timeout and compression layers.** A timeout would close it every 30 seconds, and compression buffers, which is the one thing a live ticket feed must not do.
 - **The 15 second heartbeat is sized against numbers in `infra/`** (CloudFront `readTimeout` 60 seconds, load balancer `idleTimeout` 300 seconds). This crate cannot import them, so the test in `handlers/events.rs` pins the relationship against copies. Change a number in `infra/lib/platform-stack.ts` and nothing here goes red.
-- **`RestaurantScope` is a development only placeholder.** It reads a header or `?restaurant_id=`, and refuses every request outside development. Feature 7 replaces it with a session lookup. Do not relax the refusal.
+- **A request's restaurant comes from its session and from nowhere else.** `Actor` resolves the session cookie against the database on every request, with no cache, and hands the handler the restaurant to scope to. The old `RestaurantScope` placeholder, the `x-restaurant-id` header, and the `?restaurant_id=` query parameter are gone; nothing may reintroduce a client supplied restaurant, in any environment.
+- **Exactly two paths read across restaurants**, both `SECURITY DEFINER` functions owned by `auth_lookup` rather than by the schema owner: the credential lookup from `0002` and `resolve_session` from `0004`. Owned by the schema owner instead, `FORCE ROW LEVEL SECURITY` filters them to nothing and nobody can sign in. A migration that drops and recreates one must re assert the owner and the grant, because a `DROP` takes both with it.
 - **`/api/dev/notify` exists only in development and is deliberately absent from the OpenAPI document**, so it is absent from the typed client too. That is on purpose: the document describes the real API surface.
 - **The listen connection dying ends every stream on the instance.** That is intended. A screen that looks connected while receiving nothing is worse than one that reconnects and refetches.
 - **`0001_bootstrap.sql` creates no tables.** Feature 4 owns the schema. What it creates is the plumbing every later table uses.

@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT name, address, timezone, default_language, formatting_locale\n        FROM restaurants\n        FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "address",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "address"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "timezone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "timezone"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "default_language",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "default_language"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "formatting_locale",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "formatting_locale"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "419e9b12b8088105052d9d814310d02ffc45b998ae7f67e180c95c646de8222e"
+}

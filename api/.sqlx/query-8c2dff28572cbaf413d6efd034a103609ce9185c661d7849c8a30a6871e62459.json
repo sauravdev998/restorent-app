@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, email, display_name, role AS \"role: StaffRole\", deactivated_at\n        FROM staff\n        WHERE deactivated_at IS NULL\n        ORDER BY display_name\n        ",
+  "query": "\n        SELECT id, email, display_name, role AS \"role: StaffRole\", language, deactivated_at\n        FROM staff\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,17 @@
       },
       {
         "ordinal": 4,
+        "name": "language",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "staff",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
         "name": "deactivated_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -71,15 +82,18 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "84d63415af2dee634d26d499e25ce9830eefec124fdf6d8862c9d3b5aa44fd4b"
+  "hash": "8c2dff28572cbaf413d6efd034a103609ce9185c661d7849c8a30a6871e62459"
 }

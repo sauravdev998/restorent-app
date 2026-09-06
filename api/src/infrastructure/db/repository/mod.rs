@@ -19,10 +19,12 @@
 //! * **Reads filter archived rows for you.** No caller has to remember, which is
 //!   what stops an archived dish reappearing on one screen out of nine.
 
+pub mod accounts;
 pub mod audit;
 pub mod billing;
 pub mod catalog;
 pub mod service;
+pub mod sessions;
 
 use crate::domain::error::DomainError;
 

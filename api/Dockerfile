@@ -6,12 +6,19 @@
 #
 #   docker buildx build --platform linux/arm64 -t restaurant-api -f api/Dockerfile .
 #
-# Run it from the repository root, not from api/, because the build needs the
-# committed .sqlx cache alongside the source.
+# Run it from the repository root, not from api/, because the build needs two
+# things that live outside the crate: the committed .sqlx cache, and the shared
+# language catalogue at locales/catalogue.json, which the crate compiles in with
+# include_str!.
 
 FROM rust:1-slim-trixie AS builder
 
-WORKDIR /build
+# /build/api, mirroring the repository, and not /build. The crate reaches the
+# shared language catalogue with include_str!("../../../locales/catalogue.json"),
+# which is resolved relative to the source file, so the crate has to sit at the
+# same depth below the catalogue here as it does in the repository. Flatten this
+# to /build and that include reaches outside the image and the build fails.
+WORKDIR /build/api
 
 # The SQLx query! macros check SQL at compile time. In here there is no database
 # to check against, so they read the committed offline cache instead. If this
@@ -32,6 +39,10 @@ RUN mkdir -p src/bin \
 COPY api/src ./src
 COPY api/.sqlx ./.sqlx
 
+# The one file from outside the crate. Adding a language is a change to this
+# file plus web translation files, and this is what carries it into the build.
+COPY locales /build/locales
+
 # Cargo will not rebuild a crate whose files look untouched, and the dummy
 # sources above left stale fingerprints behind.
 RUN touch src/main.rs src/lib.rs \
@@ -51,7 +62,7 @@ RUN useradd --system --create-home --uid 10001 api
 USER api
 WORKDIR /home/api
 
-COPY --from=builder --chown=api:api /build/target/release/api /usr/local/bin/api
+COPY --from=builder --chown=api:api /build/api/target/release/api /usr/local/bin/api
 
 EXPOSE 8080
 

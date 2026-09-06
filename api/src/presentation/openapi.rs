@@ -10,8 +10,9 @@
 
 use utoipa::OpenApi;
 
+use super::dto::{IdentityBundle, RestaurantDto, RoleDto, StaffDto};
 use super::error::ErrorBody;
-use super::handlers::{events, health};
+use super::handlers::{auth, events, health, me};
 
 /// The whole public API surface.
 #[derive(OpenApi)]
@@ -21,14 +22,36 @@ use super::handlers::{events, health};
         description = "Orders at the table, tickets live in the kitchen, a bill at the end.",
         version = "0.1.0",
     ),
-    paths(health::health, events::events),
+    paths(
+        health::health,
+        events::events,
+        auth::register,
+        auth::sign_in,
+        auth::sign_out,
+        auth::me,
+        me::update_me,
+        me::change_password,
+        me::update_restaurant,
+    ),
     components(schemas(
         ErrorBody,
         health::HealthResponse,
         health::Component,
         events::StreamEvent,
+        IdentityBundle,
+        StaffDto,
+        RestaurantDto,
+        RoleDto,
+        auth::RegisterRequest,
+        auth::SignInRequest,
+        me::UpdateMeRequest,
+        me::ChangePasswordRequest,
+        me::UpdateRestaurantRequest,
     )),
-    tags((name = "system", description = "Health and live updates."))
+    tags(
+        (name = "system", description = "Health and live updates."),
+        (name = "accounts", description = "Registering, signing in, and who is signed in."),
+    )
 )]
 pub struct ApiDoc;
 

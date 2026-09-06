@@ -4,7 +4,6 @@ import { useOutletContext } from 'react-router'
 
 import { healthQuery } from '@/shared/api/health'
 import type { LiveEvents } from '@/shared/events/use-live-events'
-import { currentRestaurantId } from '@/shared/session/current-restaurant'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 
@@ -17,7 +16,8 @@ import { Card } from '@/shared/ui/card'
  * replaces it with a waiter sending a real dish to a real kitchen screen.
  */
 export function SystemStatus() {
-  const { t } = useTranslation()
+  // The system status screen is admin side, so its words live there.
+  const { t } = useTranslation('admin')
   const live = useOutletContext<LiveEvents>()
   const health = useQuery(healthQuery)
 
@@ -28,9 +28,13 @@ export function SystemStatus() {
       // OpenAPI document and therefore absent from the generated types. Casting
       // it into the typed client would be a lie about the API surface. Every
       // real endpoint goes through `api` in `shared/api/client.ts`.
+      //
+      // No restaurant header any more: the server reads the session cookie,
+      // which this request carries because it is same origin. `Sec-Fetch-Site`
+      // is what gets it past the same origin check on a mutating method.
       const response = await fetch('/api/dev/notify', {
         method: 'POST',
-        headers: { 'X-Restaurant-Id': currentRestaurantId() },
+        credentials: 'include',
       })
       if (!response.ok) throw new Error('Could not send the test event.')
     },

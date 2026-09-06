@@ -11,10 +11,15 @@
 pub mod audit;
 pub mod billing;
 pub mod catalog;
+pub mod country;
+pub mod credentials;
 pub mod enums;
 pub mod error;
 pub mod event;
 pub mod ids;
+pub mod language;
 pub mod money;
 pub mod people;
 pub mod service;
+pub mod session;
+pub mod throttle;

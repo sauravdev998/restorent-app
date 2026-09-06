@@ -9,6 +9,115 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Registers a restaurant and signs its owner in as the admin.",
+        "description": "One transaction. Any failure inside it, a duplicate address in particular,\nleaves no restaurant, no staff row, and no session: the transaction is\nsimply dropped, and everything it wrote goes with it.\n\nThe five settings the restaurant starts with come from the country's row in\n`locales/countries.json` and from nowhere else.\n\n# Errors\n\nReturns a `400` naming each field that was not accepted, including\n`fields.email=already_taken` for an address that already has an account, and\na `503` if the database or the password hash is unavailable.",
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The restaurant and its admin now exist, and the response sets the session cookie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityBundle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted. `fields.email=already_taken` when that address already has an account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sign-in": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Signs somebody in.",
+        "description": "The address is looked up across every restaurant, because sign in has a\nchicken and egg problem: there is no restaurant to scope to until the\naccount is found. That lookup is one of exactly two in the system that read\nacross restaurants, and it is `SECURITY DEFINER` in the database with a\nfixed narrow shape.\n\n# Errors\n\nReturns `401` for a wrong password, an address nobody has, and a deactivated\naccount alike, and a `503` if the database or the password hash is\nunavailable.",
+        "operationId": "sign_in",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in, and the response sets the session cookie.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Identical for a wrong password and for an address nobody has.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sign-out": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Signs out exactly the session that made the request.",
+        "description": "Every other session belonging to the same person keeps working, which is\nwhat makes signing out on the house phone at the end of a shift safe to do.\n\n# Errors\n\nReturns `401` if nobody is signed in, and a `503` if the database is\nunavailable.",
+        "operationId": "sign_out",
+        "responses": {
+          "204": {
+            "description": "Signed out, and the response clears the cookie."
+          },
+          "401": {
+            "description": "Nobody was signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/events": {
       "get": {
         "tags": [
@@ -29,7 +138,7 @@
             }
           },
           "401": {
-            "description": "No session, so no restaurant to stream.",
+            "description": "Nobody is signed in, so there is no restaurant to stream.",
             "content": {
               "application/json": {
                 "schema": {
@@ -72,10 +181,217 @@
           }
         }
       }
+    },
+    "/api/me": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Who is signed in, and where they work.",
+        "description": "The same bundle sign in returns, so a browser that has reloaded gets back to\nexactly the state it had without a second endpoint or a second shape.\n\n# Errors\n\nReturns `401` if nobody is signed in, and a `503` if the database is\nunavailable.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "The signed in identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Changes the caller's own display name or personal language.",
+        "description": "# Errors\n\nReturns a `400` naming the field that was not accepted, `401` if nobody is\nsigned in, and a `503` if the database is unavailable.",
+        "operationId": "update_me",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated identity. Any signed in role, own row only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityBundle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/password": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Changes the caller's own password, and signs their other devices out.",
+        "description": "The session that made the request keeps working, so somebody changing their\npassword on the screen in front of them is not immediately signed out of it.\nEvery other session of theirs is revoked in the same transaction, which is\nwhat makes \"I think somebody has my password\" a thing they can act on alone.\n\n# Errors\n\nReturns a `400` with `fields.currentPassword=incorrect` for a wrong current\npassword, `401` if nobody is signed in, and a `503` if the database or the\npassword hash is unavailable.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Changed. Any signed in role, own row only."
+          },
+          "400": {
+            "description": "The current password was wrong, or the new one broke a rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/restaurant": {
+      "patch": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Changes the restaurant's settings. Admins only.",
+        "description": "The role requirement is in the signature: `Actor<Admin>` refuses a waiter and\na chef with `403` before this body runs, so there is no line here to forget.\n\n# Errors\n\nReturns a `400` naming each field that was not accepted, `403` for a waiter\nor a chef, `401` if nobody is signed in, and a `503` if the database is\nunavailable.",
+        "operationId": "update_restaurant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRestaurantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The updated identity. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityBundle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A waiter or a chef asked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ChangePasswordRequest": {
+        "type": "object",
+        "description": "What changing your own password asks for.",
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "description": "The password they are signing in with now."
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "What they want it to be."
+          }
+        }
+      },
       "Component": {
         "type": "string",
         "description": "Whether one dependency is answering.",
@@ -97,9 +413,25 @@
             "description": "A stable machine readable code, safe to branch on in the client.",
             "example": "not_found"
           },
+          "fields": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What is wrong with each named field, when the problem is a form rather\nthan the request as a whole.\n\nAbsent from every response that has no field level problem, which is\nmost of them, so nothing that was already reading this body changes.\nEach value is one of a closed set of codes: `already_taken`,\n`too_short`, `too_long`, `invalid_format`, `unknown_country`,\n`not_in_catalogue`, `incorrect`, `required`.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "example": {
+              "email": "already_taken"
+            }
+          },
           "message": {
             "type": "string",
-            "description": "A human readable sentence. Never contains internal detail.",
+            "description": "A human readable sentence. Never contains internal detail.\n\nEnglish, and for a log. The web app renders a translation of\n[`Self::error`] instead, because the API is a data API and knows nothing\nabout what language anybody reads.",
             "example": "The requested resource does not exist."
           }
         }
@@ -127,6 +459,178 @@
           }
         }
       },
+      "IdentityBundle": {
+        "type": "object",
+        "description": "Everything the browser needs to know who it is talking for.\n\nReturned identically by register, sign in, `GET /api/me`, `PATCH /api/me`,\nand `PATCH /api/restaurant`, so the browser has one type and one cache\nentry. Five endpoints returning five nearly identical shapes is how a client\nends up with five slightly different ideas of who is signed in.",
+        "required": [
+          "staff",
+          "restaurant"
+        ],
+        "properties": {
+          "restaurant": {
+            "$ref": "#/components/schemas/RestaurantDto",
+            "description": "Where they work."
+          },
+          "staff": {
+            "$ref": "#/components/schemas/StaffDto",
+            "description": "Who is signed in."
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "description": "What registration asks for.\n\nFive fields, and that is the product decision showing through: trying this\ncosts a minute, not an afternoon of settings. Everything else about the\nrestaurant is derived from the country or changed later.",
+        "required": [
+          "restaurantName",
+          "displayName",
+          "email",
+          "password",
+          "countryCode"
+        ],
+        "properties": {
+          "countryCode": {
+            "type": "string",
+            "description": "Where the restaurant is, as an ISO 3166-1 alpha-2 code. Accepted in any\ncase."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "What to call the owner on screen."
+          },
+          "email": {
+            "type": "string",
+            "description": "The address they will sign in with."
+          },
+          "password": {
+            "type": "string",
+            "description": "Their password. At least 10 characters."
+          },
+          "restaurantName": {
+            "type": "string",
+            "description": "What the restaurant is called."
+          }
+        }
+      },
+      "RestaurantDto": {
+        "type": "object",
+        "description": "The restaurant the signed in person works at, as every screen reads it.\n\nCarries the five settings spec 0005's formatting layer needs and nothing\nabout money beyond the currency: figures on a bill come from the bill.",
+        "required": [
+          "id",
+          "name",
+          "countryCode",
+          "currencyCode",
+          "currencyDecimals",
+          "timezone",
+          "defaultLanguage",
+          "formattingLocale"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where it is, for printing on a bill. `null` when nobody has set one."
+          },
+          "countryCode": {
+            "type": "string",
+            "description": "Where it is, as an ISO 3166-1 alpha-2 code."
+          },
+          "currencyCode": {
+            "type": "string",
+            "description": "What it charges in."
+          },
+          "currencyDecimals": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many decimal places that currency uses.",
+            "minimum": 0
+          },
+          "defaultLanguage": {
+            "type": "string",
+            "description": "What the kitchen screen reads, and the fallback for anybody with no\npersonal setting."
+          },
+          "formattingLocale": {
+            "type": "string",
+            "description": "How money, numbers, dates, and times are written here. Deliberately not\nderived from the language."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which restaurant this is."
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is called."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Its own IANA timezone. Every timestamp on a screen is converted with it,\nnever with the device's."
+          }
+        }
+      },
+      "RoleDto": {
+        "type": "string",
+        "description": "What a member of staff is allowed to be, on the wire.\n\nA separate enum from [`StaffRole`] because that one lives in the domain and\nmay not learn that `utoipa` exists. The strings are identical, and the two\ntests below are what keep them that way.",
+        "enum": [
+          "admin",
+          "waiter",
+          "chef"
+        ]
+      },
+      "SignInRequest": {
+        "type": "object",
+        "description": "What signing in asks for.",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The address the account was registered with. Matched case insensitively."
+          },
+          "password": {
+            "type": "string",
+            "description": "The password."
+          }
+        }
+      },
+      "StaffDto": {
+        "type": "object",
+        "description": "Who the signed in person is.",
+        "required": [
+          "id",
+          "displayName",
+          "email",
+          "role"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "What to call them on screen."
+          },
+          "email": {
+            "type": "string",
+            "description": "The address they sign in with, exactly as they typed it when they\nregistered. Handed back unflattened so the account screen shows them\ntheir own capitalisation."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which staff member this is.\n\nA bare uuid rather than the domain's `StaffId`, because a newtype in\n`domain/` may not learn that `utoipa` exists. The wire has always been\nwhere identifiers lose their types."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Their own interface language, or `null` for \"whatever the restaurant\nuses\", which is what a new account has."
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleDto",
+            "description": "What they are allowed to be."
+          }
+        }
+      },
       "StreamEvent": {
         "type": "object",
         "description": "What one message on the stream looks like.\n\nA kind and an id, never row content. The client uses it to refetch or to\npatch its query cache, which keeps row level security the single authority\non who may see what: a client that should not see a row simply gets nothing\nback when it asks for it.",
@@ -146,6 +650,67 @@
             "description": "Which one changed."
           }
         }
+      },
+      "UpdateMeRequest": {
+        "type": "object",
+        "description": "What somebody may change about their own account.\n\nBoth fields are optional and absent means \"leave it alone\". `language` is\ndeliberately `Option<Option<String>>`: absent leaves it, and an explicit\n`null` clears it, which is a real choice somebody makes rather than an\nabsence. Collapsing the two would make \"follow the restaurant\" unsayable.",
+        "properties": {
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to call them on screen."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Their own interface language, or `null` to follow the restaurant.\n\nClippy is overruled here, and the reason is the whole point of the\nfield. The three states are genuinely different and all three have to be\nsayable: absent means \"do not touch my language\", `null` means \"follow\nthe restaurant\", and a code means that code. A custom enum would say the\nsame thing with a hand written `Deserialize` and a hand written\n`ToSchema`, and the wire shape would be identical."
+          }
+        }
+      },
+      "UpdateRestaurantRequest": {
+        "type": "object",
+        "description": "What an admin may change about the restaurant.\n\nNo money setting appears here at all. The currency and its decimals were\nfixed by the country at registration and changing them under bills that have\nalready closed would rewrite history.",
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where it is, for printing on a bill. An empty string clears it."
+          },
+          "defaultLanguage": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the kitchen screen reads."
+          },
+          "formattingLocale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How it writes money, numbers, and dates."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the restaurant is called."
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its IANA timezone."
+          }
+        }
       }
     }
   },
@@ -153,6 +718,10 @@
     {
       "name": "system",
       "description": "Health and live updates."
+    },
+    {
+      "name": "accounts",
+      "description": "Registering, signing in, and who is signed in."
     }
   ]
 }

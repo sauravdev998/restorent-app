@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE restaurants\n        SET default_language = $1, formatting_locale = $2, updated_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c32154b9db865396eaa14de4a89ef449d1f153027113ea72b48d38ed623f1d6f"
+}
