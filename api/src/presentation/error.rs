@@ -19,6 +19,11 @@ use crate::domain::error::{DomainError, FieldErrors};
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ErrorBody {
     /// A stable machine readable code, safe to branch on in the client.
+    ///
+    /// A refused conflict names which conflict it was, such as
+    /// `table_occupied` or `bill_has_unserved_lines`, rather than the blanket
+    /// word `conflict`. The closed list is
+    /// [`ConflictKind`](crate::domain::error::ConflictKind).
     #[schema(example = "not_found")]
     pub error: &'static str,
     /// A human readable sentence. Never contains internal detail.
@@ -129,7 +134,11 @@ impl IntoResponse for ApiError {
                 "invalid",
                 "One or more fields were not accepted.".to_owned(),
             ),
-            DomainError::Conflict(reason) => (StatusCode::CONFLICT, "conflict", reason.clone()),
+            // The code names what actually happened, not the blanket word
+            // "conflict". That is what lets the web say "that table already has
+            // a party at it" in the reader's own language instead of showing
+            // one English sentence written in Rust.
+            DomainError::Conflict(kind) => (StatusCode::CONFLICT, kind.as_code(), kind.to_string()),
             DomainError::Unavailable(what) => {
                 // The caller did nothing wrong and must learn nothing about our
                 // internals, so the detail goes to the logs and not the body.

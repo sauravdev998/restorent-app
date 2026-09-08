@@ -18,7 +18,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 5 | Design system and accessibility baseline | Foundation | in-progress |
 | 6 | Language and text foundation | Foundation | in-progress |
 | 7 | Accounts, restaurants, and roles | Foundation | done |
-| 8 | The thin order thread | Slice 1 | planned |
+| 8 | The thin order thread | Slice 1 | in-progress |
 | 9 | Menu management | Slice 2 | planned |
 | 10 | Staff accounts | Slice 2 | planned |
 | 11 | Tables and floor plan | Slice 2 | planned |
@@ -130,10 +130,21 @@ spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) · verify [00
 
 One narrow path pushed through every layer, working for real. No breadth: one table, one dish, one round, the plainest screens. This proves the whole pipe connects, which is the scariest risk in the project, and it is also the walking skeleton. Everything after this thickens one segment of this thread.
 
-### 8. The thin order thread · needs a decision
+### 8. The thin order thread
 A waiter opens a bill on a table and adds one dish, the kitchen sees the ticket appear live, the chef marks the dish done, the ticket flips to ready and the waiter's screen updates with a sound, and the waiter closes the bill with a total. Real database, real login, real screens, narrow on purpose.
 **Done when:** on two devices at once, a dish sent by the waiter appears on the kitchen screen within a second or two without a refresh; marking it done flips the ticket to ready and alerts the waiter the same way; closing the bill records a total; and the order's state changes are safe when two people act at the same time.
-- [ ] Design it (spec): `/architect the thin order thread`
+spec [0007](../specs/0007-the-thin-order-thread/index.md) · no migration: it reaches the schema and the eleven operations spec [0003](../specs/0003-core-data-model/index.md) already built
+- [x] Design it (spec): `/architect the thin order thread`
+- [ ] Build it: `/develop the thin order thread`
+  - [x] Ground for the thread to run on: the grown seed (tables, menu, a waiter and a chef) and the conflict codes that let a refusal be read in the reader's own language (AC-12, AC-13, AC-17)
+  - [ ] The thread, top to bottom: the floor and menu reads, opening a table, sending a round, the kitchen queue, marking a dish ready, and the two screens that make it visible on two devices (AC-1, AC-3, AC-4, AC-5, AC-7, AC-14)
+  - [ ] Live updates narrowed and the clock made honest: the entity keyed query keys with their fan out map, and ages computed against the server's time rather than the tablet's (AC-6, AC-15)
+  - [ ] Back to the waiter and out: the visit document, the serve action, the ready alert that announces and chimes once per round, and the close that writes the total and frees the table (AC-8, AC-9, AC-10, AC-11, AC-12)
+  - [ ] Honest when it breaks, and proven: connection states with both screens still usable, pending taps with no cache optimism, the two device Playwright run, and the rest of the tests and words (AC-2, AC-13, AC-16, AC-18, AC-19)
+- [ ] Verify it: `/check verify the thin order thread`
+- [ ] Test it: `/test the thin order thread`
+- [ ] Review it (fresh model): `/check review the thin order thread`
+- [ ] Document it: `/document the thin order thread`
 
 ## Slice 2: one restaurant set up for real
 

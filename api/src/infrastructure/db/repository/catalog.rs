@@ -271,6 +271,200 @@ pub async fn active_staff(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<Staff>> {
         .collect()
 }
 
+/// Adds a named group of tables, such as a terrace.
+///
+/// This and the three below exist because a restaurant has to have tables and a
+/// menu before anybody can order anything, and the seed is deliberately not
+/// allowed to write rows of its own: SQL lives in this layer, and a seeded
+/// restaurant has to be one the product could have produced. Features 9, 10, and
+/// 11 build the admin screens over exactly these, which is why each takes what
+/// an admin form would collect and nothing more.
+///
+/// None of them invents a position. The caller supplies one, because where a
+/// thing sits in a printed list is a decision somebody makes rather than a
+/// counter.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Invalid`] if the name is blank, and
+/// [`DomainError::Unavailable`] if the statement fails. A second live section of
+/// the same name is refused by the partial unique index.
+pub async fn create_table_section(
+    tx: &mut ScopedTx<'_>,
+    name: &str,
+    position: i32,
+) -> DomainResult<TableSectionId> {
+    let name = require_name(name, "a table section needs a name")?;
+    let id = TableSectionId::new();
+
+    sqlx::query!(
+        r#"
+        INSERT INTO table_sections (id, restaurant_id, name, position, updated_at)
+        VALUES ($1, $2, $3, $4, now())
+        "#,
+        id.as_uuid(),
+        tx.restaurant_id().as_uuid(),
+        name,
+        position,
+    )
+    .execute(tx.connection())
+    .await?;
+
+    Ok(id)
+}
+
+/// Adds a table somebody can sit at.
+///
+/// The section is optional, because a restaurant with one room has no use for
+/// one. A section belonging to another restaurant is refused by the composite
+/// foreign key rather than by a check written here.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Invalid`] if the label is blank, and
+/// [`DomainError::Unavailable`] if the statement fails.
+pub async fn create_dining_table(
+    tx: &mut ScopedTx<'_>,
+    section_id: Option<TableSectionId>,
+    label: &str,
+    seats: Option<i16>,
+    position: i32,
+) -> DomainResult<DiningTableId> {
+    let label = require_name(label, "a table needs a label")?;
+    let id = DiningTableId::new();
+
+    sqlx::query!(
+        r#"
+        INSERT INTO dining_tables
+            (id, restaurant_id, section_id, label, seats, position, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, now())
+        "#,
+        id.as_uuid(),
+        tx.restaurant_id().as_uuid(),
+        section_id.map(TableSectionId::as_uuid),
+        label,
+        seats,
+        position,
+    )
+    .execute(tx.connection())
+    .await?;
+
+    // The floor read is keyed on tables, so a waiter looking at it while an
+    // admin adds one has to be told rather than left with a stale room.
+    Database::notify_entity_change(tx, EntityKind::DiningTable, id.as_uuid()).await?;
+
+    Ok(id)
+}
+
+/// Adds a group of dishes, such as starters.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Invalid`] if the name is blank, and
+/// [`DomainError::Unavailable`] if the statement fails.
+pub async fn create_menu_category(
+    tx: &mut ScopedTx<'_>,
+    name: &str,
+    position: i32,
+) -> DomainResult<MenuCategoryId> {
+    let name = require_name(name, "a menu category needs a name")?;
+    let id = MenuCategoryId::new();
+
+    sqlx::query!(
+        r#"
+        INSERT INTO menu_categories (id, restaurant_id, name, position, updated_at)
+        VALUES ($1, $2, $3, $4, now())
+        "#,
+        id.as_uuid(),
+        tx.restaurant_id().as_uuid(),
+        name,
+        position,
+    )
+    .execute(tx.connection())
+    .await?;
+
+    Ok(id)
+}
+
+/// What creating a dish asks for.
+///
+/// The same fields [`DishEdit`] carries, plus the two an edit cannot change:
+/// which category it sits under, and where it sits in the printed order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewDish<'a> {
+    /// Which category it sits under.
+    pub category_id: MenuCategoryId,
+    /// What it is called.
+    pub name: &'a str,
+    /// What it is, for the waiter to read out.
+    pub description: Option<&'a str>,
+    /// What it costs.
+    pub price: Decimal,
+    /// Whether the kitchen can make it right now.
+    pub is_available: bool,
+    /// Where it sits in the printed order.
+    pub position: i32,
+}
+
+/// Adds one item to the menu.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Invalid`] if the name is blank or the price is
+/// negative, and [`DomainError::Unavailable`] if the statement fails. A category
+/// belonging to another restaurant is refused by the composite foreign key.
+pub async fn create_dish(tx: &mut ScopedTx<'_>, dish: &NewDish<'_>) -> DomainResult<DishId> {
+    let name = require_name(dish.name, "a dish needs a name")?;
+
+    if dish.price < Decimal::ZERO {
+        return Err(DomainError::Invalid(
+            "a dish cannot cost less than nothing".to_owned(),
+        ));
+    }
+
+    let id = DishId::new();
+
+    sqlx::query!(
+        r#"
+        INSERT INTO dishes
+            (id, restaurant_id, category_id, name, description, price, is_available,
+             position, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+        "#,
+        id.as_uuid(),
+        tx.restaurant_id().as_uuid(),
+        dish.category_id.as_uuid(),
+        name,
+        dish.description.map(str::trim),
+        dish.price,
+        dish.is_available,
+        dish.position,
+    )
+    .execute(tx.connection())
+    .await?;
+
+    // A waiter with the ordering screen open is holding the menu this changes.
+    Database::notify_entity_change(tx, EntityKind::Dish, id.as_uuid()).await?;
+
+    Ok(id)
+}
+
+/// Trims a name and refuses an empty one.
+///
+/// The database checks this too, with a `not_blank` constraint on every one of
+/// these tables. Checking it here as well is what turns a constraint violation
+/// that reads to a caller as "the database is unavailable" into a refusal that
+/// names what is wrong.
+fn require_name<'a>(value: &'a str, complaint: &'static str) -> DomainResult<&'a str> {
+    let trimmed = value.trim();
+
+    if trimmed.is_empty() {
+        return Err(DomainError::Invalid(complaint.to_owned()));
+    }
+
+    Ok(trimmed)
+}
+
 /// What an edit to a dish may change.
 ///
 /// Every field is supplied, so an edit is a statement of what the dish should be

@@ -7,6 +7,8 @@
 
 use thiserror::Error;
 
+use super::enums::{LineStatus, VisitStatus};
+
 /// What is wrong with one named field of a request.
 ///
 /// A closed list rather than a sentence, because the words a person reads live
@@ -85,6 +87,121 @@ impl FieldErrors {
     }
 }
 
+/// What exactly conflicted, as a closed vocabulary.
+///
+/// This replaces the free English sentence [`DomainError::Conflict`] used to
+/// carry, and the reason is what a waiter reads. A refusal has to arrive on the
+/// screen in the reader's own language, and a sentence written in Rust cannot
+/// be translated by the browser. So the sentence stays here for the log, where
+/// English is fine, and [`Self::as_code`] gives a stable word the web maps to a
+/// translation key the way it already maps every other error code.
+///
+/// Closed on purpose. A new conflict means a variant here, a code below, and a
+/// key on the web side, in one change; a `String` would let a new refusal reach
+/// a screen as untranslated English with nothing failing.
+///
+/// Two variants carry the status they expected rather than naming it, because
+/// the same conditional update helper raises them for several expectations and
+/// the code has to say which one was missed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ConflictKind {
+    /// That table already has a party at it.
+    TableOccupied,
+    /// The visit is not in the state this action needed it to be in.
+    VisitNot(VisitStatus),
+    /// The visit still has an open bill on it.
+    VisitHasOpenBill,
+    /// A dish on the visit has not been put on a bill.
+    VisitHasUnbilledLine,
+    /// The dish is not in the state this action needed it to be in.
+    LineNot(LineStatus),
+    /// The whole ticket is not waiting to be carried out.
+    RoundNotReady,
+    /// The bill this action targets has already closed.
+    BillNotOpen,
+    /// One of those dishes is on a bill that has already closed.
+    LineOnClosedBill,
+    /// The bill has already been closed once.
+    BillAlreadyClosed,
+    /// A dish on the bill has neither reached the table nor been cancelled.
+    BillHasUnservedLines,
+    /// The bill has nothing on it that counts.
+    BillHasNoLines,
+    /// The bill has to be closed before this can happen.
+    BillNotClosed,
+    /// Two sessions were minted with the same token, which means the random
+    /// source repeated itself.
+    SessionCollision,
+    /// That email address already has an account.
+    ///
+    /// The one kind that never reaches the wire: `handlers/auth.rs` catches it
+    /// and turns it into a field error on the email box, so the message lands
+    /// beside the control rather than at the top of the form.
+    EmailTaken,
+}
+
+impl ConflictKind {
+    /// The stable machine readable word the client branches on.
+    ///
+    /// Total over both carried enums, so a status that no repository currently
+    /// expects still produces a real code rather than borrowing another one's.
+    #[must_use]
+    pub const fn as_code(self) -> &'static str {
+        match self {
+            Self::TableOccupied => "table_occupied",
+            Self::VisitNot(VisitStatus::Open) => "visit_not_open",
+            Self::VisitNot(VisitStatus::Closed) => "visit_not_closed",
+            Self::VisitHasOpenBill => "visit_has_open_bill",
+            Self::VisitHasUnbilledLine => "visit_has_unbilled_line",
+            Self::LineNot(LineStatus::Queued) => "line_not_queued",
+            Self::LineNot(LineStatus::Ready) => "line_not_ready",
+            Self::LineNot(LineStatus::Served) => "line_not_served",
+            Self::LineNot(LineStatus::Voided) => "line_not_voided",
+            Self::RoundNotReady => "round_not_ready",
+            Self::BillNotOpen => "bill_not_open",
+            Self::LineOnClosedBill => "line_on_closed_bill",
+            Self::BillAlreadyClosed => "bill_already_closed",
+            Self::BillHasUnservedLines => "bill_has_unserved_lines",
+            Self::BillHasNoLines => "bill_has_no_lines",
+            Self::BillNotClosed => "bill_not_closed",
+            Self::SessionCollision => "session_collision",
+            Self::EmailTaken => "email_taken",
+        }
+    }
+}
+
+impl std::fmt::Display for ConflictKind {
+    /// The English sentence, for a log line and for a test that reads one.
+    ///
+    /// Never rendered on a screen. The web reads [`Self::as_code`] and says it
+    /// in whatever language the person is reading.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let sentence = match self {
+            Self::TableOccupied => "that table already has a party at it",
+            Self::VisitNot(VisitStatus::Open) => "that party has already left",
+            Self::VisitNot(VisitStatus::Closed) => "that party is still at the table",
+            Self::VisitHasOpenBill => "a bill on this visit is still open",
+            Self::VisitHasUnbilledLine => "a dish on this visit has not been put on a bill",
+            Self::LineNot(LineStatus::Queued) => "that dish is no longer waiting to be cooked",
+            Self::LineNot(LineStatus::Ready) => "that dish is not waiting to be carried out",
+            Self::LineNot(LineStatus::Served) => "that dish has not reached the table",
+            Self::LineNot(LineStatus::Voided) => "that dish has not been cancelled",
+            Self::RoundNotReady => "that ticket is not waiting to be carried out",
+            Self::BillNotOpen => "that bill is no longer open",
+            Self::LineOnClosedBill => "one of those dishes is on a bill that has already closed",
+            Self::BillAlreadyClosed => "that bill has already been closed",
+            Self::BillHasUnservedLines => "a dish on this bill has not reached the table yet",
+            Self::BillHasNoLines => "a bill with nothing on it cannot be closed",
+            Self::BillNotClosed => "a bill has to be closed before it can be paid",
+            Self::SessionCollision => "that session token is already in use",
+            Self::EmailTaken => "that email address already has an account",
+        };
+
+        formatter.write_str(sentence)
+    }
+}
+
 /// Anything that can go wrong while carrying out a use case.
 #[derive(Debug, Error)]
 #[non_exhaustive]
@@ -116,8 +233,13 @@ pub enum DomainError {
 
     /// The action conflicts with the current state, for example a second open
     /// bill on a table that already has one.
+    ///
+    /// Carries a [`ConflictKind`] rather than a sentence, so the refusal
+    /// reaches the browser as a code that can be said in the reader's own
+    /// language. Still a single field, so `matches!(.., Conflict(_))` keeps
+    /// working.
     #[error("conflict: {0}")]
-    Conflict(String),
+    Conflict(ConflictKind),
 
     /// Too many attempts in too short a window. Carries how long until the
     /// window clears, in seconds, which becomes the `Retry-After` header.
@@ -135,3 +257,99 @@ pub enum DomainError {
 
 /// The usual result type for domain and application code.
 pub type DomainResult<T> = Result<T, DomainError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every kind, so the tests below run over all of them.
+    const ALL: [ConflictKind; 18] = [
+        ConflictKind::TableOccupied,
+        ConflictKind::VisitNot(VisitStatus::Open),
+        ConflictKind::VisitNot(VisitStatus::Closed),
+        ConflictKind::VisitHasOpenBill,
+        ConflictKind::VisitHasUnbilledLine,
+        ConflictKind::LineNot(LineStatus::Queued),
+        ConflictKind::LineNot(LineStatus::Ready),
+        ConflictKind::LineNot(LineStatus::Served),
+        ConflictKind::LineNot(LineStatus::Voided),
+        ConflictKind::RoundNotReady,
+        ConflictKind::BillNotOpen,
+        ConflictKind::LineOnClosedBill,
+        ConflictKind::BillAlreadyClosed,
+        ConflictKind::BillHasUnservedLines,
+        ConflictKind::BillHasNoLines,
+        ConflictKind::BillNotClosed,
+        ConflictKind::SessionCollision,
+        ConflictKind::EmailTaken,
+    ];
+
+    /// covers: AC-12, AC-13
+    ///
+    /// Two kinds sharing a code would put one refusal's translated sentence in
+    /// front of somebody the other one happened to. The whole reason the code
+    /// exists is that it names what actually happened.
+    #[test]
+    fn no_two_conflict_kinds_share_a_code() {
+        for kind in ALL {
+            let clashes = ALL
+                .into_iter()
+                .filter(|other| other.as_code() == kind.as_code())
+                .count();
+
+            assert_eq!(
+                clashes,
+                1,
+                "{kind:?} shares its code {:?} with another kind",
+                kind.as_code()
+            );
+        }
+    }
+
+    /// The code is what the web maps to a translation key, so an empty or
+    /// shouty one would either find no key or find the wrong one.
+    #[test]
+    fn every_code_is_a_lower_snake_case_word() {
+        for kind in ALL {
+            let code = kind.as_code();
+
+            assert!(!code.is_empty(), "{kind:?} has an empty code");
+            assert!(
+                code.chars()
+                    .all(|character| character.is_ascii_lowercase() || character == '_'),
+                "{kind:?} has the code {code:?}, which is not lower snake case"
+            );
+        }
+    }
+
+    /// covers: AC-12
+    ///
+    /// The English sentence is for a log and a test. It must never be empty,
+    /// because a log line saying "conflict: " tells whoever is on call nothing.
+    #[test]
+    fn every_kind_says_what_happened_in_english_for_the_log() {
+        for kind in ALL {
+            assert!(
+                !kind.to_string().trim().is_empty(),
+                "{kind:?} has no English sentence"
+            );
+        }
+    }
+
+    /// covers: AC-13
+    ///
+    /// The distinction the two carried statuses exist for. A chef who lost the
+    /// race on a dish and a waiter who lost the race on serving one are told
+    /// different things, and this is the only place that is decided.
+    #[test]
+    fn the_two_line_expectations_produce_the_two_different_codes() {
+        assert_eq!(
+            ConflictKind::LineNot(LineStatus::Queued).as_code(),
+            "line_not_queued"
+        );
+        assert_eq!(
+            ConflictKind::LineNot(LineStatus::Ready).as_code(),
+            "line_not_ready"
+        );
+    }
+}

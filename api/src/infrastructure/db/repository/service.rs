@@ -16,7 +16,7 @@
 //! [`round_status_from_lines`].
 
 use crate::domain::enums::{LineStatus, RoundStatus, VisitStatus};
-use crate::domain::error::{DomainError, DomainResult};
+use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::event::EntityKind;
 use crate::domain::ids::{
     BillId, DiningTableId, DishId, OrderLineId, OrderRoundId, StaffId, VisitId,
@@ -200,7 +200,7 @@ pub async fn open_visit(
         conflict_on(
             error,
             "visits_one_open_per_table",
-            "that table already has a party at it",
+            ConflictKind::TableOccupied,
         )
     })?;
 
@@ -240,12 +240,12 @@ pub async fn move_visit(
         conflict_on(
             error,
             "visits_one_open_per_table",
-            "that table already has a party at it",
+            ConflictKind::TableOccupied,
         )
     })?;
 
     if moved.is_none() {
-        return Err(visit_conflict(tx, visit_id, "open").await);
+        return Err(visit_conflict(tx, visit_id, VisitStatus::Open).await);
     }
 
     Database::notify_entity_change(tx, EntityKind::Visit, visit_id.as_uuid()).await?;
@@ -285,15 +285,11 @@ pub async fn close_visit(tx: &mut ScopedTx<'_>, visit_id: VisitId) -> DomainResu
     .await?;
 
     if blockers.bill_still_open {
-        return Err(DomainError::Conflict(
-            "a bill on this visit is still open".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitHasOpenBill));
     }
 
     if blockers.line_unassigned {
-        return Err(DomainError::Conflict(
-            "a dish on this visit has not been put on a bill".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitHasUnbilledLine));
     }
 
     let closed = sqlx::query!(
@@ -309,7 +305,7 @@ pub async fn close_visit(tx: &mut ScopedTx<'_>, visit_id: VisitId) -> DomainResu
     .await?;
 
     if closed.is_none() {
-        return Err(visit_conflict(tx, visit_id, "open").await);
+        return Err(visit_conflict(tx, visit_id, VisitStatus::Open).await);
     }
 
     Database::notify_entity_change(tx, EntityKind::Visit, visit_id.as_uuid()).await?;
@@ -353,9 +349,9 @@ pub async fn send_round(
     .ok_or(DomainError::NotFound)?;
 
     if locked.status != VisitStatus::Open {
-        return Err(DomainError::Conflict(
-            "that party has already left".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitNot(
+            VisitStatus::Open,
+        )));
     }
 
     let next_sequence = sqlx::query!(
@@ -674,37 +670,36 @@ async fn line_conflict(
     expected: LineStatus,
 ) -> DomainError {
     let found = sqlx::query!(
-        r#"SELECT status AS "status: LineStatus" FROM order_lines WHERE id = $1"#,
+        "SELECT id FROM order_lines WHERE id = $1",
         line_id.as_uuid()
     )
     .fetch_optional(tx.connection())
     .await;
 
+    // The conflict names the state the writer expected rather than the state it
+    // found, and that is deliberate. What the reader needs to be told is which
+    // action was refused, and the row may well have moved again between the
+    // failed update and this read, so reporting what it says now would be a
+    // sentence about a moment that has already passed.
     match found {
-        Ok(Some(row)) => DomainError::Conflict(format!(
-            "that dish is already {}, not {}",
-            row.status.as_label(),
-            expected.as_label()
-        )),
+        Ok(Some(_)) => DomainError::Conflict(ConflictKind::LineNot(expected)),
         Ok(None) => DomainError::NotFound,
         Err(error) => DomainError::from(error),
     }
 }
 
 /// The same, for a visit.
-async fn visit_conflict(tx: &mut ScopedTx<'_>, visit_id: VisitId, expected: &str) -> DomainError {
-    let found = sqlx::query!(
-        r#"SELECT status AS "status: VisitStatus" FROM visits WHERE id = $1"#,
-        visit_id.as_uuid()
-    )
-    .fetch_optional(tx.connection())
-    .await;
+async fn visit_conflict(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+    expected: VisitStatus,
+) -> DomainError {
+    let found = sqlx::query!("SELECT id FROM visits WHERE id = $1", visit_id.as_uuid())
+        .fetch_optional(tx.connection())
+        .await;
 
     match found {
-        Ok(Some(row)) => DomainError::Conflict(format!(
-            "that visit is already {}, not {expected}",
-            row.status.as_label()
-        )),
+        Ok(Some(_)) => DomainError::Conflict(ConflictKind::VisitNot(expected)),
         Ok(None) => DomainError::NotFound,
         Err(error) => DomainError::from(error),
     }

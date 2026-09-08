@@ -27,7 +27,22 @@ export interface ApiErrorBody {
   message: string
 }
 
-/** The keys in the `common` namespace, one per code the API can return. */
+/**
+ * The keys in the `common` namespace, one per code the API can return.
+ *
+ * The conflict codes are the reason this map is worth having. A refusal that
+ * arrived as the blanket word `conflict` could only ever be shown as "somebody
+ * changed this first"; each of these names what actually happened, so a waiter
+ * reads "a dish on this bill has not reached the table yet" and knows what to
+ * do next. They come from `ConflictKind` in `api/src/domain/error.rs`, one for
+ * one, and every one of them is here whether or not a screen in this slice can
+ * currently provoke it, so features 12 and 15 inherit the words rather than
+ * discovering the gap.
+ *
+ * `email_taken` is deliberately absent. `handlers/auth.rs` catches that one and
+ * turns it into a field error beside the email box, so it never reaches the
+ * wire as a conflict and there is nothing here to say.
+ */
 const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   not_found: 'apiError.notFound',
   unauthenticated: 'apiError.unauthenticated',
@@ -35,6 +50,26 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   invalid: 'apiError.invalid',
   conflict: 'apiError.conflict',
   unavailable: 'apiError.unavailable',
+  throttled: 'apiError.throttled',
+
+  // The conflicts, in the order `ConflictKind` declares them.
+  table_occupied: 'apiError.tableOccupied',
+  visit_not_open: 'apiError.visitNotOpen',
+  visit_not_closed: 'apiError.visitNotClosed',
+  visit_has_open_bill: 'apiError.visitHasOpenBill',
+  visit_has_unbilled_line: 'apiError.visitHasUnbilledLine',
+  line_not_queued: 'apiError.lineNotQueued',
+  line_not_ready: 'apiError.lineNotReady',
+  line_not_served: 'apiError.lineNotServed',
+  line_not_voided: 'apiError.lineNotVoided',
+  round_not_ready: 'apiError.roundNotReady',
+  bill_not_open: 'apiError.billNotOpen',
+  line_on_closed_bill: 'apiError.lineOnClosedBill',
+  bill_already_closed: 'apiError.billAlreadyClosed',
+  bill_has_unserved_lines: 'apiError.billHasUnservedLines',
+  bill_has_no_lines: 'apiError.billHasNoLines',
+  bill_not_closed: 'apiError.billNotClosed',
+  session_collision: 'apiError.sessionCollision',
 }
 
 /** What anything unrecognised says. */

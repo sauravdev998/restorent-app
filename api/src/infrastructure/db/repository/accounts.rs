@@ -19,12 +19,13 @@ use crate::domain::audit::AuditAction;
 use crate::domain::country::Country;
 use crate::domain::credentials::EmailAddress;
 use crate::domain::enums::StaffRole;
-use crate::domain::error::{DomainError, DomainResult};
+use crate::domain::error::{ConflictKind, DomainError, DomainResult};
+use crate::domain::event::EntityKind;
 use crate::domain::ids::StaffId;
 use crate::domain::language::{FormattingLocale, LanguageCode};
 use crate::domain::people::Staff;
 
-use super::super::ScopedTx;
+use super::super::{Database, ScopedTx};
 use super::audit;
 
 /// What registration was asked to create.
@@ -112,13 +113,7 @@ pub async fn register(
     )
     .execute(tx.connection())
     .await
-    .map_err(|error| {
-        super::conflict_on(
-            error,
-            "staff_email_key",
-            "that email address already has an account",
-        )
-    })?;
+    .map_err(|error| super::conflict_on(error, "staff_email_key", ConflictKind::EmailTaken))?;
 
     // Named as the restaurant rather than as the staff member, because what
     // happened is that a restaurant came into existence. The admin's details
@@ -147,6 +142,78 @@ pub async fn register(
     .await?;
 
     Ok(admin)
+}
+
+/// What creating a member of staff asks for.
+///
+/// No restaurant, because the transaction already names one, and no role
+/// default, because "which role" is the whole decision an admin is making.
+#[derive(Debug, Clone)]
+pub struct NewStaff<'a> {
+    /// What to call them on screen.
+    pub display_name: &'a str,
+    /// Their address, exactly as it was typed.
+    pub email: &'a EmailAddress,
+    /// The `argon2id` hash of their password. Never the password.
+    pub password_hash: &'a str,
+    /// What they are allowed to be.
+    pub role: StaffRole,
+}
+
+/// Adds a member of staff to the restaurant this transaction is scoped to.
+///
+/// Separate from [`register`] because the two are genuinely different events.
+/// Registration brings a restaurant into existence and can only ever make an
+/// admin; this adds somebody to a restaurant that already exists and is how
+/// every waiter and chef is created. Feature 10 builds the admin screen over it;
+/// the seed uses it so the development waiter and chef are accounts the product
+/// could have made, with really hashed passwords.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Conflict`] carrying
+/// [`ConflictKind::EmailTaken`](crate::domain::error::ConflictKind::EmailTaken)
+/// if that address already belongs to an account anywhere on the platform, and
+/// [`DomainError::Unavailable`] if a statement fails.
+pub async fn create_staff(tx: &mut ScopedTx<'_>, staff: &NewStaff<'_>) -> DomainResult<StaffId> {
+    let display_name = staff.display_name.trim();
+
+    if display_name.is_empty() {
+        return Err(DomainError::Invalid(
+            "a member of staff needs a name".to_owned(),
+        ));
+    }
+
+    let id = StaffId::new();
+
+    sqlx::query!(
+        r#"
+        INSERT INTO staff
+            (id, restaurant_id, email, password_hash, display_name, role, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, now())
+        "#,
+        id.as_uuid(),
+        tx.restaurant_id().as_uuid(),
+        staff.email.as_str(),
+        staff.password_hash,
+        display_name,
+        staff.role as StaffRole,
+    )
+    .execute(tx.connection())
+    .await
+    .map_err(|error| super::conflict_on(error, "staff_email_key", ConflictKind::EmailTaken))?;
+
+    // A screen showing who is on tonight is holding the list this changes.
+    Database::notify_entity_change(tx, EntityKind::Staff, id.as_uuid()).await?;
+
+    // Deliberately no audit row. Creating an account is an access control
+    // change and spec 0003 wants those recorded, but `audit_action` carries no
+    // value that means "created" and adding one is a migration this slice does
+    // not take. Feature 10 owns the admin screen this will sit behind, so it
+    // owns that migration and that row. Recording this as `staff_role_changed`
+    // in the meantime would put a false sentence in the one log that has to be
+    // trustworthy.
+    Ok(id)
 }
 
 /// Reads one staff member by identifier.

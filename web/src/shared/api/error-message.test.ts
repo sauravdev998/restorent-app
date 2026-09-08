@@ -31,8 +31,44 @@ afterAll(async () => {
   await changeLanguage('en', 'admin')
 })
 
-/** Every code `api/src/presentation/error.rs` can return. */
-const CODES = ['not_found', 'unauthenticated', 'forbidden', 'invalid', 'conflict', 'unavailable']
+/**
+ * Every code `api/src/presentation/error.rs` can return.
+ *
+ * The conflict codes are `ConflictKind` in `api/src/domain/error.rs`, every one
+ * of them, including the ones no screen in this slice can provoke. They are
+ * here so the assertions below hold for the whole vocabulary: each has a
+ * sentence, none renders a raw key, and each reads in the reader's language.
+ *
+ * `email_taken` is not here on purpose. It never reaches the wire as a
+ * conflict, because `handlers/auth.rs` turns it into a field error beside the
+ * email box instead.
+ */
+const CODES = [
+  'not_found',
+  'unauthenticated',
+  'forbidden',
+  'invalid',
+  'conflict',
+  'unavailable',
+  'throttled',
+  'table_occupied',
+  'visit_not_open',
+  'visit_not_closed',
+  'visit_has_open_bill',
+  'visit_has_unbilled_line',
+  'line_not_queued',
+  'line_not_ready',
+  'line_not_served',
+  'line_not_voided',
+  'round_not_ready',
+  'bill_not_open',
+  'line_on_closed_bill',
+  'bill_already_closed',
+  'bill_has_unserved_lines',
+  'bill_has_no_lines',
+  'bill_not_closed',
+  'session_collision',
+]
 
 /** A failed response, shaped the way every one of them is. */
 function body(error: string, message = 'an English sentence meant for a log') {

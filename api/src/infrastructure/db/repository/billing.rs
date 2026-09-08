@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::domain::audit::AuditAction;
 use crate::domain::billing::{Bill, BillTax, Payment};
 use crate::domain::enums::{BillStatus, PaymentMethod, VisitStatus};
-use crate::domain::error::{DomainError, DomainResult};
+use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::event::EntityKind;
 use crate::domain::ids::{BillId, BillTaxId, OrderLineId, PaymentId, StaffId, VisitId};
 use crate::domain::money::{Currency, apply_percent};
@@ -159,9 +159,9 @@ pub async fn open_bill(
     .ok_or(DomainError::NotFound)?;
 
     if visit.status != VisitStatus::Open {
-        return Err(DomainError::Conflict(
-            "that party has already left".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitNot(
+            VisitStatus::Open,
+        )));
     }
 
     let restaurant = catalog::restaurant(tx).await?;
@@ -255,9 +255,9 @@ pub async fn assign_lines_to_bill(
     for row in &locked {
         if row.status != BillStatus::Open {
             return Err(DomainError::Conflict(if row.id == bill_id.as_uuid() {
-                "that bill is no longer open".to_owned()
+                ConflictKind::BillNotOpen
             } else {
-                "one of those dishes is on a bill that has already closed".to_owned()
+                ConflictKind::LineOnClosedBill
             }));
         }
     }
@@ -353,10 +353,7 @@ pub async fn close_bill(
     .ok_or(DomainError::NotFound)?;
 
     if locked.status != BillStatus::Open {
-        return Err(DomainError::Conflict(format!(
-            "that bill is already {}",
-            locked.status.as_label()
-        )));
+        return Err(DomainError::Conflict(ConflictKind::BillAlreadyClosed));
     }
 
     let figures = closing_figures(tx, bill_id).await?;
@@ -429,17 +426,13 @@ async fn closing_figures(tx: &mut ScopedTx<'_>, bill_id: BillId) -> DomainResult
     .await?;
 
     if lines.still_out > 0 {
-        return Err(DomainError::Conflict(
-            "a dish on this bill has not reached the table yet".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::BillHasUnservedLines));
     }
 
     if lines.countable == 0 {
         // Refused rather than closed at zero, so an empty bill never consumes a
         // number and the sequence stays gapless.
-        return Err(DomainError::Conflict(
-            "a bill with nothing on it cannot be closed".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::BillHasNoLines));
     }
 
     let restaurant = catalog::restaurant(tx).await?;
@@ -611,9 +604,7 @@ pub async fn record_payment(
     .ok_or(DomainError::NotFound)?;
 
     if target.status != BillStatus::Closed {
-        return Err(DomainError::Conflict(
-            "a bill has to be closed before it can be paid".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::BillNotClosed));
     }
 
     let restaurant_id = tx.restaurant_id().as_uuid();

@@ -16,7 +16,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::domain::error::{DomainError, DomainResult};
+use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::ids::{SessionId, StaffId};
 use crate::domain::session::{DEAD_SESSION_RETENTION, SESSION_ABSOLUTE_LIFETIME, SESSION_LIFETIME};
 
@@ -76,7 +76,7 @@ pub async fn open(
         super::conflict_on(
             error,
             "sessions_token_hash_key",
-            "that session token is already in use",
+            ConflictKind::SessionCollision,
         )
     })?;
 
