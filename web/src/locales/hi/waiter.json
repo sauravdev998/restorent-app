@@ -1,3 +1,45 @@
 {
-  "title": "वेटर स्क्रीन"
+  "title": "वेटर",
+  "floor": {
+    "title": "फ़्लोर",
+    "free": "ख़ाली",
+    "open": "मेज़ खोलें",
+    "opening": "खोल रहे हैं",
+    "view": "देखें",
+    "openedBy": "{{name}} ने {{at}} पर खोली",
+    "unsectioned": "अन्य मेज़ें",
+    "emptyTitle": "अभी कोई मेज़ नहीं",
+    "emptyBody": "ऑर्डर लेने से पहले एडमिन रेस्तराँ की मेज़ें जोड़ता है।"
+  },
+  "table": {
+    "title": "मेज़ {{label}}",
+    "openedBy": "{{name}} ने खोली",
+    "orderHeading": "ऑर्डर",
+    "roundsHeading": "रसोई को भेजा गया",
+    "unavailable": "आज उपलब्ध नहीं",
+    "addOne": "एक {{dish}} जोड़ें",
+    "removeOne": "एक {{dish}} हटाएँ",
+    "send_one": "{{count}} व्यंजन भेजें",
+    "send_other": "{{count}} व्यंजन भेजें",
+    "sending": "भेज रहे हैं",
+    "round": "राउंड {{number}}",
+    "serve": "परोसा हुआ चिह्नित करें",
+    "serving": "चिह्नित कर रहे हैं",
+    "nothingSentTitle": "अभी कुछ नहीं भेजा",
+    "nothingSentBody": "ऊपर से व्यंजन जोड़ें और एक टिकट के रूप में भेजें।"
+  },
+  "alert": {
+    "title": "मेज़ {{label}}, राउंड {{round}} तैयार है",
+    "body": "पास से लें, फिर परोसा हुआ चिह्नित करें।"
+  },
+  "bill": {
+    "runningTitle": "अब तक का बिल",
+    "closedTitle": "बिल {{number}}",
+    "subtotal": "उप योग",
+    "serviceCharge": "सेवा शुल्क ({{percent}}%)",
+    "tax": "{{name}} ({{rate}}%)",
+    "total": "कुल",
+    "close": "बिल बंद करें",
+    "closing": "बंद कर रहे हैं"
+  }
 }

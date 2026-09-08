@@ -209,12 +209,78 @@ describe('useLiveEvents', () => {
       source.open()
     })
     act(() => {
+      source.emit('entity_changed', changeOf('order_line', 'f7c4899b-0e46-4f51-a1b8-827357a2b06f'))
+    })
+
+    // Exactly the two prefixes an order line feeds, from the written map.
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['order_round'] })
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['visit'] })
+    expect(setQueryData).not.toHaveBeenCalled()
+  }) // covers: AC-15
+
+  // The narrowing is the point of the map, so this is the assertion that would
+  // fail if somebody widened it back to "refetch everything". A chef marking one
+  // dish must not send the browser back for the menu or the floor.
+  it('invalidates only the keys its own entity kind feeds', () => {
+    const { source, queryClient } = liveWithClient()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+
+    act(() => {
+      source.open()
+    })
+    act(() => {
+      source.emit('entity_changed', changeOf('order_line', 'f7c4899b-0e46-4f51-a1b8-827357a2b06f'))
+    })
+
+    const invalidated = invalidateQueries.mock.calls.map(([call]) => JSON.stringify(call?.queryKey))
+
+    expect(invalidated).toHaveLength(2)
+    expect(invalidated).not.toContain(JSON.stringify(['dish']))
+    expect(invalidated).not.toContain(JSON.stringify(['visit', 'floor']))
+  }) // covers: AC-15
+
+  // `probe` carries no product meaning: it exists so the development endpoint
+  // can prove the whole path with nothing behind it. Invalidating on it would
+  // send every open screen back to the API for a message about nothing.
+  it('invalidates nothing at all for a probe', () => {
+    const { source, queryClient } = liveWithClient()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+
+    act(() => {
+      source.open()
+    })
+    act(() => {
       source.emit('entity_changed', changeOf('probe', 'f7c4899b-0e46-4f51-a1b8-827357a2b06f'))
     })
 
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['probe'] })
-    expect(setQueryData).not.toHaveBeenCalled()
-  })
+    expect(invalidateQueries).not.toHaveBeenCalled()
+  }) // covers: AC-15
+
+  // An entity string this build has never heard of. Dropped and logged rather
+  // than guessed: the refetch on the next stream open catches up whatever it
+  // was about, and acting on the wrong entity is a bug a user sees.
+  it('drops an event for an entity kind it does not know', () => {
+    const noise = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { source, queryClient } = liveWithClient()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+
+    try {
+      act(() => {
+        source.open()
+      })
+      act(() => {
+        source.emit(
+          'entity_changed',
+          changeOf('table_section', 'f7c4899b-0e46-4f51-a1b8-827357a2b06f'),
+        )
+      })
+
+      expect(invalidateQueries).not.toHaveBeenCalled()
+      expect(noise).toHaveBeenCalledOnce()
+    } finally {
+      noise.mockRestore()
+    }
+  }) // covers: AC-15
 
   it('counts an event and remembers the last one', () => {
     const { rendered, source } = live()

@@ -102,6 +102,36 @@ pub async fn bill_taxes(tx: &mut ScopedTx<'_>, bill_id: BillId) -> DomainResult<
         .collect())
 }
 
+/// The visit's bill: the open one while the meal is on, the most recent after.
+///
+/// A visit has exactly one in this slice, because opening a table creates one
+/// and nothing else creates another. Written as an ordering rather than an
+/// assertion so that splitting a bill, which feature 23 owns, changes what this
+/// returns instead of contradicting a promise made here.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if the read fails.
+pub async fn latest_bill_of(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+) -> DomainResult<Option<BillId>> {
+    let found = sqlx::query!(
+        r#"
+        SELECT id
+        FROM bills
+        WHERE visit_id = $1
+        ORDER BY (status = 'open') DESC, created_at DESC
+        LIMIT 1
+        "#,
+        visit_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?;
+
+    Ok(found.map(|row| BillId::from_uuid(row.id)))
+}
+
 /// Which local day a closed bill belongs to.
 ///
 /// Worked out from the restaurant's own timezone, never the server's. A

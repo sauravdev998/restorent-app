@@ -1,6 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { FAN_OUT, isEntityKind } from './query-keys'
+
 /** One message from the server. A kind and an id, never row content. */
 export interface StreamEvent {
   entity: string
@@ -32,6 +34,11 @@ export interface LiveEvents {
  *    an id, so the client goes back and asks for the row. That keeps row level
  *    security the single authority on who may see what. Trusting event contents
  *    would create a second, unguarded way to read data.
+ *
+ * What it invalidates is narrow and written down, in `query-keys.ts`. An event
+ * refetches the query key prefixes its own entity kind actually feeds, so a
+ * chef marking one dish does not send the whole browser back to the API for the
+ * menu, the floor, and every open table.
  *
  * @param onFatal what to do when the stream fails in a way the browser will not
  * retry, which in practice means the session ended. It takes the same path an
@@ -95,9 +102,20 @@ export function useLiveEvents(onFatal: () => void): LiveEvents {
       setLast(event)
       setReceived((count) => count + 1)
 
-      // Rule 2. Invalidate what this touched and let the query refetch it.
-      // Feature 8 narrows this to the entity's own key.
-      void queryClient.invalidateQueries({ queryKey: [event.entity] })
+      // Rule 2. Invalidate exactly what this kind of change feeds, through the
+      // written map, and let those queries refetch themselves.
+      if (!isEntityKind(event.entity)) {
+        // A kind this build has never heard of. Dropped rather than guessed:
+        // invalidating on a string nobody wrote a row for would match nothing
+        // anyway, and the refetch on the next stream open catches up whatever
+        // it was about.
+        console.error('ignoring an event for an unknown entity kind', event.entity)
+        return
+      }
+
+      for (const queryKey of FAN_OUT[event.entity]) {
+        void queryClient.invalidateQueries({ queryKey })
+      }
     })
 
     source.addEventListener('resync', () => {

@@ -120,6 +120,29 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/floor': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * The floor, in the order it is walked.
+     * @description # Errors
+     *
+     *     Returns `401` if nobody is signed in, `403` if the caller is not a waiter,
+     *     and `503` if the database is unavailable.
+     */
+    get: operations['floor']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/health': {
     parameters: {
       query?: never
@@ -135,6 +158,29 @@ export interface paths {
      *     process was up would leave it in service forever.
      */
     get: operations['health']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/kitchen/tickets': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * The kitchen queue, oldest first.
+     * @description # Errors
+     *
+     *     Returns `401` if nobody is signed in, `403` if the caller is not a chef, and
+     *     `503` if the database is unavailable.
+     */
+    get: operations['kitchen_tickets']
     put?: never
     post?: never
     delete?: never
@@ -205,6 +251,57 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/menu': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * The restaurant's live menu, in printed order.
+     * @description # Errors
+     *
+     *     Returns `401` if nobody is signed in, `403` if the caller is not a waiter,
+     *     and `503` if the database is unavailable.
+     */
+    get: operations['menu']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/order-lines/{id}/ready': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Marks one dish off the pass.
+     * @description Touches that dish and nothing else. The ticket's own status follows from all
+     *     of its dishes and is recomputed inside the same transaction, which is why
+     *     nothing here sets it.
+     *
+     *     # Errors
+     *
+     *     Returns `409 line_not_queued` if another chef marked it first, `404` if
+     *     there is no such dish, `401` if nobody is signed in, and `403` if the caller
+     *     is not a chef.
+     */
+    post: operations['mark_line_ready']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/restaurant': {
     parameters: {
       query?: never
@@ -232,10 +329,215 @@ export interface paths {
     patch: operations['update_restaurant']
     trace?: never
   }
+  '/api/rounds/{id}/served': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Marks a whole ticket as having reached the table.
+     * @description The one refusal here that is not a repository operation's own. It reads the
+     *     ticket first and refuses unless it is `ready` at that moment, because
+     *     "somebody has already carried this out" is what the waiter needs to be told,
+     *     and a line level message about one dish would not say it.
+     *
+     *     Inside the loop it marks every dish that is `ready` and skips one that is
+     *     already `served` or was cancelled rather than treating either as a conflict.
+     *     Two waiters serving the same ticket at the same instant is not a mistake
+     *     worth stopping the second one over; only the precheck refuses, and only
+     *     because by then the ticket is no longer ready.
+     *
+     *     # Errors
+     *
+     *     Returns `409 round_not_ready` if the ticket is not waiting to be carried
+     *     out, `404` if there is no such ticket, `401` if nobody is signed in, and
+     *     `403` if the caller is not a waiter.
+     */
+    post: operations['mark_round_served']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/visits': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Seats a party and opens their bill, in one transaction.
+     * @description Both or neither. A visit with no bill would be a table that could take an
+     *     order nobody could be charged for, and it would be discovered at the end of
+     *     the meal.
+     *
+     *     # Errors
+     *
+     *     Returns `409 table_occupied` if somebody else opened that table first, `400`
+     *     if the table is archived or not this restaurant's, `401` if nobody is signed
+     *     in, and `403` if the caller is not a waiter.
+     */
+    post: operations['open_visit']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/visits/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * One table's whole meal.
+     * @description # Errors
+     *
+     *     Returns `404` if there is no such visit in this restaurant, which is also
+     *     the answer for another restaurant's visit so the two cannot be told apart,
+     *     `401` if nobody is signed in, and `403` if the caller is not a waiter.
+     */
+    get: operations['visit']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/visits/{id}/close': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Ends the meal: closes the bill, then closes the visit.
+     * @description In that order and in one transaction. `close_visit` refuses while a bill on
+     *     the visit is still open, so the order is not a preference; and one
+     *     transaction is what stops a bill being numbered and totalled while its table
+     *     stays occupied for ever because the second write failed.
+     *
+     *     # Errors
+     *
+     *     Returns `409 bill_has_unserved_lines` if a dish has not reached the table,
+     *     `409 bill_already_closed` if somebody closed it first, `409
+     *     bill_has_no_lines` if nothing was ordered, `404` if there is no such visit or
+     *     it has no bill, `401` if nobody is signed in, and `403` if the caller is not
+     *     a waiter.
+     */
+    post: operations['close_visit']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/visits/{id}/rounds': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Sends one ticket to the kitchen and puts its dishes on the bill.
+     * @description One transaction, so a ticket whose lines are on no bill cannot exist. That
+     *     is what keeps the bill's running subtotal true throughout the meal and
+     *     leaves the close with no assignment left to do.
+     *
+     *     # Errors
+     *
+     *     Returns `400` if the basket is empty, a quantity is not positive, or a dish
+     *     is archived or currently unavailable, `409 visit_not_open` if the party has
+     *     left, `404` if there is no such visit, `401` if nobody is signed in, and
+     *     `403` if the caller is not a waiter.
+     */
+    post: operations['send_round']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /**
+     * @description A bill, open or closed, with every figure it currently carries.
+     *
+     *     The currency travels with it rather than being read from the restaurant,
+     *     because a closed bill keeps the currency it was charged in even after the
+     *     restaurant changes. A screen formatting a bill must use these two and not
+     *     the restaurant's current pair.
+     */
+    BillDto: {
+      /**
+       * Format: date-time
+       * @description When it closed, if it has.
+       */
+      closedAt?: string | null
+      /** @description What it is charged in. */
+      currencyCode: string
+      /**
+       * Format: int32
+       * @description How many decimal places that currency uses.
+       */
+      currencyDecimals: number
+      /**
+       * Format: uuid
+       * @description Which bill this is.
+       */
+      id: string
+      /**
+       * Format: int64
+       * @description Its number within the restaurant, allocated at close. `null` while open.
+       */
+      number?: number | null
+      /** @description What that rate came to. Zero rather than null when there is none. */
+      serviceChargeAmount: string
+      /**
+       * @description The service charge rate applied, or `null` when the restaurant charges
+       *     none.
+       */
+      serviceChargePercent?: string | null
+      /** @description Whether it is still collecting dishes. */
+      status: string
+      /** @description The sum of its dishes that were not cancelled. */
+      subtotal: string
+      /** @description The sum of the tax lines. */
+      taxTotal: string
+      /** @description The tax breakdown, empty until it closes. */
+      taxes: components['schemas']['BillTaxDto'][]
+      /** @description Subtotal plus service charge plus taxes, with no residue. */
+      total: string
+    }
+    /** @description One tax line copied onto a bill when it closed. */
+    BillTaxDto: {
+      /** @description What that came to, already rounded to the bill's currency. */
+      amount: string
+      /** @description What the tax was called at the time. */
+      name: string
+      /** @description What rate was charged, as an exact decimal string. */
+      ratePercent: string
+    }
     /** @description What changing your own password asks for. */
     ChangePasswordRequest: {
       /** @description The password they are signing in with now. */
@@ -252,6 +554,11 @@ export interface components {
     ErrorBody: {
       /**
        * @description A stable machine readable code, safe to branch on in the client.
+       *
+       *     A refused conflict names which conflict it was, such as
+       *     `table_occupied` or `bill_has_unserved_lines`, rather than the blanket
+       *     word `conflict`. The closed list is
+       *     [`ConflictKind`](crate::domain::error::ConflictKind).
        * @example not_found
        */
       error: string
@@ -281,6 +588,43 @@ export interface components {
        */
       message: string
     }
+    /** @description Every table in the restaurant, grouped by section. */
+    FloorResponse: {
+      /** @description The sections, in displayed order, each with its tables. */
+      sections: components['schemas']['FloorSectionDto'][]
+    }
+    /** @description One group of tables. */
+    FloorSectionDto: {
+      /**
+       * Format: uuid
+       * @description Which section this is, or `null` for the group holding tables that
+       *     belong to no live section.
+       */
+      id?: string | null
+      /**
+       * @description What it is called, or `null` for that same group. A screen shows those
+       *     tables under a heading of its own choosing, in its own language.
+       */
+      name?: string | null
+      /** @description Its tables, in displayed order. */
+      tables: components['schemas']['FloorTableDto'][]
+    }
+    /** @description One table, and whoever is sitting at it. */
+    FloorTableDto: {
+      /**
+       * Format: uuid
+       * @description Which table this is.
+       */
+      id: string
+      /** @description What the staff call it, such as `12` or `Bar 3`. */
+      label: string
+      occupancy?: null | components['schemas']['OccupancyDto']
+      /**
+       * Format: int32
+       * @description How many it seats, when the restaurant recorded it.
+       */
+      seats?: number | null
+    }
     /**
      * @description What the health endpoint returns.
      *
@@ -309,6 +653,253 @@ export interface components {
       restaurant: components['schemas']['RestaurantDto']
       /** @description Who is signed in. */
       staff: components['schemas']['StaffDto']
+    }
+    /**
+     * @description One dish on a kitchen ticket.
+     *
+     *     Deliberately narrower than [`OrderLineDto`]. A kitchen screen has no
+     *     business showing a price, and a chef tapping a dish done should not be one
+     *     misread column away from the bill.
+     */
+    KitchenLineDto: {
+      /** @description What to cook. */
+      dishName: string
+      /**
+       * Format: uuid
+       * @description Which line this is. What the mark ready call names.
+       */
+      id: string
+      /** @description What the guest asked for, such as no onions. Reaches the pass unchanged. */
+      note?: string | null
+      /**
+       * Format: int32
+       * @description How many.
+       */
+      quantity: number
+      /** @description Where this one dish has got to. */
+      status: components['schemas']['LineStatusDto']
+    }
+    /** @description Everything the kitchen still has work on. */
+    KitchenResponse: {
+      /**
+       * Format: date-time
+       * @description What the server's clock reads, at the moment this answer was built.
+       *
+       *     The screen subtracts this from its own clock and corrects every age it
+       *     draws by the difference. A kitchen tablet whose clock is twenty minutes
+       *     fast would otherwise show every ticket as twenty minutes late, and the
+       *     one number a chef acts on would be the one number nobody could trust.
+       */
+      serverTime: string
+      /** @description The tickets, oldest first. */
+      tickets: components['schemas']['KitchenTicketDto'][]
+    }
+    /** @description One ticket on the kitchen screen. */
+    KitchenTicketDto: {
+      /**
+       * Format: uuid
+       * @description Which ticket this is.
+       */
+      id: string
+      /** @description Every dish on it, oldest first. */
+      lines: components['schemas']['KitchenLineDto'][]
+      /**
+       * Format: date-time
+       * @description When it reached the kitchen. The waiting time is measured from here.
+       */
+      sentAt: string
+      /**
+       * Format: int32
+       * @description Its number within the visit, so a chef can say "table 4, second round".
+       */
+      sequenceNo: number
+      /** @description Where the whole ticket has got to. */
+      status: components['schemas']['RoundStatusDto']
+      /** @description Where the food is going. */
+      tableLabel: string
+    }
+    /**
+     * @description Where one dish has got to, on the wire.
+     * @enum {string}
+     */
+    LineStatusDto: 'queued' | 'ready' | 'served' | 'voided'
+    /** @description What marking one dish changed. */
+    MarkedLineResponse: {
+      /** @description The dish, after the write. */
+      line: components['schemas']['OrderLineDto']
+      /**
+       * @description What the whole ticket became, recomputed from all of its dishes. The
+       *     kitchen screen uses this to drop a ticket that has just gone ready.
+       */
+      roundStatus: components['schemas']['RoundStatusDto']
+    }
+    /** @description One group of dishes. */
+    MenuCategoryDto: {
+      /** @description Its dishes, in printed order. */
+      dishes: components['schemas']['MenuDishDto'][]
+      /**
+       * Format: uuid
+       * @description Which category this is.
+       */
+      id: string
+      /** @description What it is called. */
+      name: string
+    }
+    /** @description One item on the menu. */
+    MenuDishDto: {
+      /**
+       * @description Whether the kitchen can make it right now. `false` greys it on the
+       *     ordering screen and stops it being added to a basket.
+       */
+      available: boolean
+      /** @description What it is, for the waiter to read out. */
+      description?: string | null
+      /**
+       * Format: uuid
+       * @description Which dish this is.
+       */
+      id: string
+      /** @description What it is called today. */
+      name: string
+      /** @description What it costs, as an exact decimal string. Never a JSON number. */
+      price: string
+    }
+    /** @description The whole menu, grouped the way it is printed. */
+    MenuResponse: {
+      /**
+       * @description The live categories, in printed order. A category with no live dish is
+       *     left out, because an empty heading on a phone is a row of wasted space.
+       */
+      categories: components['schemas']['MenuCategoryDto'][]
+      /**
+       * @description What this restaurant charges in. Carried here rather than left to the
+       *     screen to look up, so a price and the currency it is in arrive together.
+       */
+      currencyCode: string
+      /**
+       * Format: int32
+       * @description How many decimal places that currency uses.
+       */
+      currencyDecimals: number
+    }
+    /** @description What a waiter needs to know about an occupied table without opening it. */
+    OccupancyDto: {
+      /** @description Whether a ticket on this visit is waiting to be carried out. */
+      foodReady: boolean
+      /**
+       * Format: int32
+       * @description How many of them, when the waiter recorded it.
+       */
+      guestCount?: number | null
+      /**
+       * Format: date-time
+       * @description When they sat down.
+       */
+      openedAt: string
+      /** @description What to call the waiter who seated them. */
+      openedBy: string
+      /**
+       * Format: uuid
+       * @description The one open visit on this table.
+       */
+      visitId: string
+    }
+    /** @description What seating a party asks for. */
+    OpenVisitRequest: {
+      /**
+       * Format: int32
+       * @description How many of them, if the waiter counted.
+       */
+      guestCount?: number | null
+      /**
+       * Format: uuid
+       * @description Which table they are sitting at.
+       */
+      tableId: string
+    }
+    /** @description The visit and the bill that were created together. */
+    OpenVisitResponse: {
+      /**
+       * Format: uuid
+       * @description The bill their dishes will go on.
+       */
+      billId: string
+      /**
+       * Format: uuid
+       * @description The party's stay at the table.
+       */
+      visitId: string
+    }
+    /**
+     * @description One dish on one ticket, as every screen reads it.
+     *
+     *     The name and the price are the ones copied onto the line when the round was
+     *     sent, not today's menu. That is what lets a bill from last Tuesday stay
+     *     true after a reprice.
+     */
+    OrderLineDto: {
+      /**
+       * Format: uuid
+       * @description Which menu item it came from.
+       */
+      dishId: string
+      /** @description What the dish was called when it was ordered. */
+      dishName: string
+      /**
+       * Format: uuid
+       * @description Which line this is.
+       */
+      id: string
+      /** @description Quantity times unit price, as an exact decimal string. */
+      lineTotal: string
+      /** @description What the guest asked for, such as no onions. */
+      note?: string | null
+      /**
+       * Format: int32
+       * @description How many.
+       */
+      quantity: number
+      /** @description Where this one dish has got to. */
+      status: components['schemas']['LineStatusDto']
+      /** @description What one of them cost, as an exact decimal string. */
+      unitPrice: string
+    }
+    /** @description One ticket with its dishes. */
+    OrderRoundDto: {
+      /**
+       * Format: uuid
+       * @description Which ticket this is.
+       */
+      id: string
+      /** @description Every dish on it, oldest first. */
+      lines: components['schemas']['OrderLineDto'][]
+      /**
+       * Format: date-time
+       * @description When the last dish came off the pass.
+       */
+      readyAt?: string | null
+      /**
+       * Format: date-time
+       * @description When it reached the kitchen.
+       */
+      sentAt: string
+      /**
+       * Format: int32
+       * @description Its number within the visit, starting at one.
+       */
+      sequenceNo: number
+      /**
+       * Format: date-time
+       * @description When the last dish reached the table.
+       */
+      servedAt?: string | null
+      /** @description Where the whole ticket has got to, recomputed from its dishes. */
+      status: components['schemas']['RoundStatusDto']
+      /**
+       * Format: uuid
+       * @description Which visit it belongs to.
+       */
+      visitId: string
     }
     /**
      * @description What registration asks for.
@@ -382,6 +973,37 @@ export interface components {
      * @enum {string}
      */
     RoleDto: 'admin' | 'waiter' | 'chef'
+    /**
+     * @description Where a whole ticket has got to, on the wire.
+     * @enum {string}
+     */
+    RoundStatusDto: 'queued' | 'ready' | 'served' | 'voided'
+    /** @description One dish in the basket. */
+    SendRoundLine: {
+      /**
+       * Format: uuid
+       * @description Which menu item.
+       */
+      dishId: string
+      /** @description What the guest asked for, such as no onions. */
+      note?: string | null
+      /**
+       * Format: int32
+       * @description How many.
+       */
+      quantity: number
+    }
+    /**
+     * @description What sending a ticket asks for.
+     *
+     *     No price anywhere in it, and that is the point. The price and the name are
+     *     read from the dish inside `send_round` and copied onto the line, so a client
+     *     cannot name its own price however it is built.
+     */
+    SendRoundRequest: {
+      /** @description The basket, one entry per dish. At least one. */
+      lines: components['schemas']['SendRoundLine'][]
+    }
     /** @description What signing in asks for. */
     SignInRequest: {
       /** @description The address the account was registered with. Matched case insensitively. */
@@ -477,6 +1099,44 @@ export interface components {
       name?: string | null
       /** @description Its IANA timezone. */
       timezone?: string | null
+    }
+    /** @description One table's whole meal, as the waiter's screen reads it. */
+    VisitResponse: {
+      bill?: null | components['schemas']['BillDto']
+      /**
+       * Format: int32
+       * @description How many of them, when the waiter recorded it.
+       */
+      guestCount?: number | null
+      /**
+       * Format: uuid
+       * @description Which visit this is.
+       */
+      id: string
+      /**
+       * Format: date-time
+       * @description When they sat down.
+       */
+      openedAt: string
+      /** @description What to call the waiter who seated them. */
+      openedBy: string
+      /** @description Every ticket on the visit, oldest first, with its dishes. */
+      rounds: components['schemas']['OrderRoundDto'][]
+      /**
+       * Format: date-time
+       * @description What the server's clock reads, at the moment this answer was built. The
+       *     screen corrects every age it draws by the difference from its own clock.
+       */
+      serverTime: string
+      /** @description Whether they are still there: `open` or `closed`. */
+      status: string
+      /**
+       * Format: uuid
+       * @description Which table they are at.
+       */
+      tableId: string
+      /** @description What the staff call that table. */
+      tableLabel: string
     }
   }
   responses: never
@@ -609,6 +1269,44 @@ export interface operations {
       }
     }
   }
+  floor: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Every live table and its occupancy. Waiters only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FloorResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a waiter. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   health: {
     parameters: {
       query?: never
@@ -634,6 +1332,44 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['HealthResponse']
+        }
+      }
+    }
+  }
+  kitchen_tickets: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Every queued or ready ticket, oldest first. Chefs only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['KitchenResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a chef. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
         }
       }
     }
@@ -749,6 +1485,103 @@ export interface operations {
       }
     }
   }
+  menu: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The live menu. Waiters only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MenuResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a waiter. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  mark_line_ready: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The dish to mark off the pass. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The dish and its ticket's new status. Chefs only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MarkedLineResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a chef. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such dish. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Somebody marked that dish first. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   update_restaurant: {
     parameters: {
       query?: never
@@ -791,6 +1624,306 @@ export interface operations {
       }
       /** @description A waiter or a chef asked. */
       403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  mark_round_served: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The ticket that reached the table. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The ticket after the write. Waiters only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OrderRoundDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a waiter. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such ticket. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description That ticket is not waiting to be carried out. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  open_visit: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['OpenVisitRequest']
+      }
+    }
+    responses: {
+      /** @description The visit and its bill. Waiters only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OpenVisitResponse']
+        }
+      }
+      /** @description No such live table. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a waiter. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description That table already has a party at it. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  visit: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The visit to read. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The visit, its rounds, and its bill. Waiters only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VisitResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a waiter. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such visit. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  close_visit: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The visit to close. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The closed bill, with its number and every figure. Waiters only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['BillDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a waiter. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such visit, or it has no bill. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description A dish is still out, or the bill has already closed. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  send_round: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The visit to send the ticket for. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SendRoundRequest']
+      }
+    }
+    responses: {
+      /** @description The ticket that was sent. Waiters only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OrderRoundDto']
+        }
+      }
+      /** @description An empty basket, or a dish that cannot be ordered. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a waiter. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such visit. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description That party has already left. */
+      409: {
         headers: {
           [name: string]: unknown
         }
