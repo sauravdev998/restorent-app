@@ -14,6 +14,7 @@ import { cn } from './cn'
 import { ConnectionStatus } from './connection-status'
 import { Icon } from './icon'
 import { LiveRegion } from './live-region'
+import { StreamWarning } from './stream-warning'
 import { ToastViewport } from './toast'
 
 export interface SurfaceShellProps {
@@ -116,6 +117,10 @@ export function SurfaceShell({
           </div>
         </div>
       </header>
+
+      {/* Mounted here rather than on each screen, so both the waiter's and the
+          kitchen's get it and neither can be built without one. */}
+      <StreamWarning status={stream} />
 
       {/* `tabIndex={-1}` is what makes the skip link actually skip. Following a
           fragment link moves where the next Tab starts, but it only moves focus

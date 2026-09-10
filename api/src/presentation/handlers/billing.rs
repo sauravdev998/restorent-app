@@ -78,7 +78,15 @@ pub async fn visit(
 ) -> Result<Json<VisitResponse>, ApiError> {
     let visit_id = VisitId::from_uuid(visit_id);
 
-    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    // A snapshot, and this is the read the isolation level was raised for. The
+    // document is a dozen statements, and under the default level a chef's tap
+    // landing between two of them produced a ticket reading "cooking" with
+    // every dish on it reading "ready". A waiter watching that screen was never
+    // told the food was up.
+    let mut tx = state
+        .database
+        .begin_scoped_snapshot(actor.restaurant_id())
+        .await?;
 
     let visit = service::visit(&mut tx, visit_id).await?;
     let table = service::table_label(&mut tx, visit.table_id).await?;

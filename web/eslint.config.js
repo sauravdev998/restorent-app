@@ -65,7 +65,9 @@ const noPhysicalDirection = [
 export default tseslint.config(
   // The generated client is generated. Linting it would only ever produce
   // complaints nobody can act on without editing a file they must not edit.
-  { ignores: ['dist', 'src/shared/api/schema.d.ts'] },
+  // Playwright writes traces, screenshots, and copies of the source under
+  // these when a browser test fails. They are build output, not sources.
+  { ignores: ['dist', 'test-results', 'playwright-report', 'src/shared/api/schema.d.ts'] },
 
   js.configs.recommended,
 

@@ -48,7 +48,10 @@ export function WaiterFloor() {
   const open = useMutation({
     mutationFn: (tableId: string) => openVisit(tableId),
     onSuccess: async (visitId) => {
-      await queryClient.invalidateQueries({ queryKey: floorKey })
+      // Walk to the table first, then refresh the floor behind us. Awaiting the
+      // refetch before navigating would hold a waiter standing at a table
+      // watching a spinner while the screen they are leaving reloads.
+      void queryClient.invalidateQueries({ queryKey: floorKey })
       await navigate(`/waiter/tables/${visitId}`)
     },
     onError: (error: unknown) => {

@@ -360,6 +360,55 @@ pub async fn seed_visit_and_bill(
     (visit_id, bill_id)
 }
 
+/// Seeds a ticket and one dish on it with raw statements, naming the restaurant
+/// explicitly.
+///
+/// The same reason [`seed_visit_and_bill`] exists: the repository takes the
+/// restaurant from the transaction handle, and [`rescope`] deliberately does not
+/// move it, so a repository call while re scoped would name one restaurant while
+/// the policy checked another. A cross tenant test has to write the second
+/// restaurant's rows this way.
+pub async fn seed_round_and_line(
+    tx: &mut ScopedTx<'_>,
+    restaurant_id: RestaurantId,
+    visit_id: Uuid,
+    staff_id: StaffId,
+    dish_id: DishId,
+) -> (Uuid, Uuid) {
+    let round_id = Uuid::now_v7();
+    let line_id = Uuid::now_v7();
+
+    sqlx::query(
+        "INSERT INTO order_rounds
+             (id, restaurant_id, visit_id, sequence_no, status, sent_by_staff_id,
+              sent_at, updated_at)
+         VALUES ($1, $2, $3, 1, 'queued', $4, now(), now())",
+    )
+    .bind(round_id)
+    .bind(restaurant_id.as_uuid())
+    .bind(visit_id)
+    .bind(staff_id.as_uuid())
+    .execute(tx.connection())
+    .await
+    .expect("seeding a round");
+
+    sqlx::query(
+        "INSERT INTO order_lines
+             (id, restaurant_id, round_id, dish_id, quantity, unit_price, dish_name,
+              line_total, status, updated_at)
+         VALUES ($1, $2, $3, $4, 1, 9.5000, 'Soup', 9.5000, 'queued', now())",
+    )
+    .bind(line_id)
+    .bind(restaurant_id.as_uuid())
+    .bind(round_id)
+    .bind(dish_id.as_uuid())
+    .execute(tx.connection())
+    .await
+    .expect("seeding a line");
+
+    (round_id, line_id)
+}
+
 /// Marks a point the transaction can be rewound to.
 ///
 /// A statement that fails aborts the whole transaction, so a test that expects a

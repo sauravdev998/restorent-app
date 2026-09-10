@@ -22,7 +22,9 @@
   "connection": {
     "connecting": "Connecting",
     "open": "Connected",
-    "closed": "Closed"
+    "closed": "Closed",
+    "lostTitle": "Live updates have stopped",
+    "lostBody": "Everything still works and nothing is lost. Reload when you can, and the screen will catch up."
   },
   "status": {
     "queued": "Cooking",

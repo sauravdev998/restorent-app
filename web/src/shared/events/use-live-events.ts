@@ -11,6 +11,24 @@ export interface StreamEvent {
 
 export type StreamStatus = 'connecting' | 'open' | 'closed'
 
+/**
+ * How long a stream may be reconnecting before the screen calls it down.
+ *
+ * The browser retries a dropped connection on its own, roughly every three
+ * seconds, and reports every failed attempt as an ordinary retryable error. So
+ * "the browser has given up" never happens for the outage that actually matters
+ * on a shift: the API restarting, the kitchen wifi dropping, an intermediary
+ * hanging up. Waiting for it means a screen that is receiving nothing shows a
+ * small grey "Connecting" forever.
+ *
+ * Five seconds sits between the first failed retry and the second, so a genuine
+ * blip is ridden out in silence and a real outage is named before a chef has
+ * had time to wonder why the pass has gone quiet. The browser owns the retry
+ * cadence, so this is a judgement about what a person will tolerate, not a
+ * number derived from anything.
+ */
+const RETRY_GRACE_MS = 5_000
+
 export interface LiveEvents {
   status: StreamStatus
   /** The most recent event, mainly useful for showing that the pipe is alive. */
@@ -80,8 +98,17 @@ export function useLiveEvents(onFatal: () => void): LiveEvents {
       // Reporting "connecting" for a stream that is never coming back is worse
       // than reporting nothing, because it tells staff to wait when what they
       // need to do is reload.
+      //
+      // Once a screen has been called down it stays down until a stream
+      // actually opens. Every failed retry arrives here, so writing
+      // "connecting" unconditionally would reset the grace period below on each
+      // one and the warning would never appear at all: the retries arrive
+      // closer together than the period they would be restarting.
       const fatal = source.readyState === EventSource.CLOSED
-      setStatus(fatal ? 'closed' : 'connecting')
+      setStatus((current) => {
+        if (fatal || current === 'closed') return 'closed'
+        return 'connecting'
+      })
 
       // A fatal error on this stream is almost always a `401`: the session was
       // revoked, or expired, and the browser will not retry a response it
@@ -128,6 +155,20 @@ export function useLiveEvents(onFatal: () => void): LiveEvents {
       setStatus('closed')
     }
   }, [queryClient, onFatal])
+
+  // A stream that has been reconnecting for a while is a stream that is not
+  // delivering, whatever the browser intends to do about it next. Without this,
+  // the only status the screens ever treat as down is the fatal one, which in
+  // practice means a `401` and nothing else: a dead API leaves the browser
+  // retrying, and the kitchen screen quietly looks like a kitchen with no
+  // orders. Repeated errors do not restart this, because the status is already
+  // `connecting` and an identical write changes nothing.
+  useEffect(() => {
+    if (status !== 'connecting') return
+
+    const timer = setTimeout(() => setStatus('closed'), RETRY_GRACE_MS)
+    return () => clearTimeout(timer)
+  }, [status])
 
   return { status, last, received }
 }

@@ -101,5 +101,51 @@ jobs:
       - name: The generated API client is current
         run: pnpm client:check
 
-      # Playwright joins here once slice 1 exists and there are two device
-      # scenarios worth driving.
+      # The two device scenario. Last, because it is the slowest thing here by a
+      # wide margin: it wants a browser, a built web app, and a running API.
+      #
+      # Only chromium, and only its browser. `--with-deps` wants root to install
+      # system libraries, which is fine on this runner but is time nobody gets
+      # back: the ubuntu-latest image already carries what headless chromium
+      # needs.
+      - name: Install the browser
+        run: pnpm --filter web exec playwright install chromium
+
+      # Tables, a menu, and the waiter and chef accounts the scenario signs in
+      # as. The same command a developer runs, and it refuses outside
+      # development, which is what `.env` above sets.
+      - name: Seed the development restaurant
+        run: pnpm db:seed
+
+      # Started here rather than through Playwright's `webServer`, which knows
+      # how to wait for one address and this scenario needs two. Playwright
+      # still starts the web app itself; this is the other half.
+      #
+      # `--release` reuses the binary `pnpm check` already built, so this is a
+      # start rather than a second compile. `nohup` and the redirect are what
+      # keep it alive once the step ends.
+      - name: Start the API
+        run: |
+          nohup cargo run --release --manifest-path api/Cargo.toml > api.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8080/api/health | grep -q '"serving":true'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "the API did not become healthy:" >&2
+          cat api.log >&2
+          exit 1
+
+      - name: The order thread, on two devices
+        run: pnpm e2e
+
+      # Traces from a failed run, which is the only way to see what a browser
+      # test saw on a machine nobody can log into.
+      - name: Keep the trace of a failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: web/test-results/
+          retention-days: 7

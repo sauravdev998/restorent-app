@@ -133,18 +133,18 @@ One narrow path pushed through every layer, working for real. No breadth: one ta
 ### 8. The thin order thread
 A waiter opens a bill on a table and adds one dish, the kitchen sees the ticket appear live, the chef marks the dish done, the ticket flips to ready and the waiter's screen updates with a sound, and the waiter closes the bill with a total. Real database, real login, real screens, narrow on purpose.
 **Done when:** on two devices at once, a dish sent by the waiter appears on the kitchen screen within a second or two without a refresh; marking it done flips the ticket to ready and alerts the waiter the same way; closing the bill records a total; and the order's state changes are safe when two people act at the same time.
-spec [0007](../specs/0007-the-thin-order-thread/index.md) · no migration: it reaches the schema and the eleven operations spec [0003](../specs/0003-core-data-model/index.md) already built
+spec [0007](../specs/0007-the-thin-order-thread/index.md) · verify [0007](../specs/0007-the-thin-order-thread/verify.md) · no migration: it reaches the schema and the eleven operations spec [0003](../specs/0003-core-data-model/index.md) already built · api in `api/src/presentation/handlers/{menu,service,billing}.rs`, `api/src/presentation/dto.rs`, `api/src/domain/error.rs` (`ConflictKind`), `api/src/infrastructure/db/repository/{service,billing,catalog,accounts}.rs`, `api/src/bin/seed.rs`, `api/tests/order_thread.rs` · web in `web/src/waiter/`, `web/src/kitchen/`, `web/src/shared/events/{query-keys,server-clock}.ts`, `web/src/shared/ui/stream-warning.tsx` · browser test in `web/e2e/order-thread.spec.ts`, `web/playwright.config.ts`
 - [x] Design it (spec): `/architect the thin order thread`
-- [ ] Build it: `/develop the thin order thread`
+- [x] Build it: `/develop the thin order thread`
   - [x] Ground for the thread to run on: the grown seed (tables, menu, a waiter and a chef) and the conflict codes that let a refusal be read in the reader's own language (AC-12, AC-13, AC-17)
-  - [ ] The thread, top to bottom: the floor and menu reads, opening a table, sending a round, the kitchen queue, marking a dish ready, and the two screens that make it visible on two devices (AC-1, AC-3, AC-4, AC-5, AC-7, AC-14)
-  - [ ] Live updates narrowed and the clock made honest: the entity keyed query keys with their fan out map, and ages computed against the server's time rather than the tablet's (AC-6, AC-15)
-  - [ ] Back to the waiter and out: the visit document, the serve action, the ready alert that announces and chimes once per round, and the close that writes the total and frees the table (AC-8, AC-9, AC-10, AC-11, AC-12)
-  - [ ] Honest when it breaks, and proven: connection states with both screens still usable, pending taps with no cache optimism, the two device Playwright run, and the rest of the tests and words (AC-2, AC-13, AC-16, AC-18, AC-19)
-- [ ] Verify it: `/check verify the thin order thread`
-- [ ] Test it: `/test the thin order thread`
-- [ ] Review it (fresh model): `/check review the thin order thread`
-- [ ] Document it: `/document the thin order thread`
+  - [x] The thread, top to bottom: the floor and menu reads, opening a table, sending a round, the kitchen queue, marking a dish ready, and the two screens that make it visible on two devices (AC-1, AC-3, AC-4, AC-5, AC-7, AC-14)
+  - [x] Live updates narrowed and the clock made honest: the entity keyed query keys with their fan out map, and ages computed against the server's time rather than the tablet's (AC-6, AC-15)
+  - [x] Back to the waiter and out: the visit document, the serve action, the ready alert that announces and chimes once per round, and the close that writes the total and frees the table (AC-8, AC-9, AC-10, AC-11, AC-12)
+  - [x] Honest when it breaks, and proven: connection states with both screens still usable, pending taps with no cache optimism, the two device Playwright run, and the rest of the tests and words (AC-2, AC-13, AC-16, AC-18, AC-19)
+- [x] Verify it: `/check verify the thin order thread`
+- [x] Test it: `/test the thin order thread`
+- [x] Review it (fresh model): `/check review the thin order thread`
+- [x] Document it: `/document the thin order thread`
 
 ## Slice 2: one restaurant set up for real
 

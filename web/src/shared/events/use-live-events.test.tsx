@@ -154,6 +154,132 @@ describe('useLiveEvents', () => {
     expect(rendered.result.current.status).toBe('connecting')
   })
 
+  // The bug this pair covers, found by driving the real app: killing the API
+  // left the kitchen screen reading "Connecting" and showing no warning band
+  // for as long as anybody watched. The browser retries a dead server forever
+  // and never reaches the fatal state, so treating only the fatal state as down
+  // meant the one outage that matters on a shift was never named. A screen that
+  // is receiving nothing has to say so.
+  it('calls a stream that has been reconnecting too long closed, so the screens can warn', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { rendered, source } = live()
+
+      act(() => {
+        source.open()
+      })
+      act(() => {
+        source.dropMidStream()
+      })
+      expect(rendered.result.current.status).toBe('connecting')
+
+      act(() => {
+        vi.advanceTimersByTime(5_000)
+      })
+
+      expect(rendered.result.current.status).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+    }
+  }) // covers: AC-16
+
+  // The half that makes the other half work. Every failed retry arrives through
+  // `onerror`, and they arrive closer together than the grace period. Writing
+  // "connecting" on each one would restart the wait every time and the warning
+  // would never appear, which is exactly the shape of the original bug.
+  it('stays closed while the browser keeps retrying and failing', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { rendered, source } = live()
+
+      act(() => {
+        source.open()
+      })
+      act(() => {
+        source.dropMidStream()
+      })
+      act(() => {
+        vi.advanceTimersByTime(5_000)
+      })
+      expect(rendered.result.current.status).toBe('closed')
+
+      // Three more failed attempts, at the cadence a browser actually uses.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        act(() => {
+          vi.advanceTimersByTime(3_000)
+        })
+        act(() => {
+          source.dropMidStream()
+        })
+      }
+
+      expect(rendered.result.current.status).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+    }
+  }) // covers: AC-16
+
+  // A blip must not flash a band across a kitchen screen, and the recovery has
+  // to clear the warning without a reload.
+  it('rides out a blip in silence and clears once the stream opens again', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { rendered, source } = live()
+
+      act(() => {
+        source.open()
+      })
+      act(() => {
+        source.dropMidStream()
+      })
+      act(() => {
+        vi.advanceTimersByTime(2_000)
+      })
+      expect(rendered.result.current.status).toBe('connecting')
+
+      act(() => {
+        source.open()
+      })
+      expect(rendered.result.current.status).toBe('open')
+
+      // And the wait that was in flight must not fire behind the recovery.
+      act(() => {
+        vi.advanceTimersByTime(10_000)
+      })
+      expect(rendered.result.current.status).toBe('open')
+    } finally {
+      vi.useRealTimers()
+    }
+  }) // covers: AC-16
+
+  // Being down is not being signed out. A retryable outage must never take the
+  // session ending path, or a kitchen wifi blip would sign the chef out.
+  it('never reports a retryable outage as the session ending', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { rendered, source, onFatal } = live()
+
+      act(() => {
+        source.open()
+      })
+      act(() => {
+        source.dropMidStream()
+      })
+      act(() => {
+        vi.advanceTimersByTime(30_000)
+      })
+
+      expect(rendered.result.current.status).toBe('closed')
+      expect(onFatal).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  }) // covers: AC-16
+
   // The regression this file exists for. `onerror` used to set `connecting`
   // whatever had happened, so a stream the browser had abandoned for good still
   // read as "Connecting" forever. That tells staff to wait for a reconnect that

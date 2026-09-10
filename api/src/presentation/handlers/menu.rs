@@ -98,7 +98,12 @@ pub async fn menu(
     State(state): State<AppState>,
     actor: Actor<Waiter>,
 ) -> Result<Json<MenuResponse>, ApiError> {
-    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    // A snapshot: three statements, and a dish switched off between two of them
+    // would arrive under a category read before the change.
+    let mut tx = state
+        .database
+        .begin_scoped_snapshot(actor.restaurant_id())
+        .await?;
 
     let restaurant = catalog::restaurant(&mut tx).await?;
     let categories = catalog::live_menu_categories(&mut tx).await?;

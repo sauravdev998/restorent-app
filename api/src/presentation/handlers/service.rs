@@ -113,7 +113,12 @@ pub async fn floor(
     State(state): State<AppState>,
     actor: Actor<Waiter>,
 ) -> Result<Json<FloorResponse>, ApiError> {
-    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    // A snapshot, because the answer is two statements and a table opened
+    // between them would appear in one and not the other.
+    let mut tx = state
+        .database
+        .begin_scoped_snapshot(actor.restaurant_id())
+        .await?;
 
     let sections = catalog::live_table_sections(&mut tx).await?;
     let tables = service::floor(&mut tx).await?;
@@ -443,7 +448,13 @@ pub async fn kitchen_tickets(
     State(state): State<AppState>,
     actor: Actor<Chef>,
 ) -> Result<Json<KitchenResponse>, ApiError> {
-    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    // A snapshot. The queue is one statement for the tickets and another per
+    // ticket for its dishes, so without one a chef could be shown a ticket
+    // whose status and whose dishes came from either side of a colleague's tap.
+    let mut tx = state
+        .database
+        .begin_scoped_snapshot(actor.restaurant_id())
+        .await?;
     let queue = service::kitchen_queue(&mut tx).await?;
     tx.commit().await?;
 

@@ -31,7 +31,8 @@
     "client:generate": "pnpm openapi:generate && pnpm --filter web client:generate",
     "client:check": "pnpm client:generate && git diff --exit-code api/openapi.json web/src/shared/api/schema.d.ts",
     "sqlx:prepare": "cd api && set -a && . ../.env && set +a && cargo sqlx prepare -- --all-targets",
-    "sqlx:check": "cd api && set -a && . ../.env && set +a && cargo sqlx prepare --check -- --all-targets"
+    "sqlx:check": "cd api && set -a && . ../.env && set +a && cargo sqlx prepare --check -- --all-targets",
+    "e2e": "pnpm --filter web e2e"
   },
   "devDependencies": {
     "lefthook": "^2.1.10",

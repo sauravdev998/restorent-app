@@ -12,8 +12,9 @@
 //! **A ticket's status is recomputed, never decided.** It is stored, because the
 //! kitchen queue needs to filter on it, but every write that touches a line
 //! recomputes the whole ticket from all of its lines inside the same
-//! transaction. The rule itself lives in the domain, in
-//! [`round_status_from_lines`].
+//! transaction, under the ticket's own row lock. The rule itself lives in the
+//! domain, in [`round_status_from_lines`]; the lock is what makes it hold when
+//! two dishes on one ticket are marked at the same instant.
 
 use crate::domain::catalog::DiningTable;
 use crate::domain::enums::{LineStatus, RoundStatus, VisitStatus};
@@ -816,6 +817,28 @@ async fn recompute_round_status(
     tx: &mut ScopedTx<'_>,
     round_id: OrderRoundId,
 ) -> DomainResult<RoundStatus> {
+    // The ticket's own row, locked, before its dishes are read.
+    //
+    // This is what makes the recompute correct when two dishes on one ticket
+    // are marked at the same moment, which is an ordinary evening in a kitchen
+    // with two chefs. Without it both transactions read the lines under their
+    // own snapshot, each sees the other's dish still queued, and both write
+    // "queued" back. The ticket then sits for ever as cooking with every dish
+    // on it ready, the waiter is never told the food is up, and nothing
+    // anywhere reports an error.
+    //
+    // With the lock the second recompute waits, and when it runs its next
+    // statement it takes a fresh snapshot that includes the first one's
+    // committed line. Only one round is ever locked here, so there is no order
+    // for two transactions to disagree about and no deadlock to have.
+    sqlx::query!(
+        "SELECT id FROM order_rounds WHERE id = $1 FOR UPDATE",
+        round_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .ok_or(DomainError::NotFound)?;
+
     let rows = sqlx::query!(
         r#"SELECT status AS "status: LineStatus" FROM order_lines WHERE round_id = $1"#,
         round_id.as_uuid()
