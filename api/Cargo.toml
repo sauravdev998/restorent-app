@@ -61,7 +61,11 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "compression-gzip", "timeout"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-utoipa = { version = "5.5.0", features = ["axum_extras", "uuid"] }
+# `chrono` is here so a `timestamptz` reaches the document as a `date-time`
+# string rather than failing to have a schema at all. Every time on the wire is
+# an instant in UTC; which clock a screen writes it in is the restaurant's
+# timezone, decided on the web side.
+utoipa = { version = "5.5.0", features = ["axum_extras", "chrono", "uuid"] }
 # `v7` because Postgres 17 has no built in `uuidv7()`, so version 7 identifiers
 # are generated here. They sort by creation time, which keeps the primary key
 # index appending rather than scattering writes across it the way v4 does.

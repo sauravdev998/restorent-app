@@ -1,6 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { FAN_OUT, isEntityKind } from './query-keys'
+
 /** One message from the server. A kind and an id, never row content. */
 export interface StreamEvent {
   entity: string
@@ -8,6 +10,24 @@ export interface StreamEvent {
 }
 
 export type StreamStatus = 'connecting' | 'open' | 'closed'
+
+/**
+ * How long a stream may be reconnecting before the screen calls it down.
+ *
+ * The browser retries a dropped connection on its own, roughly every three
+ * seconds, and reports every failed attempt as an ordinary retryable error. So
+ * "the browser has given up" never happens for the outage that actually matters
+ * on a shift: the API restarting, the kitchen wifi dropping, an intermediary
+ * hanging up. Waiting for it means a screen that is receiving nothing shows a
+ * small grey "Connecting" forever.
+ *
+ * Five seconds sits between the first failed retry and the second, so a genuine
+ * blip is ridden out in silence and a real outage is named before a chef has
+ * had time to wonder why the pass has gone quiet. The browser owns the retry
+ * cadence, so this is a judgement about what a person will tolerate, not a
+ * number derived from anything.
+ */
+const RETRY_GRACE_MS = 5_000
 
 export interface LiveEvents {
   status: StreamStatus
@@ -32,6 +52,11 @@ export interface LiveEvents {
  *    an id, so the client goes back and asks for the row. That keeps row level
  *    security the single authority on who may see what. Trusting event contents
  *    would create a second, unguarded way to read data.
+ *
+ * What it invalidates is narrow and written down, in `query-keys.ts`. An event
+ * refetches the query key prefixes its own entity kind actually feeds, so a
+ * chef marking one dish does not send the whole browser back to the API for the
+ * menu, the floor, and every open table.
  *
  * @param onFatal what to do when the stream fails in a way the browser will not
  * retry, which in practice means the session ended. It takes the same path an
@@ -73,8 +98,17 @@ export function useLiveEvents(onFatal: () => void): LiveEvents {
       // Reporting "connecting" for a stream that is never coming back is worse
       // than reporting nothing, because it tells staff to wait when what they
       // need to do is reload.
+      //
+      // Once a screen has been called down it stays down until a stream
+      // actually opens. Every failed retry arrives here, so writing
+      // "connecting" unconditionally would reset the grace period below on each
+      // one and the warning would never appear at all: the retries arrive
+      // closer together than the period they would be restarting.
       const fatal = source.readyState === EventSource.CLOSED
-      setStatus(fatal ? 'closed' : 'connecting')
+      setStatus((current) => {
+        if (fatal || current === 'closed') return 'closed'
+        return 'connecting'
+      })
 
       // A fatal error on this stream is almost always a `401`: the session was
       // revoked, or expired, and the browser will not retry a response it
@@ -95,9 +129,20 @@ export function useLiveEvents(onFatal: () => void): LiveEvents {
       setLast(event)
       setReceived((count) => count + 1)
 
-      // Rule 2. Invalidate what this touched and let the query refetch it.
-      // Feature 8 narrows this to the entity's own key.
-      void queryClient.invalidateQueries({ queryKey: [event.entity] })
+      // Rule 2. Invalidate exactly what this kind of change feeds, through the
+      // written map, and let those queries refetch themselves.
+      if (!isEntityKind(event.entity)) {
+        // A kind this build has never heard of. Dropped rather than guessed:
+        // invalidating on a string nobody wrote a row for would match nothing
+        // anyway, and the refetch on the next stream open catches up whatever
+        // it was about.
+        console.error('ignoring an event for an unknown entity kind', event.entity)
+        return
+      }
+
+      for (const queryKey of FAN_OUT[event.entity]) {
+        void queryClient.invalidateQueries({ queryKey })
+      }
     })
 
     source.addEventListener('resync', () => {
@@ -110,6 +155,20 @@ export function useLiveEvents(onFatal: () => void): LiveEvents {
       setStatus('closed')
     }
   }, [queryClient, onFatal])
+
+  // A stream that has been reconnecting for a while is a stream that is not
+  // delivering, whatever the browser intends to do about it next. Without this,
+  // the only status the screens ever treat as down is the fatal one, which in
+  // practice means a `401` and nothing else: a dead API leaves the browser
+  // retrying, and the kitchen screen quietly looks like a kitchen with no
+  // orders. Repeated errors do not restart this, because the status is already
+  // `connecting` and an identical write changes nothing.
+  useEffect(() => {
+    if (status !== 'connecting') return
+
+    const timer = setTimeout(() => setStatus('closed'), RETRY_GRACE_MS)
+    return () => clearTimeout(timer)
+  }, [status])
 
   return { status, last, received }
 }

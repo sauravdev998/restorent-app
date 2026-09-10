@@ -16,8 +16,9 @@ export interface ConnectionStatusProps {
  *
  * Announced politely, so a screen reader mentions a dropped connection without
  * cutting across whatever is being read. A closed stream is the one that
- * matters: it means the browser has given up and will not retry, so staff need
- * to reload rather than wait.
+ * matters: live updates have stopped arriving, either because the browser gave
+ * up for good or because it has been retrying long enough that the difference
+ * has stopped mattering to whoever is reading the screen.
  */
 export function ConnectionStatus({ status, className }: ConnectionStatusProps) {
   const { t } = useTranslation()

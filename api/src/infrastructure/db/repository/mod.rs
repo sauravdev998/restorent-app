@@ -26,7 +26,7 @@ pub mod catalog;
 pub mod service;
 pub mod sessions;
 
-use crate::domain::error::DomainError;
+use crate::domain::error::{ConflictKind, DomainError};
 
 /// Names the constraint a failed statement broke, if it broke one.
 ///
@@ -42,13 +42,9 @@ pub(crate) fn violated_constraint(error: &sqlx::Error) -> Option<&str> {
 
 /// Turns a named constraint violation into a conflict, and anything else into
 /// whatever it already was.
-pub(crate) fn conflict_on(
-    error: sqlx::Error,
-    constraint: &str,
-    message: &'static str,
-) -> DomainError {
+pub(crate) fn conflict_on(error: sqlx::Error, constraint: &str, kind: ConflictKind) -> DomainError {
     if violated_constraint(&error) == Some(constraint) {
-        return DomainError::Conflict(message.to_owned());
+        return DomainError::Conflict(kind);
     }
 
     DomainError::from(error)

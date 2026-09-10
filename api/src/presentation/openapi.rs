@@ -10,9 +10,12 @@
 
 use utoipa::OpenApi;
 
-use super::dto::{IdentityBundle, RestaurantDto, RoleDto, StaffDto};
+use super::dto::{
+    BillDto, BillTaxDto, IdentityBundle, LineStatusDto, OrderLineDto, OrderRoundDto, RestaurantDto,
+    RoleDto, RoundStatusDto, StaffDto,
+};
 use super::error::ErrorBody;
-use super::handlers::{auth, events, health, me};
+use super::handlers::{auth, billing, events, health, me, menu, service};
 
 /// The whole public API surface.
 #[derive(OpenApi)]
@@ -32,6 +35,15 @@ use super::handlers::{auth, events, health, me};
         me::update_me,
         me::change_password,
         me::update_restaurant,
+        service::floor,
+        menu::menu,
+        service::open_visit,
+        billing::visit,
+        service::send_round,
+        billing::close_visit,
+        service::mark_round_served,
+        service::kitchen_tickets,
+        service::mark_line_ready,
     ),
     components(schemas(
         ErrorBody,
@@ -47,10 +59,33 @@ use super::handlers::{auth, events, health, me};
         me::UpdateMeRequest,
         me::ChangePasswordRequest,
         me::UpdateRestaurantRequest,
+        LineStatusDto,
+        RoundStatusDto,
+        OrderLineDto,
+        OrderRoundDto,
+        BillTaxDto,
+        BillDto,
+        menu::MenuResponse,
+        menu::MenuCategoryDto,
+        menu::MenuDishDto,
+        service::FloorResponse,
+        service::FloorSectionDto,
+        service::FloorTableDto,
+        service::OccupancyDto,
+        service::OpenVisitRequest,
+        service::OpenVisitResponse,
+        service::SendRoundRequest,
+        service::SendRoundLine,
+        service::KitchenResponse,
+        service::KitchenTicketDto,
+        service::KitchenLineDto,
+        service::MarkedLineResponse,
+        billing::VisitResponse,
     )),
     tags(
         (name = "system", description = "Health and live updates."),
         (name = "accounts", description = "Registering, signing in, and who is signed in."),
+        (name = "orders", description = "The floor, the menu, tickets to the kitchen, and the bill."),
     )
 )]
 pub struct ApiDoc;

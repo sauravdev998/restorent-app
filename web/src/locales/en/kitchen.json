@@ -1,3 +1,12 @@
 {
-  "title": "Kitchen surface"
+  "title": "Kitchen",
+  "pass": {
+    "title": "The pass",
+    "table": "Table {{label}}",
+    "round": "Round {{number}}",
+    "done": "Done",
+    "marking": "Marking",
+    "quietTitle": "Nothing on the pass",
+    "quietBody": "New tickets appear here on their own, with no refresh."
+  }
 }

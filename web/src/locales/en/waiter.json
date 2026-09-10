@@ -1,3 +1,45 @@
 {
-  "title": "Waiter surface"
+  "title": "Waiter",
+  "floor": {
+    "title": "Floor",
+    "free": "Free",
+    "open": "Open table",
+    "opening": "Opening",
+    "view": "View",
+    "openedBy": "Opened by {{name}} at {{at}}",
+    "unsectioned": "Other tables",
+    "emptyTitle": "No tables yet",
+    "emptyBody": "An admin adds the restaurant's tables before orders can be taken."
+  },
+  "table": {
+    "title": "Table {{label}}",
+    "openedBy": "Opened by {{name}}",
+    "orderHeading": "Order",
+    "roundsHeading": "Sent to the kitchen",
+    "unavailable": "Off tonight",
+    "addOne": "Add one {{dish}}",
+    "removeOne": "Remove one {{dish}}",
+    "send_one": "Send {{count}} dish",
+    "send_other": "Send {{count}} dishes",
+    "sending": "Sending",
+    "round": "Round {{number}}",
+    "serve": "Mark served",
+    "serving": "Marking",
+    "nothingSentTitle": "Nothing sent yet",
+    "nothingSentBody": "Add dishes above and send them as one ticket."
+  },
+  "alert": {
+    "title": "Table {{label}}, round {{round}} is ready",
+    "body": "Collect it from the pass, then mark it served."
+  },
+  "bill": {
+    "runningTitle": "Bill so far",
+    "closedTitle": "Bill {{number}}",
+    "subtotal": "Subtotal",
+    "serviceCharge": "Service charge ({{percent}}%)",
+    "tax": "{{name}} ({{rate}}%)",
+    "total": "Total",
+    "close": "Close the bill",
+    "closing": "Closing"
+  }
 }

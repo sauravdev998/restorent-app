@@ -30,8 +30,9 @@ cargo fetch --manifest-path api/Cargo.toml && pnpm install
 # Dev server (database first, then migrations, then API, then web)
 pnpm db:up && pnpm migrate && pnpm dev:api && pnpm dev:web
 
-# One restaurant and one admin to sign in as locally. Credentials are in .env.example,
-# and the command refuses to run outside development for exactly that reason.
+# One restaurant, a room of tables, a menu, and an admin, a waiter and a chef to sign
+# in as locally. Credentials are in .env.example, and the command refuses to run
+# outside development for exactly that reason.
 pnpm db:seed
 
 # Build
@@ -39,6 +40,10 @@ pnpm build
 
 # Test
 pnpm test
+
+# The two device browser scenario (waiter and chef at once). Wants a seeded
+# database and a running API, so it is not part of pnpm check.
+pnpm e2e
 
 # Everything continuous integration runs
 pnpm check
@@ -73,7 +78,7 @@ Chosen here, installed and running.
 
 - **Lint and format**: `rustfmt` and `clippy` (pedantic, configured in `api/Cargo.toml`); ESLint and Prettier (ESLint carries the `react-hooks`, `jsx-a11y`, and TanStack Query rules this stack needs, and `infra/` has its own type aware config). One Prettier config for the whole repo, at the root, with `.prettierignore` keeping it off generated artifacts and off `docs/` prose. `pnpm format` from the root is the only formatting command
 - **Before commit**: format and lint changed files only, run by `lefthook` from `lefthook.yml`, installed by the `prepare` script on `pnpm install`. Typecheck, `cargo check`, and tests are left to CI, because a cold Rust build in a commit hook trains people to use `--no-verify`
-- **Continuous integration**: full checks on every push, in `.github/workflows/ci.yml`. It runs `pnpm check` (which is `cargo fmt --check`, clippy denying warnings, `tsc`, ESLint, `cargo test`, Vitest, then both builds) against a Postgres service container, then `pnpm sqlx:check` and `pnpm client:check`. Playwright joins once slice 1 exists
+- **Continuous integration**: full checks on every push, in `.github/workflows/ci.yml`. It runs `pnpm check` (which is `cargo fmt --check`, clippy denying warnings, `tsc`, ESLint, `cargo test`, Vitest, then both builds) against a Postgres service container, then `pnpm sqlx:check` and `pnpm client:check`, and finally `pnpm e2e`, the Playwright two device scenario, which runs last because it needs a browser, a seeded database and a running API
 - **Generated artifacts are committed**: the `.sqlx` offline cache and the generated TypeScript API client. CI regenerates both and fails if the result differs, so a renamed Rust field breaks the pull request instead of a Saturday night
 
 ## Git

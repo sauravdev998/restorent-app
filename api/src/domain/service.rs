@@ -4,6 +4,7 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
+use super::catalog::DiningTable;
 use super::enums::{LineStatus, RoundStatus, VisitStatus};
 use super::ids::{BillId, DiningTableId, DishId, OrderLineId, OrderRoundId, StaffId, VisitId};
 
@@ -114,6 +115,53 @@ pub struct NewOrderLine {
     pub quantity: i32,
     /// What the guest asked for, such as no onions.
     pub note: Option<String>,
+}
+
+/// One table on the floor, and whoever is sitting at it.
+///
+/// A read model rather than an entity: it is the answer to one question a
+/// waiter's screen asks, assembled from three tables. Kept in the domain
+/// because what a floor is made of is a product fact, not a database detail.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FloorTable {
+    /// The table itself.
+    pub table: DiningTable,
+    /// Who is at it, or [`None`] when it is free.
+    pub occupancy: Option<TableOccupancy>,
+}
+
+/// What a waiter needs to know about an occupied table without opening it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableOccupancy {
+    /// The one open visit on this table, which the partial unique index
+    /// guarantees is at most one.
+    pub visit_id: VisitId,
+    /// What to call the waiter who seated them. A name, not a rule: any waiter
+    /// may act on any table, and a real floor hands tables over at a shift
+    /// change.
+    pub opened_by: String,
+    /// When they sat down.
+    pub opened_at: DateTime<Utc>,
+    /// How many of them, when the waiter recorded it.
+    pub guest_count: Option<i16>,
+    /// Whether a ticket on this visit is waiting to be carried out. This is
+    /// what puts a table in front of a waiter who is not watching the alert.
+    pub food_ready: bool,
+}
+
+/// One ticket as the kitchen screen reads it.
+///
+/// The table label rides along because a chef needs to know where the food is
+/// going and has no other way to find out: a ticket names a visit, and a visit
+/// names a table, neither of which means anything on a kitchen screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KitchenTicket {
+    /// The ticket.
+    pub round: OrderRound,
+    /// Where the food is going.
+    pub table_label: String,
+    /// Every dish on it, oldest first.
+    pub lines: Vec<OrderLine>,
 }
 
 /// Works out where a whole ticket has got to from the dishes on it.

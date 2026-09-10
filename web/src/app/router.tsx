@@ -10,7 +10,8 @@ import { RestaurantSettings } from '@/admin/routes/restaurant-settings'
 import { KitchenHome } from '@/kitchen/routes/kitchen-home'
 import { identityQuery, type Identity, type Role } from '@/shared/session/identity'
 import { landingFor, REGISTER_PATH, signInPathFor, SIGN_IN_PATH } from '@/shared/session/signed-out'
-import { WaiterHome } from '@/waiter/routes/waiter-home'
+import { WaiterFloor } from '@/waiter/routes/floor'
+import { WaiterTable } from '@/waiter/routes/table'
 
 import { queryClient } from './query-client'
 import { ErrorScreen } from './error-screen'
@@ -148,7 +149,10 @@ export const router = createBrowserRouter([
       {
         path: 'waiter',
         loader: requireRole('waiter'),
-        children: [{ index: true, element: <WaiterHome /> }],
+        children: [
+          { index: true, element: <WaiterFloor /> },
+          { path: 'tables/:visitId', element: <WaiterTable /> },
+        ],
       },
       {
         path: 'kitchen',

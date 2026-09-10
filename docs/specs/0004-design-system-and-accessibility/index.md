@@ -1,7 +1,7 @@
 # 0004. Design system and accessibility baseline
 
 **Date**: 2026-09-01
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

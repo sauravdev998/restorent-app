@@ -100,14 +100,70 @@ impl Database {
     pub async fn begin_scoped(&self, restaurant_id: RestaurantId) -> DomainResult<ScopedTx<'_>> {
         let mut tx = self.pool.begin().await?;
 
+        Self::apply_scope(&mut tx, restaurant_id).await?;
+
+        Ok(ScopedTx::new(tx, restaurant_id))
+    }
+
+    /// The same, but every statement in it sees one moment in time.
+    ///
+    /// For a read that assembles a document out of several statements, which is
+    /// what the visit screen, the kitchen queue, and the floor all are.
+    ///
+    /// The default isolation level is `READ COMMITTED`, and under it each
+    /// statement takes its own fresh snapshot. That is fine for a single query
+    /// and quietly wrong for a document: a chef's write can commit between two
+    /// of the statements, and the answer then carries half of it. The shape that
+    /// actually reached a waiter's screen was a ticket reading "cooking" with
+    /// every dish on it reading "ready", which is a state that never existed in
+    /// the database and which stopped the ready alert from ever firing. The
+    /// window is milliseconds on a database next door and a good deal wider on
+    /// one across the internet, which is the sort of bug that hides in
+    /// development and appears on a busy Friday.
+    ///
+    /// `REPEATABLE READ` takes one snapshot for the whole transaction, so every
+    /// statement in it agrees. It costs nothing for a read only transaction:
+    /// serialization failures under this level come from writes, and there are
+    /// none here. Use [`Self::begin_scoped`] for anything that writes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DomainError::Unavailable`] if the transaction cannot be opened.
+    pub async fn begin_scoped_snapshot(
+        &self,
+        restaurant_id: RestaurantId,
+    ) -> DomainResult<ScopedTx<'_>> {
+        let mut tx = self.pool.begin().await?;
+
+        // Before anything else, including the scope. Postgres refuses to change
+        // the isolation level once a statement has run in the transaction.
+        sqlx::raw_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+            .execute(&mut *tx)
+            .await?;
+
+        Self::apply_scope(&mut tx, restaurant_id).await?;
+
+        Ok(ScopedTx::new(tx, restaurant_id))
+    }
+
+    /// Puts the restaurant on the transaction, for the row level security
+    /// policies to read.
+    ///
+    /// `set_config(..., true)` is `SET LOCAL`: it lasts for this transaction
+    /// only, so a pooled connection can never carry one request's restaurant
+    /// into the next request.
+    async fn apply_scope(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        restaurant_id: RestaurantId,
+    ) -> DomainResult<()> {
         sqlx::query!(
             "SELECT set_config('app.restaurant_id', $1, true)",
             restaurant_id.to_string()
         )
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
 
-        Ok(ScopedTx::new(tx, restaurant_id))
+        Ok(())
     }
 
     /// Asks the pool a trivial question, for the health endpoint.

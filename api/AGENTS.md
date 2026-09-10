@@ -50,6 +50,7 @@ pnpm openapi:generate                               # rewrite api/openapi.json
 
 - **Imports point inward only.** No `axum` and no `sqlx` type appears in `domain/` or `application/`. A use case reaches the world through a trait it declares in `application/ports.rs`.
 - **Every query goes through `Database::begin_scoped`.** It returns a `ScopedTx` with `app.restaurant_id` already set. `ScopedTx::new` is visible only inside `infrastructure::db`, so there is no other way to build one.
+- **A read that assembles a document uses `Database::begin_scoped_snapshot` instead.** Same scoping, but at `REPEATABLE READ`, so every statement in the transaction sees one moment. Writes keep using `begin_scoped`.
 - **Only `infrastructure::config` reads the environment.** Everything else takes a typed value.
 - **`#![deny(missing_docs)]`.** Every public item carries a doc comment. No `unwrap` or `expect` outside tests and `main`.
 - **One error shape.** Handlers return `DomainError`; `presentation/error.rs` maps it to a status code and a JSON body. A database message stays in the logs and never rides out on a response.
@@ -70,6 +71,7 @@ pnpm openapi:generate                               # rewrite api/openapi.json
 - **Exactly two paths read across restaurants**, both `SECURITY DEFINER` functions owned by `auth_lookup` rather than by the schema owner: the credential lookup from `0002` and `resolve_session` from `0004`. Owned by the schema owner instead, `FORCE ROW LEVEL SECURITY` filters them to nothing and nobody can sign in. A migration that drops and recreates one must re assert the owner and the grant, because a `DROP` takes both with it.
 - **`/api/dev/notify` exists only in development and is deliberately absent from the OpenAPI document**, so it is absent from the typed client too. That is on purpose: the document describes the real API surface.
 - **The listen connection dying ends every stream on the instance.** That is intended. A screen that looks connected while receiving nothing is worse than one that reconnects and refetches.
+- **A multi statement read at `READ COMMITTED` can return a state the database never held.** Each statement takes its own snapshot, so a write landing between two of them is half visible. The real one: a ticket read as `cooking` while every dish on it read `ready`, and the waiter's ready alert then never fired. `begin_scoped_snapshot` is the fix, and the window is milliseconds locally and much wider against a database across the internet, so this hides in development.
 - **`0001_bootstrap.sql` creates no tables.** Feature 4 owns the schema. What it creates is the plumbing every later table uses.
 
 ## Agent skills

@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::domain::audit::AuditAction;
 use crate::domain::billing::{Bill, BillTax, Payment};
 use crate::domain::enums::{BillStatus, PaymentMethod, VisitStatus};
-use crate::domain::error::{DomainError, DomainResult};
+use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::event::EntityKind;
 use crate::domain::ids::{BillId, BillTaxId, OrderLineId, PaymentId, StaffId, VisitId};
 use crate::domain::money::{Currency, apply_percent};
@@ -102,6 +102,36 @@ pub async fn bill_taxes(tx: &mut ScopedTx<'_>, bill_id: BillId) -> DomainResult<
         .collect())
 }
 
+/// The visit's bill: the open one while the meal is on, the most recent after.
+///
+/// A visit has exactly one in this slice, because opening a table creates one
+/// and nothing else creates another. Written as an ordering rather than an
+/// assertion so that splitting a bill, which feature 23 owns, changes what this
+/// returns instead of contradicting a promise made here.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if the read fails.
+pub async fn latest_bill_of(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+) -> DomainResult<Option<BillId>> {
+    let found = sqlx::query!(
+        r#"
+        SELECT id
+        FROM bills
+        WHERE visit_id = $1
+        ORDER BY (status = 'open') DESC, created_at DESC
+        LIMIT 1
+        "#,
+        visit_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?;
+
+    Ok(found.map(|row| BillId::from_uuid(row.id)))
+}
+
 /// Which local day a closed bill belongs to.
 ///
 /// Worked out from the restaurant's own timezone, never the server's. A
@@ -159,9 +189,9 @@ pub async fn open_bill(
     .ok_or(DomainError::NotFound)?;
 
     if visit.status != VisitStatus::Open {
-        return Err(DomainError::Conflict(
-            "that party has already left".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitNot(
+            VisitStatus::Open,
+        )));
     }
 
     let restaurant = catalog::restaurant(tx).await?;
@@ -255,9 +285,9 @@ pub async fn assign_lines_to_bill(
     for row in &locked {
         if row.status != BillStatus::Open {
             return Err(DomainError::Conflict(if row.id == bill_id.as_uuid() {
-                "that bill is no longer open".to_owned()
+                ConflictKind::BillNotOpen
             } else {
-                "one of those dishes is on a bill that has already closed".to_owned()
+                ConflictKind::LineOnClosedBill
             }));
         }
     }
@@ -353,10 +383,7 @@ pub async fn close_bill(
     .ok_or(DomainError::NotFound)?;
 
     if locked.status != BillStatus::Open {
-        return Err(DomainError::Conflict(format!(
-            "that bill is already {}",
-            locked.status.as_label()
-        )));
+        return Err(DomainError::Conflict(ConflictKind::BillAlreadyClosed));
     }
 
     let figures = closing_figures(tx, bill_id).await?;
@@ -429,17 +456,13 @@ async fn closing_figures(tx: &mut ScopedTx<'_>, bill_id: BillId) -> DomainResult
     .await?;
 
     if lines.still_out > 0 {
-        return Err(DomainError::Conflict(
-            "a dish on this bill has not reached the table yet".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::BillHasUnservedLines));
     }
 
     if lines.countable == 0 {
         // Refused rather than closed at zero, so an empty bill never consumes a
         // number and the sequence stays gapless.
-        return Err(DomainError::Conflict(
-            "a bill with nothing on it cannot be closed".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::BillHasNoLines));
     }
 
     let restaurant = catalog::restaurant(tx).await?;
@@ -611,9 +634,7 @@ pub async fn record_payment(
     .ok_or(DomainError::NotFound)?;
 
     if target.status != BillStatus::Closed {
-        return Err(DomainError::Conflict(
-            "a bill has to be closed before it can be paid".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::BillNotClosed));
     }
 
     let restaurant_id = tx.restaurant_id().as_uuid();

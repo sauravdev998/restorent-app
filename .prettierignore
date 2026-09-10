@@ -4,6 +4,8 @@ api/target/
 web/dist/
 infra/cdk.out/
 infra/dist/
+web/test-results/
+web/playwright-report/
 pnpm-lock.yaml
 
 # Generated, and generated with their own formatting. Continuous integration

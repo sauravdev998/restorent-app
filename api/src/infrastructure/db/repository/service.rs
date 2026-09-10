@@ -12,16 +12,21 @@
 //! **A ticket's status is recomputed, never decided.** It is stored, because the
 //! kitchen queue needs to filter on it, but every write that touches a line
 //! recomputes the whole ticket from all of its lines inside the same
-//! transaction. The rule itself lives in the domain, in
-//! [`round_status_from_lines`].
+//! transaction, under the ticket's own row lock. The rule itself lives in the
+//! domain, in [`round_status_from_lines`]; the lock is what makes it hold when
+//! two dishes on one ticket are marked at the same instant.
 
+use crate::domain::catalog::DiningTable;
 use crate::domain::enums::{LineStatus, RoundStatus, VisitStatus};
-use crate::domain::error::{DomainError, DomainResult};
+use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::event::EntityKind;
 use crate::domain::ids::{
-    BillId, DiningTableId, DishId, OrderLineId, OrderRoundId, StaffId, VisitId,
+    BillId, DiningTableId, DishId, OrderLineId, OrderRoundId, StaffId, TableSectionId, VisitId,
 };
-use crate::domain::service::{NewOrderLine, OrderLine, OrderRound, Visit, round_status_from_lines};
+use crate::domain::service::{
+    FloorTable, KitchenTicket, NewOrderLine, OrderLine, OrderRound, TableOccupancy, Visit,
+    round_status_from_lines,
+};
 
 use super::super::{Database, ScopedTx};
 use super::conflict_on;
@@ -158,6 +163,217 @@ pub async fn lines_for_round(
     Ok(lines)
 }
 
+/// The whole floor as a waiter sees it, in the order it is walked.
+///
+/// One statement rather than a table read followed by a visit read per table.
+/// A restaurant's floor is small, but the shape matters more than the size: two
+/// reads would let a table be opened between them, and the screen would show a
+/// table as free that a colleague had just taken.
+///
+/// Archived tables are left out. An archived section is not: its tables are
+/// still real tables somebody can sit at, so they come back here and the
+/// handler groups them where a section list can no longer name them.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if the read fails.
+pub async fn floor(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<FloorTable>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.archived_at,
+               v.id            AS "visit_id?",
+               v.opened_at     AS "opened_at?",
+               v.guest_count   AS "guest_count?",
+               opener.display_name AS "opened_by?",
+               EXISTS (
+                   SELECT 1 FROM order_rounds AS r
+                   WHERE r.visit_id = v.id AND r.status = 'ready'
+               )               AS "food_ready?"
+        FROM dining_tables AS t
+        LEFT JOIN table_sections AS s ON s.id = t.section_id
+        LEFT JOIN visits AS v ON v.table_id = t.id AND v.status = 'open'
+        LEFT JOIN staff AS opener ON opener.id = v.opened_by_staff_id
+        WHERE t.archived_at IS NULL
+        ORDER BY s.position NULLS LAST, s.name NULLS LAST, t.position, t.label
+        "#
+    )
+    .fetch_all(tx.connection())
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            // All four visit columns come from the same LEFT JOIN, so they are
+            // present together or absent together. Built from the visit id
+            // rather than from each one separately, so a half occupied table is
+            // not representable.
+            let occupancy = row.visit_id.map(|visit_id| TableOccupancy {
+                visit_id: VisitId::from_uuid(visit_id),
+                // A visit always has an opener: the column is not null and the
+                // staff row is never deleted. The fallback exists so a read
+                // cannot fail on a row that a future deletion made incomplete.
+                opened_by: row.opened_by.unwrap_or_default(),
+                opened_at: row.opened_at.unwrap_or_else(chrono::Utc::now),
+                guest_count: row.guest_count,
+                food_ready: row.food_ready.unwrap_or(false),
+            });
+
+            FloorTable {
+                table: DiningTable {
+                    id: DiningTableId::from_uuid(row.id),
+                    section_id: row.section_id.map(TableSectionId::from_uuid),
+                    label: row.label,
+                    seats: row.seats,
+                    position: row.position,
+                    archived_at: row.archived_at,
+                },
+                occupancy,
+            }
+        })
+        .collect())
+}
+
+/// Every ticket the kitchen still has work on, oldest first.
+///
+/// `queued` and `ready` only. A served ticket has left the pass and a voided one
+/// was cancelled, and neither belongs on a screen a chef is cooking from.
+///
+/// Ordered by when it was sent, which is the order a kitchen works in, with the
+/// identifier breaking a tie so two tickets sent in the same instant do not swap
+/// places between two refetches.
+///
+/// Deliberately unlimited. A kitchen queue is bounded by the food a kitchen can
+/// physically have open at once, which is a fact about restaurants rather than a
+/// guarantee about this endpoint; feature 13 owns giving it an explicit ceiling.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if a read fails.
+pub async fn kitchen_queue(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<KitchenTicket>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT r.id, r.visit_id, r.sequence_no, r.status AS "status: RoundStatus",
+               r.sent_by_staff_id, r.sent_at, r.ready_at, r.served_at,
+               t.label AS table_label
+        FROM order_rounds AS r
+        JOIN visits AS v ON v.id = r.visit_id
+        JOIN dining_tables AS t ON t.id = v.table_id
+        WHERE r.status IN ('queued', 'ready')
+        ORDER BY r.sent_at, r.id
+        "#
+    )
+    .fetch_all(tx.connection())
+    .await?;
+
+    let mut tickets = Vec::with_capacity(rows.len());
+
+    for row in rows {
+        let round_id = OrderRoundId::from_uuid(row.id);
+
+        tickets.push(KitchenTicket {
+            round: OrderRound {
+                id: round_id,
+                visit_id: VisitId::from_uuid(row.visit_id),
+                sequence_no: row.sequence_no,
+                status: row.status,
+                sent_by_staff_id: StaffId::from_uuid(row.sent_by_staff_id),
+                sent_at: row.sent_at,
+                ready_at: row.ready_at,
+                served_at: row.served_at,
+            },
+            table_label: row.table_label,
+            lines: lines_for_round(tx, round_id).await?,
+        });
+    }
+
+    Ok(tickets)
+}
+
+/// Every ticket on one visit, oldest first.
+///
+/// Unlike [`kitchen_queue`] this keeps every status, because the waiter's table
+/// screen is a record of the whole meal rather than a work queue.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if a read fails.
+pub async fn rounds_for_visit(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+) -> DomainResult<Vec<(OrderRound, Vec<OrderLine>)>> {
+    let ids = sqlx::query!(
+        "SELECT id FROM order_rounds WHERE visit_id = $1 ORDER BY sequence_no",
+        visit_id.as_uuid()
+    )
+    .fetch_all(tx.connection())
+    .await?;
+
+    let mut rounds = Vec::with_capacity(ids.len());
+
+    for row in ids {
+        let round_id = OrderRoundId::from_uuid(row.id);
+        let sent = round(tx, round_id).await?;
+        let lines = lines_for_round(tx, round_id).await?;
+        rounds.push((sent, lines));
+    }
+
+    Ok(rounds)
+}
+
+/// What the staff call one table.
+///
+/// A read of its own rather than a join onto every visit read, because the
+/// label is the only thing about a table that a visit screen shows and pulling
+/// the whole row for it would invite somebody to start using the rest.
+///
+/// # Errors
+///
+/// Returns [`DomainError::NotFound`] if no such table belongs to this
+/// restaurant. Archived tables are included: a party may still be sitting at a
+/// table the restaurant has since taken out of use, and their screen has to
+/// name it.
+pub async fn table_label(tx: &mut ScopedTx<'_>, table_id: DiningTableId) -> DomainResult<String> {
+    let row = sqlx::query!(
+        "SELECT label FROM dining_tables WHERE id = $1",
+        table_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .ok_or(DomainError::NotFound)?;
+
+    Ok(row.label)
+}
+
+/// The one open bill on a visit, if it has one.
+///
+/// A visit has at most one open bill in this slice, because opening a table
+/// creates exactly one and nothing else opens another. Splitting a bill would
+/// change that, which is why this returns the bill rather than asserting there
+/// is only ever one.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if the read fails.
+pub async fn open_bill_of(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+) -> DomainResult<Option<BillId>> {
+    let found = sqlx::query!(
+        r#"
+        SELECT id
+        FROM bills
+        WHERE visit_id = $1 AND status = 'open'
+        ORDER BY created_at
+        LIMIT 1
+        "#,
+        visit_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?;
+
+    Ok(found.map(|row| BillId::from_uuid(row.id)))
+}
+
 /// Seats a party at a table.
 ///
 /// The table holding at most one open visit is a database guarantee, not a check
@@ -200,7 +416,7 @@ pub async fn open_visit(
         conflict_on(
             error,
             "visits_one_open_per_table",
-            "that table already has a party at it",
+            ConflictKind::TableOccupied,
         )
     })?;
 
@@ -240,12 +456,12 @@ pub async fn move_visit(
         conflict_on(
             error,
             "visits_one_open_per_table",
-            "that table already has a party at it",
+            ConflictKind::TableOccupied,
         )
     })?;
 
     if moved.is_none() {
-        return Err(visit_conflict(tx, visit_id, "open").await);
+        return Err(visit_conflict(tx, visit_id, VisitStatus::Open).await);
     }
 
     Database::notify_entity_change(tx, EntityKind::Visit, visit_id.as_uuid()).await?;
@@ -285,15 +501,11 @@ pub async fn close_visit(tx: &mut ScopedTx<'_>, visit_id: VisitId) -> DomainResu
     .await?;
 
     if blockers.bill_still_open {
-        return Err(DomainError::Conflict(
-            "a bill on this visit is still open".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitHasOpenBill));
     }
 
     if blockers.line_unassigned {
-        return Err(DomainError::Conflict(
-            "a dish on this visit has not been put on a bill".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitHasUnbilledLine));
     }
 
     let closed = sqlx::query!(
@@ -309,7 +521,7 @@ pub async fn close_visit(tx: &mut ScopedTx<'_>, visit_id: VisitId) -> DomainResu
     .await?;
 
     if closed.is_none() {
-        return Err(visit_conflict(tx, visit_id, "open").await);
+        return Err(visit_conflict(tx, visit_id, VisitStatus::Open).await);
     }
 
     Database::notify_entity_change(tx, EntityKind::Visit, visit_id.as_uuid()).await?;
@@ -353,9 +565,9 @@ pub async fn send_round(
     .ok_or(DomainError::NotFound)?;
 
     if locked.status != VisitStatus::Open {
-        return Err(DomainError::Conflict(
-            "that party has already left".to_owned(),
-        ));
+        return Err(DomainError::Conflict(ConflictKind::VisitNot(
+            VisitStatus::Open,
+        )));
     }
 
     let next_sequence = sqlx::query!(
@@ -605,6 +817,28 @@ async fn recompute_round_status(
     tx: &mut ScopedTx<'_>,
     round_id: OrderRoundId,
 ) -> DomainResult<RoundStatus> {
+    // The ticket's own row, locked, before its dishes are read.
+    //
+    // This is what makes the recompute correct when two dishes on one ticket
+    // are marked at the same moment, which is an ordinary evening in a kitchen
+    // with two chefs. Without it both transactions read the lines under their
+    // own snapshot, each sees the other's dish still queued, and both write
+    // "queued" back. The ticket then sits for ever as cooking with every dish
+    // on it ready, the waiter is never told the food is up, and nothing
+    // anywhere reports an error.
+    //
+    // With the lock the second recompute waits, and when it runs its next
+    // statement it takes a fresh snapshot that includes the first one's
+    // committed line. Only one round is ever locked here, so there is no order
+    // for two transactions to disagree about and no deadlock to have.
+    sqlx::query!(
+        "SELECT id FROM order_rounds WHERE id = $1 FOR UPDATE",
+        round_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .ok_or(DomainError::NotFound)?;
+
     let rows = sqlx::query!(
         r#"SELECT status AS "status: LineStatus" FROM order_lines WHERE round_id = $1"#,
         round_id.as_uuid()
@@ -674,37 +908,36 @@ async fn line_conflict(
     expected: LineStatus,
 ) -> DomainError {
     let found = sqlx::query!(
-        r#"SELECT status AS "status: LineStatus" FROM order_lines WHERE id = $1"#,
+        "SELECT id FROM order_lines WHERE id = $1",
         line_id.as_uuid()
     )
     .fetch_optional(tx.connection())
     .await;
 
+    // The conflict names the state the writer expected rather than the state it
+    // found, and that is deliberate. What the reader needs to be told is which
+    // action was refused, and the row may well have moved again between the
+    // failed update and this read, so reporting what it says now would be a
+    // sentence about a moment that has already passed.
     match found {
-        Ok(Some(row)) => DomainError::Conflict(format!(
-            "that dish is already {}, not {}",
-            row.status.as_label(),
-            expected.as_label()
-        )),
+        Ok(Some(_)) => DomainError::Conflict(ConflictKind::LineNot(expected)),
         Ok(None) => DomainError::NotFound,
         Err(error) => DomainError::from(error),
     }
 }
 
 /// The same, for a visit.
-async fn visit_conflict(tx: &mut ScopedTx<'_>, visit_id: VisitId, expected: &str) -> DomainError {
-    let found = sqlx::query!(
-        r#"SELECT status AS "status: VisitStatus" FROM visits WHERE id = $1"#,
-        visit_id.as_uuid()
-    )
-    .fetch_optional(tx.connection())
-    .await;
+async fn visit_conflict(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+    expected: VisitStatus,
+) -> DomainError {
+    let found = sqlx::query!("SELECT id FROM visits WHERE id = $1", visit_id.as_uuid())
+        .fetch_optional(tx.connection())
+        .await;
 
     match found {
-        Ok(Some(row)) => DomainError::Conflict(format!(
-            "that visit is already {}, not {expected}",
-            row.status.as_label()
-        )),
+        Ok(Some(_)) => DomainError::Conflict(ConflictKind::VisitNot(expected)),
         Ok(None) => DomainError::NotFound,
         Err(error) => DomainError::from(error),
     }

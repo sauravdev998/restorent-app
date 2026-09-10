@@ -15,7 +15,7 @@
 
 mod common;
 
-use api::domain::enums::LineStatus;
+use api::domain::enums::{LineStatus, RoundStatus};
 use api::domain::error::DomainError;
 use api::domain::ids::{DishId, RestaurantId, StaffId, VisitId};
 use api::domain::service::NewOrderLine;
@@ -440,4 +440,124 @@ async fn the_pool_is_still_usable_after_the_races() {
         database.is_reachable().await,
         "the database stopped answering"
     );
+}
+
+/// AC-7, AC-8: two chefs marking two different dishes on the same ticket at the
+/// same moment still leave the ticket ready.
+///
+/// A regression test for a bug that reached a real kitchen screen. Both
+/// transactions recomputed the ticket from its lines under their own snapshot,
+/// each saw the other's dish still queued, and both wrote "queued" back. The
+/// ticket then sat for ever reading "cooking" with every dish on it reading
+/// "ready", the waiter was never told the food was up, and nothing anywhere
+/// reported an error.
+///
+/// This is not an exotic race. It is two chefs working one ticket, which is
+/// what a kitchen with two chefs does all evening.
+///
+/// The fix is the ticket's own row lock, taken before its dishes are read, so
+/// the second recompute waits and then sees the first one's committed line.
+#[tokio::test]
+async fn two_dishes_on_one_ticket_marked_at_once_still_leave_it_ready() {
+    let database = common::database().await;
+    let restaurant_id = RestaurantId::new();
+
+    let mut setup = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening scoped");
+    let f = common::seed(&mut setup, restaurant_id).await;
+
+    let visit = service::open_visit(&mut setup, f.table_one, f.waiter, None)
+        .await
+        .expect("seating a party");
+
+    let (round, lines) = service::send_round(
+        &mut setup,
+        visit.id,
+        f.waiter,
+        &[
+            NewOrderLine {
+                dish_id: f.soup,
+                quantity: 1,
+                note: None,
+            },
+            NewOrderLine {
+                dish_id: f.steak,
+                quantity: 1,
+                note: None,
+            },
+        ],
+    )
+    .await
+    .expect("sending the ticket");
+
+    setup.commit().await.expect("committing the fixture");
+
+    let (first_line, second_line) = (lines[0].id, lines[1].id);
+
+    // The first chef marks their dish and holds the transaction open, which is
+    // what a request still in flight looks like to everybody else.
+    let mut first = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening the first chef's transaction");
+    service::mark_line_ready(&mut first, first_line, f.chef)
+        .await
+        .expect("the first dish comes off the pass");
+
+    // The second chef marks the other dish while that is still open. Their
+    // recompute blocks on the ticket's lock rather than reading around it.
+    let second = tokio::spawn({
+        let database = database.clone();
+        let chef = f.chef;
+        async move {
+            let mut tx = database
+                .begin_scoped(restaurant_id)
+                .await
+                .expect("opening the second chef's transaction");
+            let outcome = service::mark_line_ready(&mut tx, second_line, chef).await;
+            tx.commit().await.expect("committing the second chef's tap");
+            outcome
+        }
+    });
+
+    // Long enough for the second transaction to have reached the lock and
+    // stopped there. Nothing is being timed; this is what makes the overlap
+    // real rather than hoped for.
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    first
+        .commit()
+        .await
+        .expect("committing the first chef's tap");
+
+    second
+        .await
+        .expect("the second chef's task finished")
+        .expect("the second dish comes off the pass");
+
+    let mut reader = database
+        .begin_scoped_snapshot(restaurant_id)
+        .await
+        .expect("opening a reader");
+
+    let after = service::round(&mut reader, round.id)
+        .await
+        .expect("reading the ticket");
+
+    assert_eq!(
+        after.status,
+        RoundStatus::Ready,
+        "both dishes are off the pass and the ticket still reads {:?}, so the \
+         waiter is never told the food is up",
+        after.status
+    );
+    assert!(
+        after.ready_at.is_some(),
+        "the ticket reads ready with no time on it"
+    );
+
+    reader.rollback().await.expect("ending the read");
+    common::drop_restaurant(&database, restaurant_id).await;
 }

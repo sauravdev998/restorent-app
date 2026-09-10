@@ -14,11 +14,11 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 1 | Stack and architecture | Foundation | done |
 | 2 | Coding standards and tooling | Foundation | done |
 | 3 | Error and crash monitoring | Foundation | dropped |
-| 4 | Core data model | Foundation | in-progress |
-| 5 | Design system and accessibility baseline | Foundation | in-progress |
-| 6 | Language and text foundation | Foundation | in-progress |
+| 4 | Core data model | Foundation | done |
+| 5 | Design system and accessibility baseline | Foundation | done |
+| 6 | Language and text foundation | Foundation | done |
 | 7 | Accounts, restaurants, and roles | Foundation | done |
-| 8 | The thin order thread | Slice 1 | planned |
+| 8 | The thin order thread | Slice 1 | done |
 | 9 | Menu management | Slice 2 | planned |
 | 10 | Staff accounts | Slice 2 | planned |
 | 11 | Tables and floor plan | Slice 2 | planned |
@@ -62,7 +62,7 @@ Dropped on 8 August 2026: you do not want it. Kept as a row so the numbering and
 What stands in for it: structured logs going to CloudWatch, already decided in spec [0001](../specs/0001-stack-and-architecture/index.md). That tells you what happened once you go looking; it does not tell you a waiter's screen broke mid shift. Accepted trade off.
 No boxes. If you change your mind, run `/architect error and crash monitoring` and this row comes back to life.
 
-### 4. Core data model
+### 4. Core data model · done
 The entities everything else is built on: restaurants, staff and their roles, menu categories and dishes, tables, bills, order rounds, order lines with per dish status, and payment records. Multi restaurant separation lives here, and it is the most expensive thing in the project to get wrong.
 **Done when:** the schema supports one open bill per table with many rounds, per dish status, per restaurant currency and tax settings, and strict data separation between restaurants, all without a breaking change when later slices land.
 spec [0003](../specs/0003-core-data-model/index.md) · code in `api/migrations/0002_core_data_model.sql`, `api/scripts/init-roles.sql`, `api/src/domain/`, `api/src/infrastructure/db/`, `api/tests/`
@@ -78,7 +78,7 @@ spec [0003](../specs/0003-core-data-model/index.md) · code in `api/migrations/0
 - [x] Review it (fresh model): `/check review core data model`
 - [x] Document it: `/document core data model`
 
-### 5. Design system and accessibility baseline
+### 5. Design system and accessibility baseline · done
 The visual language and base components every screen uses, built for three very different contexts: an admin on a desktop, a waiter on a phone, a chef on a kitchen screen read from a distance. The accessibility target is set here and then applied by every later feature rather than being its own row.
 **Done when:** `design.md` covers type, colour, spacing, and the base components; components handle keyboard use and focus; the chosen accessibility level is written down and the base components meet it.
 spec [0004](../specs/0004-design-system-and-accessibility/index.md) · design in `docs/design.md` · code in `web/src/styles/index.css`, `web/src/shared/ui/`, `web/src/app/design/`, `web/scripts/check-contrast.ts`, `web/eslint.config.js`, `web/src/test/axe.tsx`
@@ -94,7 +94,7 @@ spec [0004](../specs/0004-design-system-and-accessibility/index.md) · design in
 - [x] Review it (fresh model): `/check review design system and accessibility baseline`
 - [x] Document it: `/document design system and accessibility baseline`
 
-### 6. Language and text foundation
+### 6. Language and text foundation · done
 Every piece of text in the app comes from a translation file from the first screen onward, plus how a user's language is chosen and stored. Cheap now, painful to retrofit once twenty screens exist.
 **Done when:** no screen has hard coded user facing text, a second language can be added by dropping in one file, and a staff member's language choice sticks across sessions.
 spec [0005](../specs/0005-language-and-text-foundation/index.md) · catalogue in `locales/` · code in `web/src/shared/i18n/`, `web/src/shared/format/`, `web/src/locales/`, `api/src/domain/language.rs`, `api/migrations/0003_language_and_formatting.sql` · gates in `web/scripts/check-locales.ts`, `web/eslint.config.js`
@@ -130,10 +130,21 @@ spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) · verify [00
 
 One narrow path pushed through every layer, working for real. No breadth: one table, one dish, one round, the plainest screens. This proves the whole pipe connects, which is the scariest risk in the project, and it is also the walking skeleton. Everything after this thickens one segment of this thread.
 
-### 8. The thin order thread · needs a decision
+### 8. The thin order thread · done
 A waiter opens a bill on a table and adds one dish, the kitchen sees the ticket appear live, the chef marks the dish done, the ticket flips to ready and the waiter's screen updates with a sound, and the waiter closes the bill with a total. Real database, real login, real screens, narrow on purpose.
 **Done when:** on two devices at once, a dish sent by the waiter appears on the kitchen screen within a second or two without a refresh; marking it done flips the ticket to ready and alerts the waiter the same way; closing the bill records a total; and the order's state changes are safe when two people act at the same time.
-- [ ] Design it (spec): `/architect the thin order thread`
+spec [0007](../specs/0007-the-thin-order-thread/index.md) · verify [0007](../specs/0007-the-thin-order-thread/verify.md) · no migration: it reaches the schema and the eleven operations spec [0003](../specs/0003-core-data-model/index.md) already built · api in `api/src/presentation/handlers/{menu,service,billing}.rs`, `api/src/presentation/dto.rs`, `api/src/domain/error.rs` (`ConflictKind`), `api/src/infrastructure/db/repository/{service,billing,catalog,accounts}.rs`, `api/src/bin/seed.rs`, `api/tests/order_thread.rs` · web in `web/src/waiter/`, `web/src/kitchen/`, `web/src/shared/events/{query-keys,server-clock}.ts`, `web/src/shared/ui/stream-warning.tsx` · browser test in `web/e2e/order-thread.spec.ts`, `web/playwright.config.ts`
+- [x] Design it (spec): `/architect the thin order thread`
+- [x] Build it: `/develop the thin order thread`
+  - [x] Ground for the thread to run on: the grown seed (tables, menu, a waiter and a chef) and the conflict codes that let a refusal be read in the reader's own language (AC-12, AC-13, AC-17)
+  - [x] The thread, top to bottom: the floor and menu reads, opening a table, sending a round, the kitchen queue, marking a dish ready, and the two screens that make it visible on two devices (AC-1, AC-3, AC-4, AC-5, AC-7, AC-14)
+  - [x] Live updates narrowed and the clock made honest: the entity keyed query keys with their fan out map, and ages computed against the server's time rather than the tablet's (AC-6, AC-15)
+  - [x] Back to the waiter and out: the visit document, the serve action, the ready alert that announces and chimes once per round, and the close that writes the total and frees the table (AC-8, AC-9, AC-10, AC-11, AC-12)
+  - [x] Honest when it breaks, and proven: connection states with both screens still usable, pending taps with no cache optimism, the two device Playwright run, and the rest of the tests and words (AC-2, AC-13, AC-16, AC-18, AC-19)
+- [x] Verify it: `/check verify the thin order thread`
+- [x] Test it: `/test the thin order thread`
+- [x] Review it (fresh model): `/check review the thin order thread`
+- [x] Document it: `/document the thin order thread`
 
 ## Slice 2: one restaurant set up for real
 

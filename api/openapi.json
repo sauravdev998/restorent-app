@@ -150,6 +150,48 @@
         }
       }
     },
+    "/api/floor": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "The floor, in the order it is walked.",
+        "description": "# Errors\n\nReturns `401` if nobody is signed in, `403` if the caller is not a waiter,\nand `503` if the database is unavailable.",
+        "operationId": "floor",
+        "responses": {
+          "200": {
+            "description": "Every live table and its occupancy. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -175,6 +217,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kitchen/tickets": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "The kitchen queue, oldest first.",
+        "description": "# Errors\n\nReturns `401` if nobody is signed in, `403` if the caller is not a chef, and\n`503` if the database is unavailable.",
+        "operationId": "kitchen_tickets",
+        "responses": {
+          "200": {
+            "description": "Every queued or ready ticket, oldest first. Chefs only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a chef.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -309,6 +393,122 @@
         }
       }
     },
+    "/api/menu": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "The restaurant's live menu, in printed order.",
+        "description": "# Errors\n\nReturns `401` if nobody is signed in, `403` if the caller is not a waiter,\nand `503` if the database is unavailable.",
+        "operationId": "menu",
+        "responses": {
+          "200": {
+            "description": "The live menu. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenuResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/order-lines/{id}/ready": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Marks one dish off the pass.",
+        "description": "Touches that dish and nothing else. The ticket's own status follows from all\nof its dishes and is recomputed inside the same transaction, which is why\nnothing here sets it.\n\n# Errors\n\nReturns `409 line_not_queued` if another chef marked it first, `404` if\nthere is no such dish, `401` if nobody is signed in, and `403` if the caller\nis not a chef.",
+        "operationId": "mark_line_ready",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The dish to mark off the pass.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dish and its ticket's new status. Chefs only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkedLineResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a chef.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such dish.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Somebody marked that dish first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/restaurant": {
       "patch": {
         "tags": [
@@ -370,10 +570,493 @@
           }
         }
       }
+    },
+    "/api/rounds/{id}/served": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Marks a whole ticket as having reached the table.",
+        "description": "The one refusal here that is not a repository operation's own. It reads the\nticket first and refuses unless it is `ready` at that moment, because\n\"somebody has already carried this out\" is what the waiter needs to be told,\nand a line level message about one dish would not say it.\n\nInside the loop it marks every dish that is `ready` and skips one that is\nalready `served` or was cancelled rather than treating either as a conflict.\nTwo waiters serving the same ticket at the same instant is not a mistake\nworth stopping the second one over; only the precheck refuses, and only\nbecause by then the ticket is no longer ready.\n\n# Errors\n\nReturns `409 round_not_ready` if the ticket is not waiting to be carried\nout, `404` if there is no such ticket, `401` if nobody is signed in, and\n`403` if the caller is not a waiter.",
+        "operationId": "mark_round_served",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ticket that reached the table.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ticket after the write. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderRoundDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That ticket is not waiting to be carried out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visits": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Seats a party and opens their bill, in one transaction.",
+        "description": "Both or neither. A visit with no bill would be a table that could take an\norder nobody could be charged for, and it would be discovered at the end of\nthe meal.\n\n# Errors\n\nReturns `409 table_occupied` if somebody else opened that table first, `400`\nif the table is archived or not this restaurant's, `401` if nobody is signed\nin, and `403` if the caller is not a waiter.",
+        "operationId": "open_visit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenVisitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The visit and its bill. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenVisitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No such live table.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That table already has a party at it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visits/{id}": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "One table's whole meal.",
+        "description": "# Errors\n\nReturns `404` if there is no such visit in this restaurant, which is also\nthe answer for another restaurant's visit so the two cannot be told apart,\n`401` if nobody is signed in, and `403` if the caller is not a waiter.",
+        "operationId": "visit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The visit to read.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The visit, its rounds, and its bill. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such visit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visits/{id}/close": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Ends the meal: closes the bill, then closes the visit.",
+        "description": "In that order and in one transaction. `close_visit` refuses while a bill on\nthe visit is still open, so the order is not a preference; and one\ntransaction is what stops a bill being numbered and totalled while its table\nstays occupied for ever because the second write failed.\n\n# Errors\n\nReturns `409 bill_has_unserved_lines` if a dish has not reached the table,\n`409 bill_already_closed` if somebody closed it first, `409\nbill_has_no_lines` if nothing was ordered, `404` if there is no such visit or\nit has no bill, `401` if nobody is signed in, and `403` if the caller is not\na waiter.",
+        "operationId": "close_visit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The visit to close.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The closed bill, with its number and every figure. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such visit, or it has no bill.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A dish is still out, or the bill has already closed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visits/{id}/rounds": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Sends one ticket to the kitchen and puts its dishes on the bill.",
+        "description": "One transaction, so a ticket whose lines are on no bill cannot exist. That\nis what keeps the bill's running subtotal true throughout the meal and\nleaves the close with no assignment left to do.\n\n# Errors\n\nReturns `400` if the basket is empty, a quantity is not positive, or a dish\nis archived or currently unavailable, `409 visit_not_open` if the party has\nleft, `404` if there is no such visit, `401` if nobody is signed in, and\n`403` if the caller is not a waiter.",
+        "operationId": "send_round",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The visit to send the ticket for.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendRoundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The ticket that was sent. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderRoundDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An empty basket, or a dish that cannot be ordered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such visit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "That party has already left.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "BillDto": {
+        "type": "object",
+        "description": "A bill, open or closed, with every figure it currently carries.\n\nThe currency travels with it rather than being read from the restaurant,\nbecause a closed bill keeps the currency it was charged in even after the\nrestaurant changes. A screen formatting a bill must use these two and not\nthe restaurant's current pair.",
+        "required": [
+          "id",
+          "status",
+          "currencyCode",
+          "currencyDecimals",
+          "subtotal",
+          "serviceChargeAmount",
+          "taxTotal",
+          "total",
+          "taxes"
+        ],
+        "properties": {
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it closed, if it has."
+          },
+          "currencyCode": {
+            "type": "string",
+            "description": "What it is charged in."
+          },
+          "currencyDecimals": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many decimal places that currency uses.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which bill this is."
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Its number within the restaurant, allocated at close. `null` while open."
+          },
+          "serviceChargeAmount": {
+            "type": "string",
+            "description": "What that rate came to. Zero rather than null when there is none."
+          },
+          "serviceChargePercent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The service charge rate applied, or `null` when the restaurant charges\nnone."
+          },
+          "status": {
+            "type": "string",
+            "description": "Whether it is still collecting dishes."
+          },
+          "subtotal": {
+            "type": "string",
+            "description": "The sum of its dishes that were not cancelled."
+          },
+          "taxTotal": {
+            "type": "string",
+            "description": "The sum of the tax lines."
+          },
+          "taxes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BillTaxDto"
+            },
+            "description": "The tax breakdown, empty until it closes."
+          },
+          "total": {
+            "type": "string",
+            "description": "Subtotal plus service charge plus taxes, with no residue."
+          }
+        }
+      },
+      "BillTaxDto": {
+        "type": "object",
+        "description": "One tax line copied onto a bill when it closed.",
+        "required": [
+          "name",
+          "ratePercent",
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "What that came to, already rounded to the bill's currency."
+          },
+          "name": {
+            "type": "string",
+            "description": "What the tax was called at the time."
+          },
+          "ratePercent": {
+            "type": "string",
+            "description": "What rate was charged, as an exact decimal string."
+          }
+        }
+      },
       "ChangePasswordRequest": {
         "type": "object",
         "description": "What changing your own password asks for.",
@@ -410,7 +1093,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "description": "A stable machine readable code, safe to branch on in the client.",
+            "description": "A stable machine readable code, safe to branch on in the client.\n\nA refused conflict names which conflict it was, such as\n`table_occupied` or `bill_has_unserved_lines`, rather than the blanket\nword `conflict`. The closed list is\n[`ConflictKind`](crate::domain::error::ConflictKind).",
             "example": "not_found"
           },
           "fields": {
@@ -433,6 +1116,91 @@
             "type": "string",
             "description": "A human readable sentence. Never contains internal detail.\n\nEnglish, and for a log. The web app renders a translation of\n[`Self::error`] instead, because the API is a data API and knows nothing\nabout what language anybody reads.",
             "example": "The requested resource does not exist."
+          }
+        }
+      },
+      "FloorResponse": {
+        "type": "object",
+        "description": "Every table in the restaurant, grouped by section.",
+        "required": [
+          "sections"
+        ],
+        "properties": {
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloorSectionDto"
+            },
+            "description": "The sections, in displayed order, each with its tables."
+          }
+        }
+      },
+      "FloorSectionDto": {
+        "type": "object",
+        "description": "One group of tables.",
+        "required": [
+          "tables"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which section this is, or `null` for the group holding tables that\nbelong to no live section."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it is called, or `null` for that same group. A screen shows those\ntables under a heading of its own choosing, in its own language."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloorTableDto"
+            },
+            "description": "Its tables, in displayed order."
+          }
+        }
+      },
+      "FloorTableDto": {
+        "type": "object",
+        "description": "One table, and whoever is sitting at it.",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table this is."
+          },
+          "label": {
+            "type": "string",
+            "description": "What the staff call it, such as `12` or `Bar 3`."
+          },
+          "occupancy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OccupancyDto",
+                "description": "Who is at it, or `null` when it is free."
+              }
+            ]
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many it seats, when the restaurant recorded it."
           }
         }
       },
@@ -474,6 +1242,422 @@
           "staff": {
             "$ref": "#/components/schemas/StaffDto",
             "description": "Who is signed in."
+          }
+        }
+      },
+      "KitchenLineDto": {
+        "type": "object",
+        "description": "One dish on a kitchen ticket.\n\nDeliberately narrower than [`OrderLineDto`]. A kitchen screen has no\nbusiness showing a price, and a chef tapping a dish done should not be one\nmisread column away from the bill.",
+        "required": [
+          "id",
+          "dishName",
+          "quantity",
+          "status"
+        ],
+        "properties": {
+          "dishName": {
+            "type": "string",
+            "description": "What to cook."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which line this is. What the mark ready call names."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the guest asked for, such as no onions. Reaches the pass unchanged."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many."
+          },
+          "status": {
+            "$ref": "#/components/schemas/LineStatusDto",
+            "description": "Where this one dish has got to."
+          }
+        }
+      },
+      "KitchenResponse": {
+        "type": "object",
+        "description": "Everything the kitchen still has work on.",
+        "required": [
+          "tickets",
+          "serverTime"
+        ],
+        "properties": {
+          "serverTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "What the server's clock reads, at the moment this answer was built.\n\nThe screen subtracts this from its own clock and corrects every age it\ndraws by the difference. A kitchen tablet whose clock is twenty minutes\nfast would otherwise show every ticket as twenty minutes late, and the\none number a chef acts on would be the one number nobody could trust."
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KitchenTicketDto"
+            },
+            "description": "The tickets, oldest first."
+          }
+        }
+      },
+      "KitchenTicketDto": {
+        "type": "object",
+        "description": "One ticket on the kitchen screen.",
+        "required": [
+          "id",
+          "sequenceNo",
+          "tableLabel",
+          "sentAt",
+          "status",
+          "lines"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which ticket this is."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KitchenLineDto"
+            },
+            "description": "Every dish on it, oldest first."
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it reached the kitchen. The waiting time is measured from here."
+          },
+          "sequenceNo": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Its number within the visit, so a chef can say \"table 4, second round\"."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RoundStatusDto",
+            "description": "Where the whole ticket has got to."
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "Where the food is going."
+          }
+        }
+      },
+      "LineStatusDto": {
+        "type": "string",
+        "description": "Where one dish has got to, on the wire.",
+        "enum": [
+          "queued",
+          "ready",
+          "served",
+          "voided"
+        ]
+      },
+      "MarkedLineResponse": {
+        "type": "object",
+        "description": "What marking one dish changed.",
+        "required": [
+          "line",
+          "roundStatus"
+        ],
+        "properties": {
+          "line": {
+            "$ref": "#/components/schemas/OrderLineDto",
+            "description": "The dish, after the write."
+          },
+          "roundStatus": {
+            "$ref": "#/components/schemas/RoundStatusDto",
+            "description": "What the whole ticket became, recomputed from all of its dishes. The\nkitchen screen uses this to drop a ticket that has just gone ready."
+          }
+        }
+      },
+      "MenuCategoryDto": {
+        "type": "object",
+        "description": "One group of dishes.",
+        "required": [
+          "id",
+          "name",
+          "dishes"
+        ],
+        "properties": {
+          "dishes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MenuDishDto"
+            },
+            "description": "Its dishes, in printed order."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which category this is."
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is called."
+          }
+        }
+      },
+      "MenuDishDto": {
+        "type": "object",
+        "description": "One item on the menu.",
+        "required": [
+          "id",
+          "name",
+          "price",
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "Whether the kitchen can make it right now. `false` greys it on the\nordering screen and stops it being added to a basket."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it is, for the waiter to read out."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which dish this is."
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is called today."
+          },
+          "price": {
+            "type": "string",
+            "description": "What it costs, as an exact decimal string. Never a JSON number."
+          }
+        }
+      },
+      "MenuResponse": {
+        "type": "object",
+        "description": "The whole menu, grouped the way it is printed.",
+        "required": [
+          "categories",
+          "currencyCode",
+          "currencyDecimals"
+        ],
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MenuCategoryDto"
+            },
+            "description": "The live categories, in printed order. A category with no live dish is\nleft out, because an empty heading on a phone is a row of wasted space."
+          },
+          "currencyCode": {
+            "type": "string",
+            "description": "What this restaurant charges in. Carried here rather than left to the\nscreen to look up, so a price and the currency it is in arrive together."
+          },
+          "currencyDecimals": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many decimal places that currency uses.",
+            "minimum": 0
+          }
+        }
+      },
+      "OccupancyDto": {
+        "type": "object",
+        "description": "What a waiter needs to know about an occupied table without opening it.",
+        "required": [
+          "visitId",
+          "openedBy",
+          "openedAt",
+          "foodReady"
+        ],
+        "properties": {
+          "foodReady": {
+            "type": "boolean",
+            "description": "Whether a ticket on this visit is waiting to be carried out."
+          },
+          "guestCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many of them, when the waiter recorded it."
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When they sat down."
+          },
+          "openedBy": {
+            "type": "string",
+            "description": "What to call the waiter who seated them."
+          },
+          "visitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The one open visit on this table."
+          }
+        }
+      },
+      "OpenVisitRequest": {
+        "type": "object",
+        "description": "What seating a party asks for.",
+        "required": [
+          "tableId"
+        ],
+        "properties": {
+          "guestCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many of them, if the waiter counted."
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table they are sitting at."
+          }
+        }
+      },
+      "OpenVisitResponse": {
+        "type": "object",
+        "description": "The visit and the bill that were created together.",
+        "required": [
+          "visitId",
+          "billId"
+        ],
+        "properties": {
+          "billId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The bill their dishes will go on."
+          },
+          "visitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The party's stay at the table."
+          }
+        }
+      },
+      "OrderLineDto": {
+        "type": "object",
+        "description": "One dish on one ticket, as every screen reads it.\n\nThe name and the price are the ones copied onto the line when the round was\nsent, not today's menu. That is what lets a bill from last Tuesday stay\ntrue after a reprice.",
+        "required": [
+          "id",
+          "dishId",
+          "dishName",
+          "quantity",
+          "unitPrice",
+          "lineTotal",
+          "status"
+        ],
+        "properties": {
+          "dishId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which menu item it came from."
+          },
+          "dishName": {
+            "type": "string",
+            "description": "What the dish was called when it was ordered."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which line this is."
+          },
+          "lineTotal": {
+            "type": "string",
+            "description": "Quantity times unit price, as an exact decimal string."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the guest asked for, such as no onions."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many."
+          },
+          "status": {
+            "$ref": "#/components/schemas/LineStatusDto",
+            "description": "Where this one dish has got to."
+          },
+          "unitPrice": {
+            "type": "string",
+            "description": "What one of them cost, as an exact decimal string."
+          }
+        }
+      },
+      "OrderRoundDto": {
+        "type": "object",
+        "description": "One ticket with its dishes.",
+        "required": [
+          "id",
+          "visitId",
+          "sequenceNo",
+          "status",
+          "sentAt",
+          "lines"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which ticket this is."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderLineDto"
+            },
+            "description": "Every dish on it, oldest first."
+          },
+          "readyAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the last dish came off the pass."
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it reached the kitchen."
+          },
+          "sequenceNo": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Its number within the visit, starting at one."
+          },
+          "servedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the last dish reached the table."
+          },
+          "status": {
+            "$ref": "#/components/schemas/RoundStatusDto",
+            "description": "Where the whole ticket has got to, recomputed from its dishes."
+          },
+          "visitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which visit it belongs to."
           }
         }
       },
@@ -576,6 +1760,59 @@
           "waiter",
           "chef"
         ]
+      },
+      "RoundStatusDto": {
+        "type": "string",
+        "description": "Where a whole ticket has got to, on the wire.",
+        "enum": [
+          "queued",
+          "ready",
+          "served",
+          "voided"
+        ]
+      },
+      "SendRoundLine": {
+        "type": "object",
+        "description": "One dish in the basket.",
+        "required": [
+          "dishId",
+          "quantity"
+        ],
+        "properties": {
+          "dishId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which menu item."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the guest asked for, such as no onions."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many."
+          }
+        }
+      },
+      "SendRoundRequest": {
+        "type": "object",
+        "description": "What sending a ticket asks for.\n\nNo price anywhere in it, and that is the point. The price and the name are\nread from the dish inside `send_round` and copied onto the line, so a client\ncannot name its own price however it is built.",
+        "required": [
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SendRoundLine"
+            },
+            "description": "The basket, one entry per dish. At least one."
+          }
+        }
       },
       "SignInRequest": {
         "type": "object",
@@ -711,6 +1948,80 @@
             "description": "Its IANA timezone."
           }
         }
+      },
+      "VisitResponse": {
+        "type": "object",
+        "description": "One table's whole meal, as the waiter's screen reads it.",
+        "required": [
+          "id",
+          "tableId",
+          "tableLabel",
+          "status",
+          "openedBy",
+          "openedAt",
+          "rounds",
+          "serverTime"
+        ],
+        "properties": {
+          "bill": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BillDto",
+                "description": "The bill, with its running subtotal while open and every figure once\nclosed. `null` only for a visit that somehow has none."
+              }
+            ]
+          },
+          "guestCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many of them, when the waiter recorded it."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which visit this is."
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When they sat down."
+          },
+          "openedBy": {
+            "type": "string",
+            "description": "What to call the waiter who seated them."
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderRoundDto"
+            },
+            "description": "Every ticket on the visit, oldest first, with its dishes."
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "What the server's clock reads, at the moment this answer was built. The\nscreen corrects every age it draws by the difference from its own clock."
+          },
+          "status": {
+            "type": "string",
+            "description": "Whether they are still there: `open` or `closed`."
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table they are at."
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "What the staff call that table."
+          }
+        }
       }
     }
   },
@@ -722,6 +2033,10 @@
     {
       "name": "accounts",
       "description": "Registering, signing in, and who is signed in."
+    },
+    {
+      "name": "orders",
+      "description": "The floor, the menu, tickets to the kitchen, and the bill."
     }
   ]
 }

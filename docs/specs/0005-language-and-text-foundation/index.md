@@ -1,7 +1,7 @@
 # 0005. Language and text foundation
 
 **Date**: 2026-09-02
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

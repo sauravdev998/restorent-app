@@ -11,7 +11,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::infrastructure::config::Config;
 
-use super::handlers::{auth, dev, events, health, me};
+use super::handlers::{auth, billing, dev, events, health, me, menu, service};
 use super::origin;
 use super::state::AppState;
 
@@ -36,6 +36,21 @@ pub fn build(state: AppState, config: &Config) -> Router {
         .route("/api/me", get(auth::me).patch(me::update_me))
         .route("/api/me/password", post(me::change_password))
         .route("/api/restaurant", patch(me::update_restaurant))
+        // The order thread. Each route's role lives in its handler's own
+        // signature, not here, so a route added without one does not compile
+        // rather than quietly admitting everybody.
+        .route("/api/floor", get(service::floor))
+        .route("/api/menu", get(menu::menu))
+        .route("/api/visits", post(service::open_visit))
+        .route("/api/visits/{id}", get(billing::visit))
+        .route("/api/visits/{id}/rounds", post(service::send_round))
+        .route("/api/visits/{id}/close", post(billing::close_visit))
+        .route("/api/rounds/{id}/served", post(service::mark_round_served))
+        .route("/api/kitchen/tickets", get(service::kitchen_tickets))
+        .route(
+            "/api/order-lines/{id}/ready",
+            post(service::mark_line_ready),
+        )
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
