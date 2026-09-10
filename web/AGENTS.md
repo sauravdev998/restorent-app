@@ -19,12 +19,15 @@ project wide rules; this file holds what is true only here.
 | `src/shared/api/client.ts` | The typed client. Every real API call goes through it |
 | `src/shared/api/schema.d.ts` | Generated from `api/openapi.json`. Never edit it |
 | `src/shared/events/use-live-events.ts` | The stream, and the two rules that keep the cache honest |
+| `src/shared/events/query-keys.ts` | The written map from event kind to the query key prefixes it feeds |
+| `src/shared/events/server-clock.ts` | The offset between the server's clock and this device's, so an age is true on a tablet set wrong |
 | `src/shared/session/identity.ts` | Who is signed in, their role, and their restaurant's settings, as one cached bundle |
 | `src/shared/session/signed-out.ts` | The one path a `401` takes: clear the identity, go to sign in, keep the path for after |
 | `src/shared/i18n/index.ts` | Translations, set up before the first screen renders |
 | `src/test/setup.ts` | The `EventSource` stand in jsdom does not provide |
 | `vite.config.ts` | Dev server, the `/api` proxy, and the event stream handling inside it |
 | `eslint.config.js` | Type aware rules, scoped to the TypeScript sources |
+| `playwright.config.ts` | The browser scenario's config. `e2e/` holds the specs, typechecked by `tsconfig.e2e.json` |
 
 ## Commands
 
@@ -36,6 +39,8 @@ pnpm --filter web test              # vitest run
 pnpm --filter web typecheck
 pnpm --filter web lint
 pnpm client:generate                # regenerate schema.d.ts from the Rust handlers
+pnpm --filter web e2e               # the browser scenario; needs a seeded database and a running API
+pnpm --filter web e2e:ui            # the same, with Playwright's inspector
 ```
 
 Formatting is a root command, `pnpm format`. This package has no format script of its own.
@@ -52,7 +57,7 @@ Formatting is a root command, `pnpm format`. This package has no format script o
 
 ## Gotchas
 
-- **Two rules in `use-live-events.ts` are load bearing.** Refetch every active query on every stream open, including every reconnect, because Postgres queues nothing for a listener that is not connected. And an event invalidates, it never writes: the message carries a kind and an id, so the client goes back and asks for the row and row level security stays the authority.
+- **Two rules in `use-live-events.ts` are load bearing.** Refetch every active query on every stream open, including every reconnect, because Postgres queues nothing for a listener that is not connected. And an event invalidates, it never writes: the message carries a kind and an id, so the client goes back and asks for the row and row level security stays the authority. Which queries it invalidates comes from the written map in `query-keys.ts`, one entry per event kind, never a blanket invalidation of everything active.
 - **`EventSource.onerror` covers two different failures**, and only `readyState` tells them apart. A dropped connection is retried by the browser and reads CONNECTING; a response the browser cannot use, a `401` in particular, is fatal and reads CLOSED. Reporting "connecting" for a stream that is never coming back tells staff to wait when they need to reload.
 - **jsdom has no `EventSource`**, so `src/test/setup.ts` stubs it. The stub carries `readyState` and the three state constants on purpose: without them both sides of that comparison are `undefined` and every error looks alike in a passing test.
 - **The Vite proxy destroys the client response when an event stream's upstream closes or errors**, and the handling is scoped to event streams only. Without it the browser hangs on a stream nobody is writing to and never reconnects. Unscoped, it would replace Vite's diagnosable `502` with a bare connection reset on every ordinary `/api/*` call made while the API is down.
@@ -60,7 +65,7 @@ Formatting is a root command, `pnpm format`. This package has no format script o
 - **The app never names a restaurant; the session does.** `identity.ts` holds what the server returned for the signed in person, and it is a cache of that answer, not a second source of truth. Nothing sends a restaurant id to the API.
 - **Sign in and register render outside `RootLayout`.** They are the two screens a signed out visitor reaches, so the shell that sets `lang` and `dir` and holds the event stream is not above them. `signed-out-shell.tsx` gives them their own frame and they set the document language themselves, which is easy to forget when adding a third such screen.
 - **A `401` from anywhere takes one path**, `signed-out.ts`: clear the cached identity, go to sign in, and keep the path the person was on so signing back in returns them to it. The stream's fatal error, told apart by `readyState`, uses that same path rather than its own.
-- **shadcn/ui is chosen but not installed yet.** Feature 5 (design system and accessibility baseline) brings it in. Current screens are plain Tailwind.
+- **shadcn/ui is installed**, brought in by feature 5 (design system and accessibility baseline). The base components live in `src/shared/ui/`; build on those rather than adding a second set.
 
 ## Agent skills
 

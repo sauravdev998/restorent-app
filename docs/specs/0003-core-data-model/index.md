@@ -1,7 +1,7 @@
 # 0003. Core data model for the restaurant operations platform
 
 **Date**: 2026-08-08
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 
