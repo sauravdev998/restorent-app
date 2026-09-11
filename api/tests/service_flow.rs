@@ -5,7 +5,7 @@
 mod common;
 
 use api::domain::enums::{LineStatus, RoundStatus, VisitStatus};
-use api::domain::error::DomainError;
+use api::domain::error::{ConflictKind, DomainError};
 use api::domain::ids::RestaurantId;
 use api::domain::service::NewOrderLine;
 use api::infrastructure::db::repository::{billing, catalog, service};
@@ -448,10 +448,13 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     assert_eq!(reread.dish_name, "Soup");
     assert_eq!(reread.unit_price, common::money("9.5000"));
 
-    // An archived dish cannot be ordered again.
+    // An archived dish cannot be ordered again, and says why (spec 0008).
     let refused = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
     assert!(
-        matches!(refused, Err(DomainError::Invalid(_))),
+        matches!(
+            refused,
+            Err(DomainError::Conflict(ConflictKind::DishNotOrderable))
+        ),
         "an archived dish was ordered: {refused:?}"
     );
 
@@ -488,7 +491,10 @@ async fn an_unavailable_dish_cannot_be_ordered_but_one_already_sent_is_untouched
 
     let refused = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
     assert!(
-        matches!(refused, Err(DomainError::Invalid(_))),
+        matches!(
+            refused,
+            Err(DomainError::Conflict(ConflictKind::DishNotOrderable))
+        ),
         "a dish the kitchen ran out of was ordered anyway: {refused:?}"
     );
 

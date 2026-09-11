@@ -156,14 +156,14 @@ Thicken the setup segment, so a real restaurant's own menu, staff, and tables dr
 ### 9. Menu management · in-progress
 The admin builds the real menu: categories, dishes with a price, and a switch to mark a dish unavailable when the kitchen runs out, which immediately stops waiters ordering it.
 **Done when:** an admin can create, edit, reorder, and remove categories and dishes; marking a dish unavailable removes it from the waiter's ordering screen at once; a dish already on an open bill is unaffected.
-spec [0008](../specs/0008-menu-management/index.md)
+spec [0008](../specs/0008-menu-management/index.md) · migration `api/migrations/0006_menu_management.sql` · api in `api/src/presentation/handlers/{admin_menu,menu,service}.rs`, `api/src/infrastructure/db/repository/{catalog,service}.rs`, `api/src/domain/{menu,catalog,enums,error,event,audit}.rs`, `api/src/presentation/extract/actor.rs`, `api/src/bin/seed.rs`, `api/tests/menu.rs` · web in `web/src/admin/`, `web/src/kitchen/routes/kitchen-menu.tsx`, `web/src/kitchen/components/kitchen-tabs.tsx`, `web/src/waiter/basket.ts`, `web/src/shared/api/{menu,use-dish-availability,call-error}.ts`, `web/src/shared/ui/{switch,diet-mark}.tsx`, `web/src/styles/index.css` · browser test in `web/e2e/menu.spec.ts`
 - [x] Design it (spec): `/architect menu management`
-- [ ] Build it: `/develop menu management`
+- [x] Build it: `/develop menu management`
   - [x] The thread, top to bottom: migration 0006, the `menu_category` event kind, the two combined roles, the admin menu read, creating a dish, the availability switch, the plainest admin screen and kitchen Menu tab, and the two browser Playwright run (AC-2, AC-9, AC-10, AC-13, AC-14, AC-16, AC-17, AC-18, AC-19, AC-20)
   - [x] The whole edit surface and its rules: category create and rename, dish edit and move, version checks, field errors, live name uniqueness, the audit rows, the price input, and the diet mark with its tokens (AC-1, AC-3, AC-13, AC-14, AC-15, AC-17)
   - [x] Order: the two reorder endpoints and dnd-kit drag and drop with keyboard, touch, and translated announcements (AC-4, AC-5)
   - [x] Remove and restore: the archive rules and their locks, the Archived section, and the restore dialog (AC-6, AC-7, AC-8, AC-17)
-  - [ ] The waiter's side and proof: basket flagging and `dish_not_orderable`, the base `Switch`, every state and translation, and the full tests (AC-9, AC-10, AC-11, AC-12, AC-16, AC-19, AC-20)
+  - [x] The waiter's side and proof: basket flagging and `dish_not_orderable`, the base `Switch`, every state and translation, and the full tests (AC-9, AC-10, AC-11, AC-12, AC-16, AC-19, AC-20)
 - [ ] Verify it: `/check verify menu management`
 - [ ] Test it: `/test menu management`
 - [ ] Review it (fresh model): `/check review menu management`

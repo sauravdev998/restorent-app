@@ -127,3 +127,73 @@ pub struct ApiDoc;
 pub fn to_pretty_json() -> Result<String, serde_json::Error> {
     serde_json::to_string_pretty(&ApiDoc::openapi())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// covers: AC-16 (spec 0008)
+    ///
+    /// A route missing from `paths` is missing from the typed client with
+    /// nothing failing, so each menu endpoint is named here with the role its
+    /// success response says holds it. The role is what a person building a
+    /// screen reads to know who the endpoint is for.
+    #[test]
+    fn every_menu_endpoint_is_in_the_document_and_says_who_may_call_it() {
+        let document = serde_json::to_value(ApiDoc::openapi()).expect("the document serialises");
+
+        let expected = [
+            ("/api/admin/menu", "get", "Admins only."),
+            ("/api/admin/menu/categories", "post", "Admins only."),
+            ("/api/admin/menu/categories/order", "put", "Admins only."),
+            ("/api/admin/menu/categories/{id}", "put", "Admins only."),
+            (
+                "/api/admin/menu/categories/{id}/archive",
+                "post",
+                "Admins only.",
+            ),
+            (
+                "/api/admin/menu/categories/{id}/restore",
+                "post",
+                "Admins only.",
+            ),
+            (
+                "/api/admin/menu/categories/{id}/dish-order",
+                "put",
+                "Admins only.",
+            ),
+            ("/api/admin/menu/dishes", "post", "Admins only."),
+            ("/api/admin/menu/dishes/{id}", "put", "Admins only."),
+            (
+                "/api/admin/menu/dishes/{id}/archive",
+                "post",
+                "Admins only.",
+            ),
+            (
+                "/api/admin/menu/dishes/{id}/restore",
+                "post",
+                "Admins only.",
+            ),
+            ("/api/dishes/{id}/availability", "put", "Admins and chefs."),
+            ("/api/menu", "get", "Waiters and chefs."),
+        ];
+
+        for (path, method, role) in expected {
+            let operation = &document["paths"][path][method];
+            assert!(
+                operation.is_object(),
+                "{method} {path} is missing from the OpenAPI document"
+            );
+
+            let responses = operation["responses"].to_string();
+            assert!(
+                responses.contains(role),
+                "{method} {path} does not say {role:?} in its responses"
+            );
+            assert!(
+                responses.contains("\"403\"") && responses.contains("\"401\""),
+                "{method} {path} does not document its 401 and 403"
+            );
+        }
+    }
+}

@@ -780,10 +780,11 @@ export interface paths {
      *
      *     # Errors
      *
-     *     Returns `400` if the basket is empty, a quantity is not positive, or a dish
-     *     is archived or currently unavailable, `409 visit_not_open` if the party has
-     *     left, `404` if there is no such visit, `401` if nobody is signed in, and
-     *     `403` if the caller is not a waiter.
+     *     Returns `400` if the basket is empty or a quantity is not positive, `409
+     *     dish_not_orderable` if a dish was switched off or taken off the menu before
+     *     the ticket went, which refuses the whole ticket, `409 visit_not_open` if the
+     *     party has left, `404` if there is no such visit, `401` if nobody is signed
+     *     in, and `403` if the caller is not a waiter.
      */
     post: operations['send_round']
     delete?: never
@@ -3169,7 +3170,7 @@ export interface operations {
           'application/json': components['schemas']['OrderRoundDto']
         }
       }
-      /** @description An empty basket, or a dish that cannot be ordered. */
+      /** @description An empty basket, or a quantity below one. */
       400: {
         headers: {
           [name: string]: unknown
@@ -3205,7 +3206,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody']
         }
       }
-      /** @description That party has already left. */
+      /** @description `visit_not_open`: that party has already left. `dish_not_orderable`: a dish went off before the ticket went, and nothing was sent. */
       409: {
         headers: {
           [name: string]: unknown

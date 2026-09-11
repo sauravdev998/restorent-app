@@ -130,3 +130,84 @@ test('a dish the admin adds reaches the waiter live, and so does the chef switch
   await chef.close()
   await waiter.close()
 })
+
+/**
+ * Spec 0008 AC-4: a dish reordered with the keyboard alone, and every step of
+ * it heard by a screen reader in the admin's own language.
+ *
+ * No pointer anywhere in it: the handle is focused, picked up with Space,
+ * moved with an arrow key, and dropped with Space. The words are read from
+ * dnd-kit's own live region, which is what a screen reader is listening to.
+ * The move is put back at the end, so the menu is left as it was found.
+ */
+test('an admin reorders a dish with the keyboard alone, and hears it in their language', async ({
+  browser,
+}) => {
+  const admin = await signIn(browser, ADMIN)
+  await admin.getByRole('link', { name: /^menu$/i }).click()
+  await expect(admin.getByRole('heading', { level: 1, name: /^menu$/i })).toBeVisible()
+
+  // The first category on the menu, whatever it is called, and its dishes'
+  // handles, leaving out the category's own handle.
+  const section = admin.getByRole('region').first()
+  const handles = section.getByRole('button', { name: /^Move (?!the )/ })
+  await expect(handles.nth(1)).toBeVisible()
+
+  const labels = await handles.evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute('aria-label') ?? ''),
+  )
+  const total = labels.length
+  const second = (labels[1] ?? '').replace(/^Move /, '')
+  // Every sortable list on the page has its own live region, and only the one
+  // whose item is being moved says anything.
+  const heard = admin.locator('[id^="DndLiveRegion"]').filter({ hasText: /\S/ })
+
+  /** The order the server holds, read through the admin's own session. */
+  const firstOnServer = () =>
+    admin.evaluate(async (index) => {
+      const response = await fetch('/api/admin/menu')
+      const menu = (await response.json()) as {
+        categories: { dishes: { name: string }[] }[]
+      }
+      return menu.categories[index]?.dishes[0]?.name ?? ''
+    }, 0)
+
+  // Pick up the second dish, move it up one, and drop it.
+  await handles.nth(1).focus()
+  await admin.keyboard.press('Space')
+  await expect(heard).toHaveText(`Picked up ${second}. It is in position 2 of ${String(total)}.`)
+  await admin.keyboard.press('ArrowUp')
+  await expect(heard).toHaveText(`${second} moved to position 1 of ${String(total)}.`)
+  await admin.keyboard.press('Space')
+  await expect(heard).toHaveText(`${second} dropped in position 1 of ${String(total)}.`)
+
+  await expect.poll(firstOnServer).toBe(second)
+
+  // Put it back the same way, once the screen shows the server's order.
+  const moved = section.getByRole('button', { name: `Move ${second}`, exact: true })
+  await expect(handles.first()).toHaveAccessibleName(`Move ${second}`)
+  await moved.focus()
+  await admin.keyboard.press('Space')
+  await expect(heard).toHaveText(`Picked up ${second}. It is in position 1 of ${String(total)}.`)
+  await admin.keyboard.press('ArrowDown')
+  await expect(heard).toHaveText(`${second} moved to position 2 of ${String(total)}.`)
+  await admin.keyboard.press('Space')
+  await expect(heard).toHaveText(`${second} dropped in position 2 of ${String(total)}.`)
+  await expect.poll(firstOnServer).not.toBe(second)
+
+  // The same words, in Hindi, once the admin reads the screen in Hindi.
+  // Escape puts the dish back without saving anything.
+  await admin.getByRole('combobox', { name: 'Language' }).selectOption('hi')
+  const hindiHandle = section.getByRole('button', { name: `${second} को खिसकाएँ`, exact: true })
+  await expect(hindiHandle).toBeVisible()
+
+  await hindiHandle.focus()
+  await admin.keyboard.press('Space')
+  await expect(heard).toHaveText(`${second} उठाया गया। यह ${String(total)} में से स्थान 2 पर है।`)
+  await admin.keyboard.press('Escape')
+  await expect(heard).toHaveText(
+    `खिसकाना रद्द किया गया। ${second} वापस ${String(total)} में से स्थान 2 पर है।`,
+  )
+
+  await admin.close()
+})

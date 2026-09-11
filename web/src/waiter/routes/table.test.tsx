@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/shared/api/client'
+import { menuKey } from '@/shared/events/query-keys'
 import { IDENTITY_KEY, type Identity } from '@/shared/session/identity'
 import { expectAccessible } from '@/test/axe'
 
@@ -106,10 +108,59 @@ function visitWith(roundStatus: 'queued' | 'ready' | 'served') {
 /** An empty menu, so the ordering half renders without being the subject. */
 const MENU = { categories: [], currencyCode: 'INR', currencyDecimals: 2 }
 
+const TIKKA = '00000000-0000-7000-8000-000000000041'
+const SOUP = '00000000-0000-7000-8000-000000000042'
+
+/** A menu of two dishes, the soup on or off, and the tikka there or removed. */
+function menuWith({ soup = true, tikka = true }: { soup?: boolean; tikka?: boolean } = {}) {
+  return {
+    currencyCode: 'INR',
+    currencyDecimals: 2,
+    categories: [
+      {
+        id: '00000000-0000-7000-8000-000000000060',
+        name: 'Starters',
+        dishes: [
+          ...(tikka
+            ? [
+                {
+                  id: TIKKA,
+                  name: 'Paneer tikka',
+                  description: null,
+                  price: '320.0000',
+                  diet: 'veg',
+                  available: true,
+                },
+              ]
+            : []),
+          {
+            id: SOUP,
+            name: 'Tomato soup',
+            description: null,
+            price: '180.0000',
+            diet: 'veg',
+            available: soup,
+          },
+        ],
+      },
+    ],
+  }
+}
+
+/** What `GET /api/menu` answers, changeable mid test the way a live event would. */
+let currentMenu: unknown = MENU
+
+/** How many times the screen has read the menu. */
+let menuReads = 0
+
 /** Answers `GET` from whatever the test set up for each path. */
-function respondWith(visit: unknown) {
+function respondWith(visit: unknown, menu: unknown = MENU) {
+  currentMenu = menu
   vi.mocked(api.GET).mockImplementation((path: string) => {
-    if (path === '/api/menu') return Promise.resolve({ data: MENU }) as never
+    if (path === '/api/menu') {
+      menuReads += 1
+      return Promise.resolve({ data: currentMenu }) as never
+    }
     return Promise.resolve({ data: visit }) as never
   })
 }
@@ -238,4 +289,89 @@ describe('WaiterTable', () => {
       </QueryClientProvider>,
     )
   }) // covers: AC-19
+})
+
+/**
+ * The basket against a menu that moves under it, spec 0008 AC-12.
+ *
+ * The live event is stood in for by changing what the menu read answers and
+ * invalidating the menu, which is exactly what the stream does on a `dish`
+ * event.
+ */
+describe('WaiterTable basket', () => {
+  it('flags a line the kitchen switches off, and blocks sending until it is out', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('served'), menuWith())
+    const { queryClient } = await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Add one Tomato soup' }))
+    await user.click(screen.getByRole('button', { name: 'Add one Paneer tikka' }))
+    expect(screen.getByRole('button', { name: /^send 2 dishes$/i })).not.toHaveAttribute(
+      'aria-disabled',
+    )
+
+    // The chef switches the soup off; the stream invalidates the menu.
+    currentMenu = menuWith({ soup: false })
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: menuKey })
+    })
+
+    expect(
+      await screen.findByText(
+        '1 dish in the basket has just gone off. Take it out to send the rest.',
+      ),
+    ).toHaveAttribute('role', 'status')
+    expect(screen.getByText('Off now, cannot be sent')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^send 2 dishes$/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Take Tomato soup out of the basket' }))
+
+    expect(screen.queryByText('Off now, cannot be sent')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^send 1 dish$/i })).not.toHaveAttribute(
+      'aria-disabled',
+    )
+  }) // covers: AC-12 (spec 0008)
+
+  it('flags a line whose dish was taken off the menu, by the name it went in with', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('served'), menuWith())
+    const { queryClient } = await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Add one Paneer tikka' }))
+
+    currentMenu = menuWith({ tikka: false })
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: menuKey })
+    })
+
+    // Gone from the menu, so the basket is the only place its name survives.
+    expect(
+      await screen.findByRole('button', { name: 'Take Paneer tikka out of the basket' }),
+    ).toBeInTheDocument()
+  }) // covers: AC-12 (spec 0008)
+
+  it('reads the menu again when a send is refused because a dish went off', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('served'), menuWith())
+    vi.mocked(api.POST).mockResolvedValue({
+      error: { error: 'dish_not_orderable', message: 'a dish in the basket cannot be ordered' },
+    })
+    await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Add one Tomato soup' }))
+
+    // The send races past the flag: the server's menu already has it off.
+    currentMenu = menuWith({ soup: false })
+    const before = menuReads
+
+    await user.click(screen.getByRole('button', { name: /^send 1 dish$/i }))
+
+    await waitFor(() => {
+      expect(menuReads).toBeGreaterThan(before)
+    })
+    expect(await screen.findByText('Off now, cannot be sent')).toBeInTheDocument()
+  }) // covers: AC-12 (spec 0008)
 })

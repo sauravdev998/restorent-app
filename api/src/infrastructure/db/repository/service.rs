@@ -570,6 +570,38 @@ pub async fn send_round(
         )));
     }
 
+    // Every dish is checked before anything is written, so a ticket carrying
+    // one that went off is refused whole by this function itself, not only by
+    // the caller dropping its transaction. Archived or switched off is refused
+    // here rather than by a constraint, because a dish already on an open bill
+    // must be unaffected when the kitchen runs out: only new lines are stopped.
+    // A conflict rather than an invalid request, because nothing was wrong with
+    // the basket when it was built: the menu moved under it, and the waiter's
+    // screen refetches the menu and flags the line when it hears this code.
+    let mut priced = Vec::with_capacity(new_lines.len());
+
+    for new_line in new_lines {
+        if new_line.quantity <= 0 {
+            return Err(DomainError::Invalid(
+                "a dish has to be ordered at least once".to_owned(),
+            ));
+        }
+
+        let dish = sqlx::query!(
+            r#"
+            SELECT name, price
+            FROM dishes
+            WHERE id = $1 AND archived_at IS NULL AND is_available
+            "#,
+            new_line.dish_id.as_uuid()
+        )
+        .fetch_optional(tx.connection())
+        .await?
+        .ok_or(DomainError::Conflict(ConflictKind::DishNotOrderable))?;
+
+        priced.push((new_line, dish.name, dish.price));
+    }
+
     let next_sequence = sqlx::query!(
         r#"
         SELECT coalesce(max(sequence_no), 0) + 1 AS "next!"
@@ -601,32 +633,11 @@ pub async fn send_round(
     .execute(tx.connection())
     .await?;
 
-    let mut line_ids = Vec::with_capacity(new_lines.len());
+    let mut line_ids = Vec::with_capacity(priced.len());
 
-    for new_line in new_lines {
-        if new_line.quantity <= 0 {
-            return Err(DomainError::Invalid(
-                "a dish has to be ordered at least once".to_owned(),
-            ));
-        }
-
-        // Archived or switched off is refused here rather than by a constraint,
-        // because a dish already on an open bill must be unaffected when the
-        // kitchen runs out: only new lines are stopped.
-        let dish = sqlx::query!(
-            r#"
-            SELECT name, price
-            FROM dishes
-            WHERE id = $1 AND archived_at IS NULL AND is_available
-            "#,
-            new_line.dish_id.as_uuid()
-        )
-        .fetch_optional(tx.connection())
-        .await?
-        .ok_or_else(|| DomainError::Invalid("that dish is not on the menu right now".to_owned()))?;
-
+    for (new_line, dish_name, price) in priced {
         let line_id = OrderLineId::new();
-        let line_total = dish.price * rust_decimal::Decimal::from(new_line.quantity);
+        let line_total = price * rust_decimal::Decimal::from(new_line.quantity);
 
         sqlx::query!(
             r#"
@@ -640,8 +651,8 @@ pub async fn send_round(
             round_id.as_uuid(),
             new_line.dish_id.as_uuid(),
             new_line.quantity,
-            dish.price,
-            dish.name,
+            price,
+            dish_name,
             line_total,
             new_line.note,
         )

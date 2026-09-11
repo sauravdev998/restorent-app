@@ -107,8 +107,11 @@ export function ReorderableList<T extends { id: string }>({
       showToast({ title: apiErrorMessage(failureBody(error), common), tone: 'late' })
       await queryClient.invalidateQueries({ queryKey: ['dish'] })
     },
-    onSettled: () => {
-      setHeld(null)
+    onSettled: (_saved, _error, ids: string[]) => {
+      // Only the order this save placed. A second drop made while the first
+      // was still saving holds a newer order, and letting go of that one here
+      // would flick the list back to the old order until its own save lands.
+      setHeld((current) => (current === ids ? null : current))
     },
   })
 
