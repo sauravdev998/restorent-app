@@ -125,3 +125,50 @@ export async function reorderDishes(categoryId: string, ids: string[]): Promise<
   if (!data) throw new ApiCallError(error)
   return data
 }
+
+/** Everything in the Archived section. */
+export type ArchivedMenu = AdminMenu['archived']
+
+/** One archived dish, with what the restore dialog needs. */
+export type ArchivedDish = ArchivedMenu['dishes'][number]
+
+/** Takes a category off the menu. Refused while it still holds a live dish. */
+export async function archiveCategory(categoryId: string): Promise<Category> {
+  const { data, error } = await api.POST('/api/admin/menu/categories/{id}/archive', {
+    params: { path: { id: categoryId } },
+  })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}
+
+/** Puts an archived category back at the end of the list. */
+export async function restoreCategory(categoryId: string): Promise<Category> {
+  const { data, error } = await api.POST('/api/admin/menu/categories/{id}/restore', {
+    params: { path: { id: categoryId } },
+  })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}
+
+/** Takes a dish off the menu. Lines already sent are untouched. */
+export async function archiveDish(dishId: string): Promise<Dish> {
+  const { data, error } = await api.POST('/api/admin/menu/dishes/{id}/archive', {
+    params: { path: { id: dishId } },
+  })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}
+
+/** Puts an archived dish back at the end of a live category, as it was. */
+export async function restoreDish(dishId: string, categoryId: string): Promise<Dish> {
+  const { data, error } = await api.POST('/api/admin/menu/dishes/{id}/restore', {
+    params: { path: { id: dishId } },
+    body: { categoryId },
+  })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}

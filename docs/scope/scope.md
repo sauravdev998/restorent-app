@@ -162,7 +162,7 @@ spec [0008](../specs/0008-menu-management/index.md)
   - [x] The thread, top to bottom: migration 0006, the `menu_category` event kind, the two combined roles, the admin menu read, creating a dish, the availability switch, the plainest admin screen and kitchen Menu tab, and the two browser Playwright run (AC-2, AC-9, AC-10, AC-13, AC-14, AC-16, AC-17, AC-18, AC-19, AC-20)
   - [x] The whole edit surface and its rules: category create and rename, dish edit and move, version checks, field errors, live name uniqueness, the audit rows, the price input, and the diet mark with its tokens (AC-1, AC-3, AC-13, AC-14, AC-15, AC-17)
   - [x] Order: the two reorder endpoints and dnd-kit drag and drop with keyboard, touch, and translated announcements (AC-4, AC-5)
-  - [ ] Remove and restore: the archive rules and their locks, the Archived section, and the restore dialog (AC-6, AC-7, AC-8, AC-17)
+  - [x] Remove and restore: the archive rules and their locks, the Archived section, and the restore dialog (AC-6, AC-7, AC-8, AC-17)
   - [ ] The waiter's side and proof: basket flagging and `dish_not_orderable`, the base `Switch`, every state and translation, and the full tests (AC-9, AC-10, AC-11, AC-12, AC-16, AC-19, AC-20)
 - [ ] Verify it: `/check verify menu management`
 - [ ] Test it: `/test menu management`

@@ -1,18 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
-import { BookOpenText, FolderPlus, Pencil, Plus } from 'lucide-react'
+import { BookOpenText, FolderPlus, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   adminMenuQuery,
+  archiveCategory,
+  archiveDish,
   reorderCategories,
   reorderDishes,
   type AdminCategory,
   type AdminMenu,
+  type ArchivedDish,
 } from '@/admin/api/menu'
+import { ArchivedSection } from '@/admin/menu/archived-section'
 import { CategoryDialog } from '@/admin/menu/category-dialog'
+import { ConfirmDialog } from '@/admin/menu/confirm-dialog'
 import { DishDialog } from '@/admin/menu/dish-dialog'
 import { ReorderableList } from '@/admin/menu/reorderable'
+import { RestoreDishDialog } from '@/admin/menu/restore-dish-dialog'
 import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import type { Dish } from '@/shared/api/menu'
@@ -31,6 +37,9 @@ import { Switch } from '@/shared/ui/switch'
 type Opened =
   | { kind: 'dish'; categoryId?: string; dish?: Dish }
   | { kind: 'category'; category?: AdminCategory }
+  | { kind: 'removeDish'; dish: Dish }
+  | { kind: 'removeCategory'; category: AdminCategory }
+  | { kind: 'restoreDish'; dish: ArchivedDish }
   | null
 
 /**
@@ -179,10 +188,23 @@ export function AdminMenuScreen() {
               onEditDish={(dish) => {
                 setOpened({ kind: 'dish', dish })
               }}
+              onRemove={() => {
+                setOpened({ kind: 'removeCategory', category })
+              }}
+              onRemoveDish={(dish) => {
+                setOpened({ kind: 'removeDish', dish })
+              }}
             />
           )}
         </ReorderableList>
       )}
+
+      <ArchivedSection
+        menu={menu.data}
+        onRestoreDish={(dish) => {
+          setOpened({ kind: 'restoreDish', dish })
+        }}
+      />
 
       {opened?.kind === 'dish' && (
         <DishDialog
@@ -205,6 +227,46 @@ export function AdminMenuScreen() {
           {...(opened.category === undefined ? {} : { category: opened.category })}
         />
       )}
+
+      {opened?.kind === 'removeDish' && (
+        <ConfirmDialog
+          onOpenChange={(open) => {
+            if (!open) setOpened(null)
+          }}
+          title={t('menu.remove.dishTitle', { dish: opened.dish.name })}
+          description={t('menu.remove.dishBody')}
+          confirmLabel={t('menu.remove.dishConfirm')}
+          doneMessage={t('menu.remove.dishDone', { dish: opened.dish.name })}
+          action={() => archiveDish(opened.dish.id)}
+        />
+      )}
+
+      {opened?.kind === 'removeCategory' && (
+        <ConfirmDialog
+          onOpenChange={(open) => {
+            if (!open) setOpened(null)
+          }}
+          title={t('menu.remove.categoryTitle', { category: opened.category.name })}
+          description={
+            opened.category.dishes.length > 0
+              ? t('menu.remove.categoryNotEmpty', { count: opened.category.dishes.length })
+              : t('menu.remove.categoryBody')
+          }
+          confirmLabel={t('menu.remove.categoryConfirm')}
+          doneMessage={t('menu.remove.categoryDone', { category: opened.category.name })}
+          action={() => archiveCategory(opened.category.id)}
+        />
+      )}
+
+      {opened?.kind === 'restoreDish' && (
+        <RestoreDishDialog
+          onOpenChange={(open) => {
+            if (!open) setOpened(null)
+          }}
+          dish={opened.dish}
+          menu={menu.data}
+        />
+      )}
     </div>
   )
 }
@@ -218,6 +280,8 @@ interface CategorySectionProps {
   onAddDish: () => void
   onRename: () => void
   onEditDish: (dish: Dish) => void
+  onRemove: () => void
+  onRemoveDish: (dish: Dish) => void
 }
 
 /** One category: its heading, its actions, and its dishes in printed order. */
@@ -229,6 +293,8 @@ function CategorySection({
   onAddDish,
   onRename,
   onEditDish,
+  onRemove,
+  onRemoveDish,
 }: CategorySectionProps) {
   const { t } = useTranslation('admin')
   const headingId = `category-${category.id}`
@@ -255,6 +321,15 @@ function CategorySection({
           >
             <Icon icon={Pencil} size="sm" />
             {t('menu.renameCategory')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t('menu.remove.categoryNamed', { category: category.name })}
+            onClick={onRemove}
+          >
+            <Icon icon={Trash2} size="sm" />
+            {t('menu.remove.action')}
           </Button>
           <Button
             variant="secondary"
@@ -290,6 +365,9 @@ function CategorySection({
               onEdit={() => {
                 onEditDish(dish)
               }}
+              onRemove={() => {
+                onRemoveDish(dish)
+              }}
             />
           )}
         </ReorderableList>
@@ -305,10 +383,11 @@ interface DishRowProps {
   menu: AdminMenu
   availability: DishAvailability
   onEdit: () => void
+  onRemove: () => void
 }
 
 /** One dish: what it is, what it costs, and whether the kitchen can make it. */
-function DishRow({ dish, handle, menu, availability, onEdit }: DishRowProps) {
+function DishRow({ dish, handle, menu, availability, onEdit, onRemove }: DishRowProps) {
   const { t } = useTranslation('admin')
   const available = availability.valueFor(dish.id, dish.available)
 
@@ -359,6 +438,15 @@ function DishRow({ dish, handle, menu, availability, onEdit }: DishRowProps) {
       >
         <Icon icon={Pencil} size="sm" />
         {t('menu.editDish')}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={t('menu.remove.dishNamed', { dish: dish.name })}
+        onClick={onRemove}
+      >
+        <Icon icon={Trash2} size="sm" />
+        {t('menu.remove.action')}
       </Button>
     </div>
   )

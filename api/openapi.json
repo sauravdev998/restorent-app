@@ -272,6 +272,80 @@
         }
       }
     },
+    "/api/admin/menu/categories/{id}/archive": {
+      "post": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Takes a category off the menu. It moves to the Archived section.",
+        "description": "Refused while it still holds a live dish, including one being created in or\nmoved into it at the same instant: no live dish ever sits in an archived\ncategory.\n\n# Errors\n\nReturns `409 category_not_empty` if it holds a live dish, `404` if there is\nno such live category, `401` if nobody is signed in, and `403` for a waiter\nor a chef.",
+        "operationId": "archive_category",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The category to remove.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived category. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live category.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`category_not_empty`: it still holds a live dish.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/menu/categories/{id}/dish-order": {
       "put": {
         "tags": [
@@ -348,6 +422,80 @@
           },
           "409": {
             "description": "`menu_changed`: the list is not the live set any more.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/menu/categories/{id}/restore": {
+      "post": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Puts an archived category back, at the end of the category list.",
+        "description": "# Errors\n\nReturns `409 name_taken` if a live category now has its name, `404` if\nthere is no such archived category, `401` if nobody is signed in, and `403`\nfor a waiter or a chef.",
+        "operationId": "restore_category",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The archived category to put back.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The category, live again. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such archived category.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`name_taken`: a live category has that name now.",
             "content": {
               "application/json": {
                 "schema": {
@@ -524,6 +672,154 @@
           },
           "409": {
             "description": "`category_archived` or `dish_changed`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/menu/dishes/{id}/archive": {
+      "post": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Takes a dish off the menu. It moves to the Archived section.",
+        "description": "Every order line, round, and bill that referred to it still resolves and\nreads exactly as before: a line copied the name and the price when it was\nsent.\n\n# Errors\n\nReturns `404` if there is no such live dish, `401` if nobody is signed in,\nand `403` for a waiter or a chef.",
+        "operationId": "archive_dish",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The dish to remove.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived dish. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DishDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live dish.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/menu/dishes/{id}/restore": {
+      "post": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Puts an archived dish back, at the end of a live category.",
+        "description": "It keeps its name, description, price, diet marker, and availability.\n\n# Errors\n\nReturns `409 name_taken` if a live dish now has its name, `409\ncategory_archived` if the chosen category has been archived, `404` if there\nis no such archived dish or category, `401` if nobody is signed in, and\n`403` for a waiter or a chef.",
+        "operationId": "restore_dish",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The archived dish to put back.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreDishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The dish, live again. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DishDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such archived dish or category.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`name_taken` or `category_archived`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2745,6 +3041,20 @@
           "timezone": {
             "type": "string",
             "description": "Its own IANA timezone. Every timestamp on a screen is converted with it,\nnever with the device's."
+          }
+        }
+      },
+      "RestoreDishRequest": {
+        "type": "object",
+        "description": "What restoring a dish asks for.",
+        "required": [
+          "categoryId"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which live category to put it in. The dialog offers the dish's old one\nwhen that is still live."
           }
         }
       },

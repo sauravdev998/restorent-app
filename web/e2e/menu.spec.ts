@@ -113,6 +113,19 @@ test('a dish the admin adds reaches the waiter live, and so does the chef switch
     'false',
   )
 
+  // The admin removes it. It lands in Archived on the admin's screen at once,
+  // and leaves the waiter's screen with nobody touching that screen, which is
+  // also what stops a database that has seen many runs growing a long menu.
+  await admin.getByRole('button', { name: `Remove ${dish}` }).click()
+  await admin
+    .getByRole('dialog')
+    .getByRole('button', { name: /^remove dish$/i })
+    .click()
+  await expect(admin.getByRole('dialog')).toBeHidden()
+  await expect(admin.getByRole('button', { name: `Put back ${dish}` })).toBeVisible()
+
+  await expect(onWaiterScreen).toBeHidden()
+
   await admin.close()
   await chef.close()
   await waiter.close()

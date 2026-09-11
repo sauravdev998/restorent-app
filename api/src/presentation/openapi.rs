@@ -49,8 +49,12 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::rename_category,
         admin_menu::reorder_categories,
         admin_menu::reorder_dishes,
+        admin_menu::archive_category,
+        admin_menu::restore_category,
         admin_menu::create_dish,
         admin_menu::edit_dish,
+        admin_menu::archive_dish,
+        admin_menu::restore_dish,
         menu::set_availability,
     ),
     components(schemas(
@@ -103,6 +107,7 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::RenameCategoryRequest,
         admin_menu::EditDishRequest,
         admin_menu::ReorderRequest,
+        admin_menu::RestoreDishRequest,
     )),
     tags(
         (name = "system", description = "Health and live updates."),

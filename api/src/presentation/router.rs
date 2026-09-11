@@ -70,8 +70,24 @@ pub fn build(state: AppState, config: &Config) -> Router {
             "/api/admin/menu/categories/{id}/dish-order",
             put(admin_menu::reorder_dishes),
         )
+        .route(
+            "/api/admin/menu/categories/{id}/archive",
+            post(admin_menu::archive_category),
+        )
+        .route(
+            "/api/admin/menu/categories/{id}/restore",
+            post(admin_menu::restore_category),
+        )
         .route("/api/admin/menu/dishes", post(admin_menu::create_dish))
         .route("/api/admin/menu/dishes/{id}", put(admin_menu::edit_dish))
+        .route(
+            "/api/admin/menu/dishes/{id}/archive",
+            post(admin_menu::archive_dish),
+        )
+        .route(
+            "/api/admin/menu/dishes/{id}/restore",
+            post(admin_menu::restore_dish),
+        )
         .route("/api/dishes/{id}/availability", put(menu::set_availability))
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(

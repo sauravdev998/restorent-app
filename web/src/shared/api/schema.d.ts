@@ -104,6 +104,34 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/admin/menu/categories/{id}/archive': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Takes a category off the menu. It moves to the Archived section.
+     * @description Refused while it still holds a live dish, including one being created in or
+     *     moved into it at the same instant: no live dish ever sits in an archived
+     *     category.
+     *
+     *     # Errors
+     *
+     *     Returns `409 category_not_empty` if it holds a live dish, `404` if there is
+     *     no such live category, `401` if nobody is signed in, and `403` for a waiter
+     *     or a chef.
+     */
+    post: operations['archive_category']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/admin/menu/categories/{id}/dish-order': {
     parameters: {
       query?: never
@@ -125,6 +153,30 @@ export interface paths {
      */
     put: operations['reorder_dishes']
     post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/{id}/restore': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Puts an archived category back, at the end of the category list.
+     * @description # Errors
+     *
+     *     Returns `409 name_taken` if a live category now has its name, `404` if
+     *     there is no such archived category, `401` if nobody is signed in, and `403`
+     *     for a waiter or a chef.
+     */
+    post: operations['restore_category']
     delete?: never
     options?: never
     head?: never
@@ -180,6 +232,60 @@ export interface paths {
      */
     put: operations['edit_dish']
     post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/dishes/{id}/archive': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Takes a dish off the menu. It moves to the Archived section.
+     * @description Every order line, round, and bill that referred to it still resolves and
+     *     reads exactly as before: a line copied the name and the price when it was
+     *     sent.
+     *
+     *     # Errors
+     *
+     *     Returns `404` if there is no such live dish, `401` if nobody is signed in,
+     *     and `403` for a waiter or a chef.
+     */
+    post: operations['archive_dish']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/dishes/{id}/restore': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Puts an archived dish back, at the end of a live category.
+     * @description It keeps its name, description, price, diet marker, and availability.
+     *
+     *     # Errors
+     *
+     *     Returns `409 name_taken` if a live dish now has its name, `409
+     *     category_archived` if the chosen category has been archived, `404` if there
+     *     is no such archived dish or category, `401` if nobody is signed in, and
+     *     `403` for a waiter or a chef.
+     */
+    post: operations['restore_dish']
     delete?: never
     options?: never
     head?: never
@@ -1423,6 +1529,15 @@ export interface components {
        */
       timezone: string
     }
+    /** @description What restoring a dish asks for. */
+    RestoreDishRequest: {
+      /**
+       * Format: uuid
+       * @description Which live category to put it in. The dialog offers the dish's old one
+       *     when that is still live.
+       */
+      categoryId: string
+    }
     /**
      * @description What a member of staff is allowed to be, on the wire.
      *
@@ -1826,6 +1941,65 @@ export interface operations {
       }
     }
   }
+  archive_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The category to remove. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The archived category. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `category_not_empty`: it still holds a live dish. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   reorder_dishes: {
     parameters: {
       query?: never
@@ -1879,6 +2053,65 @@ export interface operations {
         }
       }
       /** @description `menu_changed`: the list is not the live set any more. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  restore_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The archived category to put back. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The category, live again. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such archived category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `name_taken`: a live category has that name now. */
       409: {
         headers: {
           [name: string]: unknown
@@ -2020,6 +2253,119 @@ export interface operations {
         }
       }
       /** @description `category_archived` or `dish_changed`. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  archive_dish: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The dish to remove. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The archived dish. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live dish. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  restore_dish: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The archived dish to put back. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RestoreDishRequest']
+      }
+    }
+    responses: {
+      /** @description The dish, live again. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such archived dish or category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `name_taken` or `category_archived`. */
       409: {
         headers: {
           [name: string]: unknown

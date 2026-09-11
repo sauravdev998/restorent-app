@@ -165,6 +165,41 @@
       "dropped": "{{name}} dropped in position {{position}} of {{total}}.",
       "droppedBack": "{{name}} was put back where it was.",
       "cancelled": "Moving cancelled. {{name}} is back in position {{position}} of {{total}}."
+    },
+    "working": "Working",
+    "remove": {
+      "action": "Remove",
+      "dishNamed": "Remove {{dish}}",
+      "categoryNamed": "Remove the {{category}} category",
+      "dishTitle": "Remove {{dish}}?",
+      "dishBody": "It comes off every waiter's screen at once. Anything already ordered stays on its bill exactly as it was, and you can put the dish back from Archived.",
+      "dishConfirm": "Remove dish",
+      "dishDone": "{{dish}} removed. It is in Archived.",
+      "categoryTitle": "Remove the {{category}} category?",
+      "categoryBody": "It comes off the menu, and you can put it back from Archived.",
+      "categoryNotEmpty_one": "It still has {{count}} dish in it. Move or remove that dish first, or this will be refused.",
+      "categoryNotEmpty_other": "It still has {{count}} dishes in it. Move or remove them first, or this will be refused.",
+      "categoryConfirm": "Remove category",
+      "categoryDone": "{{category}} removed. It is in Archived."
+    },
+    "archived": {
+      "title": "Archived",
+      "intro": "Removed dishes and categories. They are off every screen, every bill that charged for them still reads as it did, and each can be put back.",
+      "empty": "Nothing removed. Anything you remove lands here and can be put back.",
+      "categories": "Categories",
+      "dishes": "Dishes",
+      "removedAt": "Removed {{when}}",
+      "from": "From {{category}}",
+      "fromRemoved": "From {{category}}, which is removed too",
+      "restore": "Put back",
+      "restoreNamed": "Put back {{name}}",
+      "restoreDishTitle": "Put back {{dish}}",
+      "restoreDishBody": "It goes at the end of the category you choose, with its price, its diet marker, and its availability as they were.",
+      "restoreInto": "Put it in",
+      "oldCategoryGone": "Its old category, {{category}}, is removed too, so choose another.",
+      "noLiveCategory": "There is no category on the menu to put it in. Add a category first.",
+      "dishRestored": "{{dish}} is back in {{category}}",
+      "categoryRestored": "{{category}} is back on the menu"
     }
   }
 }

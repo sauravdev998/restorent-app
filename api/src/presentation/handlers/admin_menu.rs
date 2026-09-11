@@ -420,6 +420,84 @@ pub async fn reorder_dishes(
     Ok(Json(dishes.into_iter().map(DishDto::from).collect()))
 }
 
+/// Takes a category off the menu. It moves to the Archived section.
+///
+/// Refused while it still holds a live dish, including one being created in or
+/// moved into it at the same instant: no live dish ever sits in an archived
+/// category.
+///
+/// # Errors
+///
+/// Returns `409 category_not_empty` if it holds a live dish, `404` if there is
+/// no such live category, `401` if nobody is signed in, and `403` for a waiter
+/// or a chef.
+#[utoipa::path(
+    post,
+    path = "/api/admin/menu/categories/{id}/archive",
+    tag = "menu",
+    params(("id" = Uuid, Path, description = "The category to remove.")),
+    responses(
+        (status = 200, description = "The archived category. Admins only.", body = CategoryDto),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 404, description = "No such live category.", body = ErrorBody),
+        (status = 409, description = "`category_not_empty`: it still holds a live dish.", body = ErrorBody),
+    )
+)]
+pub async fn archive_category(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    Path(category_id): Path<Uuid>,
+) -> Result<Json<CategoryDto>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    let category = catalog::archive_menu_category(
+        &mut tx,
+        MenuCategoryId::from_uuid(category_id),
+        actor.staff_id(),
+    )
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(category.into()))
+}
+
+/// Puts an archived category back, at the end of the category list.
+///
+/// # Errors
+///
+/// Returns `409 name_taken` if a live category now has its name, `404` if
+/// there is no such archived category, `401` if nobody is signed in, and `403`
+/// for a waiter or a chef.
+#[utoipa::path(
+    post,
+    path = "/api/admin/menu/categories/{id}/restore",
+    tag = "menu",
+    params(("id" = Uuid, Path, description = "The archived category to put back.")),
+    responses(
+        (status = 200, description = "The category, live again. Admins only.", body = CategoryDto),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 404, description = "No such archived category.", body = ErrorBody),
+        (status = 409, description = "`name_taken`: a live category has that name now.", body = ErrorBody),
+    )
+)]
+pub async fn restore_category(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    Path(category_id): Path<Uuid>,
+) -> Result<Json<CategoryDto>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    let category = catalog::restore_menu_category(
+        &mut tx,
+        MenuCategoryId::from_uuid(category_id),
+        actor.staff_id(),
+    )
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(category.into()))
+}
+
 /// A category name, trimmed, or the field error saying why not.
 fn category_name(text: &str) -> Result<String, ApiError> {
     menu::name(text, menu::CATEGORY_NAME_MAX)
@@ -599,6 +677,92 @@ pub async fn edit_dish(
     .await
     .map_err(name_taken_on_the_name_box)?;
 
+    tx.commit().await?;
+
+    Ok(Json(dish.into()))
+}
+
+/// Takes a dish off the menu. It moves to the Archived section.
+///
+/// Every order line, round, and bill that referred to it still resolves and
+/// reads exactly as before: a line copied the name and the price when it was
+/// sent.
+///
+/// # Errors
+///
+/// Returns `404` if there is no such live dish, `401` if nobody is signed in,
+/// and `403` for a waiter or a chef.
+#[utoipa::path(
+    post,
+    path = "/api/admin/menu/dishes/{id}/archive",
+    tag = "menu",
+    params(("id" = Uuid, Path, description = "The dish to remove.")),
+    responses(
+        (status = 200, description = "The archived dish. Admins only.", body = DishDto),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 404, description = "No such live dish.", body = ErrorBody),
+    )
+)]
+pub async fn archive_dish(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    Path(dish_id): Path<Uuid>,
+) -> Result<Json<DishDto>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    let dish = catalog::archive_dish(&mut tx, DishId::from_uuid(dish_id), actor.staff_id()).await?;
+    tx.commit().await?;
+
+    Ok(Json(dish.into()))
+}
+
+/// What restoring a dish asks for.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreDishRequest {
+    /// Which live category to put it in. The dialog offers the dish's old one
+    /// when that is still live.
+    pub category_id: Uuid,
+}
+
+/// Puts an archived dish back, at the end of a live category.
+///
+/// It keeps its name, description, price, diet marker, and availability.
+///
+/// # Errors
+///
+/// Returns `409 name_taken` if a live dish now has its name, `409
+/// category_archived` if the chosen category has been archived, `404` if there
+/// is no such archived dish or category, `401` if nobody is signed in, and
+/// `403` for a waiter or a chef.
+#[utoipa::path(
+    post,
+    path = "/api/admin/menu/dishes/{id}/restore",
+    tag = "menu",
+    params(("id" = Uuid, Path, description = "The archived dish to put back.")),
+    request_body = RestoreDishRequest,
+    responses(
+        (status = 200, description = "The dish, live again. Admins only.", body = DishDto),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 404, description = "No such archived dish or category.", body = ErrorBody),
+        (status = 409, description = "`name_taken` or `category_archived`.", body = ErrorBody),
+    )
+)]
+pub async fn restore_dish(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    Path(dish_id): Path<Uuid>,
+    JsonBody(request): JsonBody<RestoreDishRequest>,
+) -> Result<Json<DishDto>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    let dish = catalog::restore_dish(
+        &mut tx,
+        DishId::from_uuid(dish_id),
+        MenuCategoryId::from_uuid(request.category_id),
+        actor.staff_id(),
+    )
+    .await?;
     tx.commit().await?;
 
     Ok(Json(dish.into()))

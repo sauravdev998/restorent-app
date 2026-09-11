@@ -86,8 +86,10 @@ test('a dish sent by a waiter reaches the kitchen live, and back again', async (
   await expect(ticket).toBeHidden()
 
   // Two dishes, so "one dish done does not make the ticket ready" is exercised
-  // rather than assumed.
-  const addButtons = waiter.getByRole('button', { name: /^add one /i })
+  // rather than assumed. Orderable ones only: the admin can put a dish the
+  // kitchen has switched off anywhere in the menu (spec 0008), so the first
+  // two buttons on screen are not necessarily two that can be pressed.
+  const addButtons = waiter.getByRole('button', { name: /^add one /i, disabled: false })
   await addButtons.nth(0).click()
   await addButtons.nth(1).click()
 
