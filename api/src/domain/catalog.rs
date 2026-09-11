@@ -4,6 +4,7 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
+use super::enums::Diet;
 use super::ids::{
     DiningTableId, DishId, MenuCategoryId, RestaurantId, TableSectionId, TaxComponentId,
 };
@@ -79,6 +80,9 @@ pub struct MenuCategory {
     pub name: String,
     /// Where it sits in the printed order.
     pub position: i32,
+    /// Which edit of the row this is. A rename naming an older one is refused
+    /// as stale rather than written over somebody else's change.
+    pub version: i32,
     /// When it was archived, if it was.
     pub archived_at: Option<DateTime<Utc>>,
 }
@@ -97,13 +101,34 @@ pub struct Dish {
     pub description: Option<String>,
     /// What it costs today. Copied onto a line when it is ordered.
     pub price: Decimal,
+    /// Whether it is veg, non veg, or egg.
+    pub diet: Diet,
     /// Whether the kitchen can currently make it. Switching this off stops
     /// waiters ordering it and leaves dishes already on an open bill alone.
     pub is_available: bool,
     /// Where it sits in the printed order.
     pub position: i32,
+    /// Which edit of the row this is. Every write that changes the dish bumps
+    /// it, the availability switch included, so an edit form opened before the
+    /// kitchen switched a dish off is refused rather than switching it back on.
+    pub version: i32,
     /// When it was archived, if it was.
     pub archived_at: Option<DateTime<Utc>>,
+}
+
+/// A dish taken off the menu, with what the admin needs to put it back.
+///
+/// Its category is carried by name as well as by id, because the category may
+/// have been archived too, and an archived category no longer appears anywhere
+/// else the screen could look its name up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchivedDish {
+    /// The dish itself, with `archived_at` set.
+    pub dish: Dish,
+    /// What its old category is called.
+    pub category_name: String,
+    /// Whether that category is still live, and so can take the dish back.
+    pub category_live: bool,
 }
 
 /// A named group of tables, such as a terrace.

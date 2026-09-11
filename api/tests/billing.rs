@@ -4,7 +4,7 @@
 
 mod common;
 
-use api::domain::enums::{BillStatus, PaymentMethod, StaffRole};
+use api::domain::enums::{BillStatus, Diet, PaymentMethod, StaffRole};
 use api::domain::error::DomainError;
 use api::domain::ids::{BillId, DishId, RestaurantId};
 use api::domain::service::NewOrderLine;
@@ -239,15 +239,20 @@ async fn a_closed_bill_is_untouched_by_later_edits() {
         &mut tx,
         f.soup,
         &catalog::DishEdit {
+            category_id: f.category,
             name: "Consomme".to_owned(),
             description: Some("renamed and repriced".to_owned()),
             price: common::money("99.0000"),
-            is_available: false,
+            diet: Diet::NonVeg,
+            version: 1,
         },
         f.admin,
     )
     .await
     .expect("repricing and renaming the soup");
+    catalog::set_dish_availability(&mut tx, f.soup, false, f.admin)
+        .await
+        .expect("switching the soup off");
     catalog::archive_dish(&mut tx, f.soup, f.admin)
         .await
         .expect("archiving the soup");
@@ -718,10 +723,12 @@ async fn every_consequential_change_is_written_down() {
         &mut tx,
         f.steak,
         &catalog::DishEdit {
+            category_id: f.category,
             name: "Steak".to_owned(),
             description: None,
             price: common::money("27.5000"),
-            is_available: true,
+            diet: Diet::NonVeg,
+            version: 1,
         },
         f.admin,
     )

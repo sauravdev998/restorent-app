@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO dishes\n            (id, restaurant_id, category_id, name, description, price, diet, is_available,\n             position, updated_at)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, now())\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Numeric",
+        {
+          "Custom": {
+            "name": "dish_diet",
+            "kind": {
+              "Enum": [
+                "veg",
+                "non_veg",
+                "egg"
+              ]
+            }
+          }
+        },
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ddfa34d4dce5f3089345dd0270478f890ad26c25af9537d1b700cac890e5a050"
+}

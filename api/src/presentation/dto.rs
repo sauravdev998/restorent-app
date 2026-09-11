@@ -12,8 +12,8 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::billing::{Bill, BillTax};
-use crate::domain::catalog::Restaurant;
-use crate::domain::enums::{LineStatus, RoundStatus, StaffRole};
+use crate::domain::catalog::{Dish, Restaurant};
+use crate::domain::enums::{Diet, LineStatus, RoundStatus, StaffRole};
 use crate::domain::language::LanguageCode;
 use crate::domain::people::Staff;
 use crate::domain::service::{OrderLine, OrderRound};
@@ -370,9 +370,112 @@ impl BillDto {
     }
 }
 
+// ===========================================================================
+// The menu
+// ===========================================================================
+
+/// Whether a dish is veg, non veg, or egg, on the wire.
+///
+/// The same three words the `dish_diet` enum stores, kept that way by the test
+/// at the foot of this file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DietDto {
+    /// No meat, no fish, no egg.
+    Veg,
+    /// Meat or fish.
+    NonVeg,
+    /// Egg, and nothing else that is not vegetarian.
+    Egg,
+}
+
+impl From<Diet> for DietDto {
+    fn from(diet: Diet) -> Self {
+        match diet {
+            Diet::Veg => Self::Veg,
+            Diet::NonVeg => Self::NonVeg,
+            Diet::Egg => Self::Egg,
+        }
+    }
+}
+
+impl From<DietDto> for Diet {
+    fn from(diet: DietDto) -> Self {
+        match diet {
+            DietDto::Veg => Self::Veg,
+            DietDto::NonVeg => Self::NonVeg,
+            DietDto::Egg => Self::Egg,
+        }
+    }
+}
+
+/// One dish, with everything an admin's edit form needs.
+///
+/// What every menu write answers with, and what the admin menu lists. The
+/// `version` is the one the form sends back, which is how an edit made from a
+/// stale form is told apart from a current one.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DishDto {
+    /// Which dish this is.
+    pub id: Uuid,
+    /// Which category it sits under.
+    pub category_id: Uuid,
+    /// What it is called.
+    pub name: String,
+    /// What it is, for the waiter to read out. `null` when there is none.
+    pub description: Option<String>,
+    /// What it costs, as an exact decimal string. Never a JSON number.
+    pub price: String,
+    /// Whether it is veg, non veg, or egg.
+    pub diet: DietDto,
+    /// Whether the kitchen can make it right now.
+    pub available: bool,
+    /// Which edit of the dish this is. Send it back with an edit.
+    pub version: i32,
+    /// When it was taken off the menu, or `null` while it is on it.
+    pub archived_at: Option<DateTime<Utc>>,
+}
+
+impl From<Dish> for DishDto {
+    fn from(dish: Dish) -> Self {
+        Self {
+            id: dish.id.as_uuid(),
+            category_id: dish.category_id.as_uuid(),
+            name: dish.name,
+            description: dish.description,
+            price: dish.price.to_string(),
+            diet: dish.diet.into(),
+            available: dish.is_available,
+            version: dish.version,
+            archived_at: dish.archived_at,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// covers: AC-13 (spec 0008)
+    ///
+    /// Three layers say these words: the Postgres enum, the domain enum, and
+    /// this one. A divergence would be a screen drawing the wrong mark on a
+    /// dish, which on this particular value is a vegetarian served chicken.
+    #[test]
+    fn every_diet_travels_as_the_word_the_database_stores() {
+        for diet in [Diet::Veg, Diet::NonVeg, Diet::Egg] {
+            let on_the_wire = serde_json::to_value(DietDto::from(diet)).expect("a diet serialises");
+
+            assert_eq!(
+                on_the_wire,
+                serde_json::Value::String(diet.as_label().to_owned()),
+                "{diet:?} is {:?} in the database and {on_the_wire} on the wire",
+                diet.as_label()
+            );
+            assert_eq!(Diet::from(DietDto::from(diet)), diet);
+        }
+    }
 
     /// The wire strings and the database strings have to be the same words.
     /// They are two enums in two layers, so nothing but this makes them agree,

@@ -8,7 +8,8 @@
     "kitchen": "Kitchen",
     "chef": "Kitchen",
     "settings": "Settings",
-    "account": "Account"
+    "account": "Account",
+    "menu": "Menu"
   },
   "a11y": {
     "skipToMain": "Skip to main content",
@@ -92,7 +93,14 @@
     "sessionCollision": "Signing in did not complete. Try again.",
     "unavailable": "The service is not answering right now. Try again in a moment.",
     "unknown": "Something went wrong. Try again in a moment.",
-    "throttled": "Too many attempts. Wait a few minutes and try again."
+    "throttled": "Too many attempts. Wait a few minutes and try again.",
+    "dishChanged": "Somebody changed this dish after you opened it. The form now shows where it stands.",
+    "categoryChanged": "Somebody changed this category after you opened it. It now shows the current name.",
+    "menuChanged": "The menu changed while you were moving things. It now shows the current order, so try again.",
+    "categoryNotEmpty": "That category still has dishes in it. Move or remove them first.",
+    "categoryArchived": "That category has been removed. Choose another one.",
+    "nameTaken": "Something on the menu already has that name. Rename one of them first.",
+    "dishNotOrderable": "A dish in the basket has just gone off. It is marked below; take it out to send the rest."
   },
   "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land.",
   "signIn": {
@@ -150,6 +158,19 @@
     "unknown_country": "That is not a country this platform serves yet.",
     "not_in_catalogue": "That is not a language this platform offers.",
     "incorrect": "That is not right.",
-    "required": "This is required."
+    "required": "This is required.",
+    "not_a_number": "That is not a number.",
+    "negative": "That cannot be below zero.",
+    "too_large": "That is more than this can hold.",
+    "too_many_decimals": "That has more decimal places than your currency uses."
+  },
+  "diet": {
+    "veg": "Vegetarian",
+    "non_veg": "Non vegetarian",
+    "egg": "Contains egg"
+  },
+  "availability": {
+    "switchedOff": "{{dish}} is off. Waiters now see it greyed.",
+    "backOn": "{{dish}} is back on the menu."
   }
 }

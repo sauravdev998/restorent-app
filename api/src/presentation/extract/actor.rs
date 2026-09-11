@@ -108,6 +108,39 @@ impl RoleRequirement for Chef {
     }
 }
 
+/// An admin or a chef.
+///
+/// Exactly one endpoint holds this, the dish availability switch. "We ran out"
+/// is the chef's to say, and making them find an admin first would put a gap
+/// between the kitchen running out and the waiters knowing, which is the whole
+/// thing the switch exists to close.
+#[derive(Debug, Clone, Copy)]
+pub struct AdminOrChef;
+
+impl RoleRequirement for AdminOrChef {
+    const DESCRIPTION: &'static str = "Admins and chefs.";
+
+    fn permits(role: StaffRole) -> bool {
+        matches!(role, StaffRole::Admin | StaffRole::Chef)
+    }
+}
+
+/// A waiter or a chef.
+///
+/// Held by the ordering menu, which the chef's Menu tab reads too. The admin
+/// reads the fuller admin menu instead, which carries the versions, the diet
+/// markers of archived dishes, and everything else an edit needs.
+#[derive(Debug, Clone, Copy)]
+pub struct WaiterOrChef;
+
+impl RoleRequirement for WaiterOrChef {
+    const DESCRIPTION: &'static str = "Waiters and chefs.";
+
+    fn permits(role: StaffRole) -> bool {
+        matches!(role, StaffRole::Waiter | StaffRole::Chef)
+    }
+}
+
 /// Who is making this request, once their session has been resolved.
 ///
 /// A handler taking `Actor<Admin>` is guaranteed two things by the time its
@@ -287,6 +320,27 @@ mod tests {
         assert!(Chef::permits(StaffRole::Chef));
     }
 
+    /// covers: spec 0008 AC-16
+    ///
+    /// The two combined requirements, pair by pair, for the same reason as the
+    /// table above: a rule that generated them would move with any mistake.
+    #[test]
+    fn each_combined_requirement_admits_exactly_its_two_roles() {
+        assert!(AdminOrChef::permits(StaffRole::Admin));
+        assert!(
+            !AdminOrChef::permits(StaffRole::Waiter),
+            "a waiter reached the availability switch, which is the kitchen's call"
+        );
+        assert!(AdminOrChef::permits(StaffRole::Chef));
+
+        assert!(
+            !WaiterOrChef::permits(StaffRole::Admin),
+            "an admin reached the ordering menu rather than the admin menu"
+        );
+        assert!(WaiterOrChef::permits(StaffRole::Waiter));
+        assert!(WaiterOrChef::permits(StaffRole::Chef));
+    }
+
     /// covers: AC-8
     ///
     /// An admin is not a superuser here. There is no inheritance between the
@@ -313,6 +367,8 @@ mod tests {
             Admin::DESCRIPTION,
             Waiter::DESCRIPTION,
             Chef::DESCRIPTION,
+            AdminOrChef::DESCRIPTION,
+            WaiterOrChef::DESCRIPTION,
         ];
 
         for description in descriptions {

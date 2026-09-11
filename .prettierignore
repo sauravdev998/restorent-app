@@ -8,6 +8,11 @@ web/test-results/
 web/playwright-report/
 pnpm-lock.yaml
 
+# Agent skills, installed from their upstream repositories as they are. They are
+# vendored like a dependency, not code this project writes, and reformatting
+# them would make the next reinstall a diff of whitespace.
+.agents/skills/
+
 # Generated, and generated with their own formatting. Continuous integration
 # regenerates both and fails on a difference, so reformatting them here would
 # turn `pnpm format` into a failing `pnpm client:check`.

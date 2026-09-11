@@ -1,10 +1,21 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT category_id, name, description, price, is_available, position, archived_at\n        FROM dishes\n        WHERE id = $1\n        FOR UPDATE\n        ",
+  "query": "\n        SELECT id, category_id, name, description, price, diet AS \"diet: Diet\",\n               is_available, position, version, archived_at\n        FROM dishes\n        WHERE category_id = $1 AND archived_at IS NULL\n        ORDER BY position, name, id\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dishes",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
         "name": "category_id",
         "type_info": "Uuid",
         "origin": {
@@ -15,7 +26,7 @@
         }
       },
       {
-        "ordinal": 1,
+        "ordinal": 2,
         "name": "name",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "description",
         "type_info": "Text",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "price",
         "type_info": "Numeric",
         "origin": {
@@ -48,7 +59,29 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
+        "name": "diet: Diet",
+        "type_info": {
+          "Custom": {
+            "name": "dish_diet",
+            "kind": {
+              "Enum": [
+                "veg",
+                "non_veg",
+                "egg"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "dishes",
+            "name": "diet"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "is_available",
         "type_info": "Bool",
         "origin": {
@@ -59,7 +92,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "position",
         "type_info": "Int4",
         "origin": {
@@ -70,7 +103,18 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dishes",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "archived_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -89,12 +133,15 @@
     "nullable": [
       false,
       false,
+      false,
       true,
+      false,
+      false,
       false,
       false,
       false,
       true
     ]
   },
-  "hash": "51d9028481ebf19a5d60caa5a63049d0fc902d4b7a44f7fbd1cbbc0ff8490adf"
+  "hash": "adff1dfacc841e1c9e5a0ee23431aae664b1bfde0d66e2719eb8933a278abc87"
 }

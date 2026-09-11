@@ -1,5 +1,6 @@
 //! HTTP handlers. Thin: they extract, call a use case, and shape a response.
 
+pub mod admin_menu;
 pub mod auth;
 pub mod billing;
 pub mod dev;

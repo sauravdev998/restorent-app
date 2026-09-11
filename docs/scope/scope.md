@@ -19,7 +19,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 6 | Language and text foundation | Foundation | done |
 | 7 | Accounts, restaurants, and roles | Foundation | done |
 | 8 | The thin order thread | Slice 1 | done |
-| 9 | Menu management | Slice 2 | planned |
+| 9 | Menu management | Slice 2 | in-progress |
 | 10 | Staff accounts | Slice 2 | planned |
 | 11 | Tables and floor plan | Slice 2 | planned |
 | 12 | Waiter service flow | Slice 3 | planned |
@@ -35,6 +35,9 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 22 | Customer QR self ordering | Deferred | planned |
 | 23 | Splitting and merging bills | Deferred | planned |
 | 24 | Password recovery by email | Slice 6 | planned |
+| 25 | Dish photos | Deferred | planned |
+| 26 | Dish sizes and add ons | Deferred | planned |
+| 27 | Dish names in a second language | Deferred | planned |
 
 ## Foundations
 
@@ -150,10 +153,21 @@ spec [0007](../specs/0007-the-thin-order-thread/index.md) · verify [0007](../sp
 
 Thicken the setup segment, so a real restaurant's own menu, staff, and tables drive the thread rather than the one hardcoded dish and table from slice 1.
 
-### 9. Menu management · needs a decision
+### 9. Menu management · in-progress
 The admin builds the real menu: categories, dishes with a price, and a switch to mark a dish unavailable when the kitchen runs out, which immediately stops waiters ordering it.
 **Done when:** an admin can create, edit, reorder, and remove categories and dishes; marking a dish unavailable removes it from the waiter's ordering screen at once; a dish already on an open bill is unaffected.
-- [ ] Design it (spec): `/architect menu management`
+spec [0008](../specs/0008-menu-management/index.md)
+- [x] Design it (spec): `/architect menu management`
+- [ ] Build it: `/develop menu management`
+  - [x] The thread, top to bottom: migration 0006, the `menu_category` event kind, the two combined roles, the admin menu read, creating a dish, the availability switch, the plainest admin screen and kitchen Menu tab, and the two browser Playwright run (AC-2, AC-9, AC-10, AC-13, AC-14, AC-16, AC-17, AC-18, AC-19, AC-20)
+  - [ ] The whole edit surface and its rules: category create and rename, dish edit and move, version checks, field errors, live name uniqueness, the audit rows, the price input, and the diet mark with its tokens (AC-1, AC-3, AC-13, AC-14, AC-15, AC-17)
+  - [ ] Order: the two reorder endpoints and dnd-kit drag and drop with keyboard, touch, and translated announcements (AC-4, AC-5)
+  - [ ] Remove and restore: the archive rules and their locks, the Archived section, and the restore dialog (AC-6, AC-7, AC-8, AC-17)
+  - [ ] The waiter's side and proof: basket flagging and `dish_not_orderable`, the base `Switch`, every state and translation, and the full tests (AC-9, AC-10, AC-11, AC-12, AC-16, AC-19, AC-20)
+- [ ] Verify it: `/check verify menu management`
+- [ ] Test it: `/test menu management`
+- [ ] Review it (fresh model): `/check review menu management`
+- [ ] Document it: `/document menu management`
 
 ### 10. Staff accounts · needs a decision
 The admin creates waiter and chef accounts, hands out access, changes someone's role, and shuts off an account when a person leaves. Staff never register themselves.
@@ -238,6 +252,9 @@ Out of scope for the current build pass, kept so the plan stays honest. Both are
 - **21. Subscription plans and paid signup**: monthly plans per restaurant, a paid signup flow, a payment provider, invoices, and what happens when a payment fails · needs a decision
 - **22. Customer QR self ordering**: the customer scans a code at the table, browses the menu, and sends rounds to the kitchen without a waiter, which needs its own public surface, its own session handling, and its own abuse controls · needs a decision
 - **23. Splitting and merging bills** `from spec 0003`: guests paying separately, and two joined tables paying as one. The schema in spec [0003](../specs/0003-core-data-model/index.md) permits both (lines carry a bill reference, and a visit owns the table rather than a bill), and nothing implements either. It needs the waiter screens for choosing which lines go where, which is the real work · needs a decision
+- **25. Dish photos** `from spec 0008`: an image per dish on the admin and waiter screens. Needs upload, S3 storage, and resizing, new infrastructure the menu feature deliberately left out · needs a decision
+- **26. Dish sizes and add ons** `from spec 0008`: half or full portions, extra cheese. Changes how a line's price is worked out and what a kitchen ticket shows, so it touches the order thread as much as the menu · needs a decision
+- **27. Dish names in a second language** `from spec 0008`: an English name beside a Hindi one, say. Needs a translations shape for restaurant typed text and a rule for which name each screen shows · needs a decision
 
 ## Legend
 

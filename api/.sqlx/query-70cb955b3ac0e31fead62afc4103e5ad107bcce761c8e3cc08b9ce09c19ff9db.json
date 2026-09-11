@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE menu_categories AS c\n        SET archived_at = NULL, position = $2, version = c.version + 1, updated_at = now()\n        FROM (SELECT id, archived_at, position FROM menu_categories WHERE id = $1) AS old\n        WHERE c.id = old.id AND c.archived_at IS NOT NULL\n        RETURNING c.id AS \"id!\", c.name AS \"name!\", c.version AS \"version!\",\n                  old.archived_at AS \"old_archived_at\", old.position AS \"old_position!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "version!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "old_archived_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "archived_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "old_position!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "position"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "70cb955b3ac0e31fead62afc4103e5ad107bcce761c8e3cc08b9ce09c19ff9db"
+}

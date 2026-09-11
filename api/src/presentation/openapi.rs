@@ -11,11 +11,11 @@
 use utoipa::OpenApi;
 
 use super::dto::{
-    BillDto, BillTaxDto, IdentityBundle, LineStatusDto, OrderLineDto, OrderRoundDto, RestaurantDto,
-    RoleDto, RoundStatusDto, StaffDto,
+    BillDto, BillTaxDto, DietDto, DishDto, IdentityBundle, LineStatusDto, OrderLineDto,
+    OrderRoundDto, RestaurantDto, RoleDto, RoundStatusDto, StaffDto,
 };
 use super::error::ErrorBody;
-use super::handlers::{auth, billing, events, health, me, menu, service};
+use super::handlers::{admin_menu, auth, billing, events, health, me, menu, service};
 
 /// The whole public API surface.
 #[derive(OpenApi)]
@@ -44,6 +44,9 @@ use super::handlers::{auth, billing, events, health, me, menu, service};
         service::mark_round_served,
         service::kitchen_tickets,
         service::mark_line_ready,
+        admin_menu::admin_menu,
+        admin_menu::create_dish,
+        menu::set_availability,
     ),
     components(schemas(
         ErrorBody,
@@ -81,11 +84,22 @@ use super::handlers::{auth, billing, events, health, me, menu, service};
         service::KitchenLineDto,
         service::MarkedLineResponse,
         billing::VisitResponse,
+        DietDto,
+        DishDto,
+        menu::SetAvailabilityRequest,
+        admin_menu::AdminMenuResponse,
+        admin_menu::AdminCategoryDto,
+        admin_menu::ArchivedMenuDto,
+        admin_menu::ArchivedCategoryDto,
+        admin_menu::ArchivedDishDto,
+        admin_menu::CategoryDto,
+        admin_menu::CreateDishRequest,
     )),
     tags(
         (name = "system", description = "Health and live updates."),
         (name = "accounts", description = "Registering, signing in, and who is signed in."),
         (name = "orders", description = "The floor, the menu, tickets to the kitchen, and the bill."),
+        (name = "menu", description = "Building the menu, and switching a dish on or off."),
     )
 )]
 pub struct ApiDoc;

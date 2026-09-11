@@ -92,5 +92,42 @@
     "saving": "Saving",
     "saved": "Settings saved",
     "failed": "Those settings could not be saved."
+  },
+  "menu": {
+    "title": "Menu",
+    "intro": "What your waiters order from, in the order your printed menu uses. Every change reaches their screens within a few seconds, so there is nothing to publish.",
+    "categoryCount_one": "{{count}} category",
+    "categoryCount_other": "{{count}} categories",
+    "dishCount_one": "{{count}} dish",
+    "dishCount_other": "{{count}} dishes",
+    "offCount_one": "{{count}} off tonight",
+    "offCount_other": "{{count}} off tonight",
+    "addDish": "Add a dish",
+    "addDishHere": "Add a dish",
+    "addDishTo": "Add a dish to {{category}}",
+    "emptyTitle": "Your menu is empty",
+    "emptyBody": "Start with a category, such as Starters, then add the dishes that go in it.",
+    "categoryEmpty": "No dishes here yet. Add one and it reaches every waiter's screen at once.",
+    "available": "Available",
+    "off": "Off tonight",
+    "availabilityLabel": "{{dish}} available",
+    "cancel": "Cancel",
+    "dish": {
+      "addTitle": "Add a dish",
+      "addBody": "It goes at the end of its category, available, and reaches every waiter within a few seconds.",
+      "category": "Category",
+      "name": "Name",
+      "nameHint": "Up to 80 characters, exactly as waiters and the kitchen should read it.",
+      "description": "Description",
+      "descriptionHint": "Optional. What a waiter reads out to a guest, up to 300 characters.",
+      "price": "Price",
+      "priceHint_one": "In {{currency}}, with up to {{count}} decimal place.",
+      "priceHint_other": "In {{currency}}, with up to {{count}} decimal places.",
+      "priceHintWhole": "In {{currency}}, in whole amounts.",
+      "diet": "Diet",
+      "add": "Add dish",
+      "adding": "Adding",
+      "added": "{{dish}} added to {{category}}"
+    }
   }
 }

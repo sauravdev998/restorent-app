@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import { floorKey } from '@/shared/events/query-keys'
 import { formatTimestamp } from '@/shared/format'
@@ -13,7 +14,7 @@ import { EmptyState } from '@/shared/ui/empty-state'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
-import { ApiCallError, floorQuery, openVisit, type FloorTable } from '@/waiter/api/orders'
+import { floorQuery, openVisit, type FloorTable } from '@/waiter/api/orders'
 
 /**
  * The waiter's landing screen: the whole floor, free tables and taken ones.
@@ -61,7 +62,7 @@ export function WaiterFloor() {
       void queryClient.invalidateQueries({ queryKey: floorKey })
 
       showToast({
-        title: apiErrorMessage(error instanceof ApiCallError ? error.body : error, common),
+        title: apiErrorMessage(failureBody(error), common),
         tone: 'late',
       })
     },
@@ -96,10 +97,7 @@ export function WaiterFloor() {
         <EmptyState
           icon={LayoutGrid}
           title={common('error.title')}
-          description={apiErrorMessage(
-            floor.error instanceof ApiCallError ? floor.error.body : floor.error,
-            common,
-          )}
+          description={apiErrorMessage(failureBody(floor.error), common)}
           action={
             <Button
               onClick={() => {

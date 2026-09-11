@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, category_id, name, description, price, is_available, position, archived_at\n        FROM dishes\n        WHERE archived_at IS NULL\n        ORDER BY position, name\n        ",
+  "query": "\n        SELECT id, category_id, name, description, price, diet AS \"diet: Diet\",\n               is_available, position, version, archived_at\n        FROM dishes\n        WHERE archived_at IS NULL\n        ORDER BY position, name, id\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,28 @@
       },
       {
         "ordinal": 5,
+        "name": "diet: Diet",
+        "type_info": {
+          "Custom": {
+            "name": "dish_diet",
+            "kind": {
+              "Enum": [
+                "veg",
+                "non_veg",
+                "egg"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "dishes",
+            "name": "diet"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "is_available",
         "type_info": "Bool",
         "origin": {
@@ -70,7 +92,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "position",
         "type_info": "Int4",
         "origin": {
@@ -81,7 +103,18 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dishes",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "archived_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,8 +136,10 @@
       false,
       false,
       false,
+      false,
+      false,
       true
     ]
   },
-  "hash": "13a69987a9c589fc45fd617baf79dfcee922d184a508eb495f4dcb53e77ee1d3"
+  "hash": "9be10e5739c4ece50d771d26321bda387de0b00e6b6d05ad7795c2fec325acb0"
 }

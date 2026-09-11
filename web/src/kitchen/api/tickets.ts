@@ -1,9 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
 
+import { ApiCallError } from '@/shared/api/call-error'
 import { api } from '@/shared/api/client'
 import type { components } from '@/shared/api/schema'
 import { kitchenKey } from '@/shared/events/query-keys'
-import { ApiCallError } from '@/waiter/api/orders'
 
 /** The kitchen queue, and the server's clock the ages are measured against. */
 export type KitchenQueue = components['schemas']['KitchenResponse']

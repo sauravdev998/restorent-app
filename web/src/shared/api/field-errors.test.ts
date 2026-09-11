@@ -62,6 +62,10 @@ describe('the closed set of codes', () => {
       'not_in_catalogue',
       'incorrect',
       'required',
+      'not_a_number',
+      'negative',
+      'too_large',
+      'too_many_decimals',
     ])
 
     for (const code of FIELD_ERROR_CODES) {

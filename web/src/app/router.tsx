@@ -6,8 +6,10 @@ import {
 } from 'react-router'
 
 import { AdminHome } from '@/admin/routes/admin-home'
+import { AdminMenuScreen } from '@/admin/routes/admin-menu'
 import { RestaurantSettings } from '@/admin/routes/restaurant-settings'
 import { KitchenHome } from '@/kitchen/routes/kitchen-home'
+import { KitchenMenu } from '@/kitchen/routes/kitchen-menu'
 import { identityQuery, type Identity, type Role } from '@/shared/session/identity'
 import { landingFor, REGISTER_PATH, signInPathFor, SIGN_IN_PATH } from '@/shared/session/signed-out'
 import { WaiterFloor } from '@/waiter/routes/floor'
@@ -143,6 +145,7 @@ export const router = createBrowserRouter([
         loader: requireRole('admin'),
         children: [
           { index: true, element: <AdminHome /> },
+          { path: 'menu', element: <AdminMenuScreen /> },
           { path: 'settings', element: <RestaurantSettings /> },
         ],
       },
@@ -157,7 +160,10 @@ export const router = createBrowserRouter([
       {
         path: 'kitchen',
         loader: requireRole('chef'),
-        children: [{ index: true, element: <KitchenHome /> }],
+        children: [
+          { index: true, element: <KitchenHome /> },
+          { path: 'menu', element: <KitchenMenu /> },
+        ],
       },
       ...developmentRoutes,
       { path: '*', element: <NotFound /> },

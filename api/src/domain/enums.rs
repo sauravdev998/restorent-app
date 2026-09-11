@@ -1,4 +1,4 @@
-//! The six closed vocabularies the schema is built on.
+//! The seven closed vocabularies the schema is built on.
 //!
 //! Each one mirrors a Postgres enum type of the same name, value for value. The
 //! two must stay in step: adding a value means a one line `ALTER TYPE` in a
@@ -130,6 +130,23 @@ labelled_enum! {
 }
 
 labelled_enum! {
+    /// What a dish is, as the square mark on an Indian menu says it.
+    ///
+    /// Required on every dish. There is deliberately no "unknown": a dish
+    /// nobody chose a marker for would be drawn as something, and drawing a
+    /// chicken dish as vegetarian is the one mistake on a menu that is not
+    /// merely embarrassing.
+    Diet {
+        /// No meat, no fish, no egg. A filled circle in the square.
+        Veg => "veg",
+        /// Meat or fish. A filled triangle in the square.
+        NonVeg => "non_veg",
+        /// Egg, and nothing else that is not vegetarian. A filled oval.
+        Egg => "egg",
+    }
+}
+
+labelled_enum! {
     /// How a closed bill was paid.
     ///
     /// The product takes no payment itself, so this records what happened at the
@@ -205,6 +222,7 @@ mod tests {
                 PaymentMethod::Other
             ]
         );
+        check!(Diet, [Diet::Veg, Diet::NonVeg, Diet::Egg]);
     }
 
     /// A value the database knows about and this enum does not must not decode.
@@ -212,5 +230,6 @@ mod tests {
     fn an_unknown_label_is_refused_rather_than_guessed() {
         assert_eq!(LineStatus::from_label("plated"), None);
         assert_eq!(StaffRole::from_label("owner"), None);
+        assert_eq!(Diet::from_label("vegan"), None);
     }
 }

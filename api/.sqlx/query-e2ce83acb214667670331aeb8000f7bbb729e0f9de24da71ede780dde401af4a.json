@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, position, archived_at\n        FROM menu_categories\n        WHERE archived_at IS NULL\n        ORDER BY position, name\n        ",
+  "query": "\n        SELECT id, name, position, version, archived_at\n        FROM menu_categories\n        WHERE archived_at IS NOT NULL\n        ORDER BY archived_at DESC, name, id\n        ",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "archived_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -55,8 +66,9 @@
       false,
       false,
       false,
+      false,
       true
     ]
   },
-  "hash": "672cc26a6d0107b6cdcf6eb2478ed7e9ceb2ba49e577eba96ca98ff1d73c5e7c"
+  "hash": "e2ce83acb214667670331aeb8000f7bbb729e0f9de24da71ede780dde401af4a"
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  adminMenuKey,
   ENTITY_KINDS,
   FAN_OUT,
   floorKey,
@@ -37,6 +38,20 @@ describe('the fan out map', () => {
     expect(FAN_OUT.dish.map((key) => key.join('/'))).toEqual(['dish', 'visit'])
   }) // covers: AC-15
 
+  it('sends a category change to both menus and to nothing else', () => {
+    // No open table holds a category of its own, so a rename must not send
+    // every waiter's table screen back to the API.
+    expect(FAN_OUT.menu_category.map((key) => key.join('/'))).toEqual(['dish'])
+  }) // covers: AC-18 (spec 0008)
+
+  it('reaches the admin menu, the ordering menu, and the chef tab from one prefix', () => {
+    // The chef's Menu tab reads the ordering menu, so the two prefixes below
+    // are the whole of what a menu event has to reach.
+    expect(menuKey[0]).toBe('dish')
+    expect(adminMenuKey[0]).toBe('dish')
+    expect(adminMenuKey).not.toEqual(menuKey)
+  }) // covers: AC-18 (spec 0008)
+
   it('sends a table or staff change only to the floor', () => {
     expect(FAN_OUT.dining_table).toEqual([floorKey])
     expect(FAN_OUT.staff).toEqual([floorKey])
@@ -64,7 +79,7 @@ describe('the query keys', () => {
     // This is the mechanism, not a naming convention: an event can invalidate
     // exactly the queries built from its entity because those queries are the
     // ones whose key begins with that word.
-    for (const key of [floorKey, visitKey('any-visit'), kitchenKey, menuKey]) {
+    for (const key of [floorKey, visitKey('any-visit'), kitchenKey, menuKey, adminMenuKey]) {
       const [first] = key
       expect(first).toBeDefined()
       expect(
@@ -89,6 +104,7 @@ describe('isEntityKind', () => {
   it('recognises what the server sends', () => {
     expect(isEntityKind('order_round')).toBe(true)
     expect(isEntityKind('visit')).toBe(true)
+    expect(isEntityKind('menu_category')).toBe(true)
   }) // covers: AC-15
 
   it('refuses anything else rather than guessing', () => {

@@ -190,19 +190,9 @@ async fn the_menu_keeps_an_unavailable_dish_and_drops_an_archived_one() {
         .expect("opening scoped");
     let f = common::seed(&mut tx, restaurant_id).await;
 
-    catalog::update_dish(
-        &mut tx,
-        f.soup,
-        &catalog::DishEdit {
-            name: "Soup".to_owned(),
-            description: None,
-            price: common::money("9.5000"),
-            is_available: false,
-        },
-        f.admin,
-    )
-    .await
-    .expect("switching the soup off");
+    catalog::set_dish_availability(&mut tx, f.soup, false, f.chef)
+        .await
+        .expect("switching the soup off");
 
     let menu = catalog::live_dishes(&mut tx)
         .await

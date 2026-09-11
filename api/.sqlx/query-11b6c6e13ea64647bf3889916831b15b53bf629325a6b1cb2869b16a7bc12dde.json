@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT coalesce(max(position), 0) + 1 AS \"next!\"\n        FROM dishes\n        WHERE category_id = $1 AND archived_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "next!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "11b6c6e13ea64647bf3889916831b15b53bf629325a6b1cb2869b16a7bc12dde"
+}

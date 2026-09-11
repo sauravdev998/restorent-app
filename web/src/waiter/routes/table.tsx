@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 
+import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
+import { menuQuery } from '@/shared/api/menu'
 import { floorKey, visitKey } from '@/shared/events/query-keys'
 import { clockOffset, onDeviceClock } from '@/shared/events/server-clock'
 import { formatMoney } from '@/shared/format'
@@ -16,15 +18,7 @@ import { EmptyState } from '@/shared/ui/empty-state'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
-import {
-  ApiCallError,
-  closeVisit,
-  markRoundServed,
-  menuQuery,
-  sendRound,
-  visitQuery,
-  type Round,
-} from '@/waiter/api/orders'
+import { closeVisit, markRoundServed, sendRound, visitQuery, type Round } from '@/waiter/api/orders'
 
 /**
  * One table, for the whole meal: what has been ordered, what is ready, and what
@@ -127,7 +121,7 @@ export function WaiterTable() {
 
   function refuse(error: unknown): void {
     showToast({
-      title: apiErrorMessage(error instanceof ApiCallError ? error.body : error, common),
+      title: apiErrorMessage(failureBody(error), common),
       tone: 'late',
     })
   }
@@ -155,10 +149,7 @@ export function WaiterTable() {
       <EmptyState
         icon={UtensilsCrossed}
         title={common('error.title')}
-        description={apiErrorMessage(
-          visit.error instanceof ApiCallError ? visit.error.body : visit.error,
-          common,
-        )}
+        description={apiErrorMessage(failureBody(visit.error), common)}
         action={
           <Button
             onClick={() => {

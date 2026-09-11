@@ -3,7 +3,9 @@
 //! Not optional, and not a general activity log. This schema holds money and
 //! access control, so the changes that move either one are written down with who
 //! did it and what the value was before: voids, bill closes, price edits, tax
-//! edits, service charge edits, role changes, and deactivations.
+//! edits, service charge edits, role changes, and deactivations. Every change to
+//! the menu except a reorder joins them, because a menu edit is a price edit
+//! more often than not and the admin screen makes every kind of one.
 //!
 //! It has no retention policy, deliberately. It only records changes of
 //! consequence, so it grows far more slowly than the bills do.
@@ -30,10 +32,24 @@ pub enum AuditAction {
     LineVoided,
     /// A bill was closed, numbered, and totalled.
     BillClosed,
-    /// A dish's price, name, or availability changed.
+    /// A dish's name, description, price, diet marker, or category changed.
     DishEdited,
     /// A dish was archived off the menu.
     DishArchived,
+    /// A dish was added to the menu.
+    DishCreated,
+    /// An archived dish was put back on the menu.
+    DishRestored,
+    /// A dish was switched on or off, most often because the kitchen ran out.
+    DishAvailabilityChanged,
+    /// A menu category was added.
+    MenuCategoryCreated,
+    /// A menu category was renamed.
+    MenuCategoryRenamed,
+    /// A menu category was archived off the menu.
+    MenuCategoryArchived,
+    /// An archived menu category was put back on the menu.
+    MenuCategoryRestored,
     /// A tax component's name or rate changed.
     TaxComponentEdited,
     /// The restaurant's service charge changed.
@@ -56,6 +72,13 @@ impl AuditAction {
             Self::BillClosed => "bill_closed",
             Self::DishEdited => "dish_edited",
             Self::DishArchived => "dish_archived",
+            Self::DishCreated => "dish_created",
+            Self::DishRestored => "dish_restored",
+            Self::DishAvailabilityChanged => "dish_availability_changed",
+            Self::MenuCategoryCreated => "menu_category_created",
+            Self::MenuCategoryRenamed => "menu_category_renamed",
+            Self::MenuCategoryArchived => "menu_category_archived",
+            Self::MenuCategoryRestored => "menu_category_restored",
             Self::TaxComponentEdited => "tax_component_edited",
             Self::ServiceChargeEdited => "service_charge_edited",
             Self::StaffRoleChanged => "staff_role_changed",
@@ -94,7 +117,7 @@ mod tests {
     ///
     /// Kept honest by [`position`]: adding a variant stops that match compiling,
     /// and filling it in stops this array being the right length.
-    const ALL: [AuditAction; 11] = [
+    const ALL: [AuditAction; 18] = [
         AuditAction::RestaurantRegistered,
         AuditAction::PasswordChanged,
         AuditAction::RestaurantSettingsUpdated,
@@ -102,6 +125,13 @@ mod tests {
         AuditAction::BillClosed,
         AuditAction::DishEdited,
         AuditAction::DishArchived,
+        AuditAction::DishCreated,
+        AuditAction::DishRestored,
+        AuditAction::DishAvailabilityChanged,
+        AuditAction::MenuCategoryCreated,
+        AuditAction::MenuCategoryRenamed,
+        AuditAction::MenuCategoryArchived,
+        AuditAction::MenuCategoryRestored,
         AuditAction::TaxComponentEdited,
         AuditAction::ServiceChargeEdited,
         AuditAction::StaffRoleChanged,
@@ -122,10 +152,17 @@ mod tests {
             AuditAction::BillClosed => 4,
             AuditAction::DishEdited => 5,
             AuditAction::DishArchived => 6,
-            AuditAction::TaxComponentEdited => 7,
-            AuditAction::ServiceChargeEdited => 8,
-            AuditAction::StaffRoleChanged => 9,
-            AuditAction::StaffDeactivated => 10,
+            AuditAction::DishCreated => 7,
+            AuditAction::DishRestored => 8,
+            AuditAction::DishAvailabilityChanged => 9,
+            AuditAction::MenuCategoryCreated => 10,
+            AuditAction::MenuCategoryRenamed => 11,
+            AuditAction::MenuCategoryArchived => 12,
+            AuditAction::MenuCategoryRestored => 13,
+            AuditAction::TaxComponentEdited => 14,
+            AuditAction::ServiceChargeEdited => 15,
+            AuditAction::StaffRoleChanged => 16,
+            AuditAction::StaffDeactivated => 17,
         }
     }
 
@@ -163,6 +200,28 @@ mod tests {
         assert_eq!(AuditAction::BillClosed.as_label(), "bill_closed");
         assert_eq!(AuditAction::DishEdited.as_label(), "dish_edited");
         assert_eq!(AuditAction::DishArchived.as_label(), "dish_archived");
+        assert_eq!(AuditAction::DishCreated.as_label(), "dish_created");
+        assert_eq!(AuditAction::DishRestored.as_label(), "dish_restored");
+        assert_eq!(
+            AuditAction::DishAvailabilityChanged.as_label(),
+            "dish_availability_changed"
+        );
+        assert_eq!(
+            AuditAction::MenuCategoryCreated.as_label(),
+            "menu_category_created"
+        );
+        assert_eq!(
+            AuditAction::MenuCategoryRenamed.as_label(),
+            "menu_category_renamed"
+        );
+        assert_eq!(
+            AuditAction::MenuCategoryArchived.as_label(),
+            "menu_category_archived"
+        );
+        assert_eq!(
+            AuditAction::MenuCategoryRestored.as_label(),
+            "menu_category_restored"
+        );
         assert_eq!(
             AuditAction::TaxComponentEdited.as_label(),
             "tax_component_edited"

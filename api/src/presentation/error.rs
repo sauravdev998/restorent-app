@@ -40,7 +40,8 @@ pub struct ErrorBody {
     /// most of them, so nothing that was already reading this body changes.
     /// Each value is one of a closed set of codes: `already_taken`,
     /// `too_short`, `too_long`, `invalid_format`, `unknown_country`,
-    /// `not_in_catalogue`, `incorrect`, `required`.
+    /// `not_in_catalogue`, `incorrect`, `required`, `not_a_number`,
+    /// `negative`, `too_large`, `too_many_decimals`.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = json!({ "email": "already_taken" }))]
     pub fields: Option<BTreeMap<String, &'static str>>,

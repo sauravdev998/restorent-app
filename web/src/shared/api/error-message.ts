@@ -70,6 +70,13 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   bill_has_no_lines: 'apiError.billHasNoLines',
   bill_not_closed: 'apiError.billNotClosed',
   session_collision: 'apiError.sessionCollision',
+  dish_changed: 'apiError.dishChanged',
+  category_changed: 'apiError.categoryChanged',
+  menu_changed: 'apiError.menuChanged',
+  category_not_empty: 'apiError.categoryNotEmpty',
+  category_archived: 'apiError.categoryArchived',
+  name_taken: 'apiError.nameTaken',
+  dish_not_orderable: 'apiError.dishNotOrderable',
 }
 
 /** What anything unrecognised says. */

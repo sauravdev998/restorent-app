@@ -23,6 +23,7 @@ export const ENTITY_KINDS = [
   'order_line',
   'bill',
   'dish',
+  'menu_category',
   'dining_table',
   'staff',
   'probe',
@@ -42,8 +43,17 @@ export function visitKey(visitId: string) {
 /** The kitchen queue. */
 export const kitchenKey = ['order_round', 'kitchen'] as const
 
-/** The live menu. */
+/** The ordering menu, which the waiter orders from and the chef's Menu tab switches. */
 export const menuKey = ['dish', 'menu'] as const
+
+/**
+ * The admin's whole menu, live and archived.
+ *
+ * Under `dish` beside the ordering menu, so one invalidation of `['dish']`
+ * refreshes both, which is what every admin menu write does on success and
+ * what a `menu_category` event does for everybody else.
+ */
+export const adminMenuKey = ['dish', 'admin'] as const
 
 /**
  * Which key prefixes each kind of event invalidates.
@@ -57,6 +67,10 @@ export const menuKey = ['dish', 'menu'] as const
  * `visit` covers the floor and every open table at once, because both are built
  * from visits and both start with that word.
  *
+ * A category changing (added, renamed, reordered, archived, restored) reaches
+ * the same two menus a dish does, and nothing else: no open table holds a
+ * category of its own, so `visit` is left alone.
+ *
  * `probe` invalidates nothing. It carries no product meaning: it exists so the
  * development endpoint can prove the whole path with no data behind it.
  */
@@ -66,6 +80,7 @@ export const FAN_OUT: Readonly<Record<EntityKind, readonly (readonly string[])[]
   order_line: [['order_round'], ['visit']],
   bill: [['visit']],
   dish: [['dish'], ['visit']],
+  menu_category: [['dish']],
   dining_table: [floorKey],
   staff: [floorKey],
   probe: [],
