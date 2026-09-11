@@ -2,12 +2,19 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createDish, type AdminMenu, type DishForm } from '@/admin/api/menu'
-import { failureBody } from '@/shared/api/call-error'
+import {
+  adminMenuQuery,
+  createDish,
+  editDish,
+  type AdminMenu,
+  type DishForm,
+} from '@/admin/api/menu'
+import { failureBody, failureCode } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import { fieldErrorProps, fieldErrorsFrom, type FieldErrorCode } from '@/shared/api/field-errors'
-import { DIETS } from '@/shared/api/menu'
+import { DIETS, type Dish } from '@/shared/api/menu'
 import { parseDecimalInput } from '@/shared/format'
+import { restaurantLanguage } from '@/shared/session/identity'
 import { Button } from '@/shared/ui/button'
 import { Dialog } from '@/shared/ui/dialog'
 import { Field } from '@/shared/ui/field'
@@ -22,6 +29,32 @@ export interface DishDialogProps {
   menu: AdminMenu
   /** Which category the form starts on, when the admin came from one. */
   categoryId?: string
+  /** The dish to edit, or nothing to add a new one. */
+  dish?: Dish
+}
+
+/** What the form holds for a dish that already exists. */
+function formFor(dish: Dish, decimals: number): DishForm {
+  return {
+    categoryId: dish.categoryId,
+    name: dish.name,
+    description: dish.description ?? '',
+    price: plainPrice(dish.price, decimals),
+    diet: dish.diet,
+  }
+}
+
+/**
+ * A stored price as a person would type it.
+ *
+ * The column holds four places, so `320` comes back as `320.0000`. The box
+ * shows it with the currency's own places instead, and the trimmed digits are
+ * always zeros, because the API refuses a price with more places than that.
+ */
+function plainPrice(price: string, decimals: number): string {
+  const [whole = price, fraction = ''] = price.split('.')
+  if (decimals === 0) return whole
+  return `${whole}.${fraction.padEnd(decimals, '0').slice(0, decimals)}`
 }
 
 /**
@@ -39,34 +72,42 @@ export interface DishDialogProps {
  * invalidated and read again, which is what puts the new dish on the admin's
  * own screen at once rather than a second later when the event arrives.
  */
-export function DishDialog({ open, onOpenChange, menu, categoryId }: DishDialogProps) {
+export function DishDialog({ open, onOpenChange, menu, categoryId, dish }: DishDialogProps) {
   const { t } = useTranslation('admin')
   const { t: common } = useTranslation()
   const queryClient = useQueryClient()
   const formId = useId()
 
   const firstCategory = menu.categories[0]?.id ?? ''
-  const [form, setForm] = useState<DishForm>(() => ({
-    categoryId: categoryId ?? firstCategory,
-    name: '',
-    description: '',
-    price: '',
-    diet: 'veg',
-  }))
+  const [form, setForm] = useState<DishForm>(() =>
+    dish
+      ? formFor(dish, menu.currencyDecimals)
+      : {
+          categoryId: categoryId ?? firstCategory,
+          name: '',
+          description: '',
+          price: '',
+          diet: 'veg',
+        },
+  )
+  const [version, setVersion] = useState(dish?.version ?? 0)
   const [fields, setFields] = useState<Record<string, FieldErrorCode>>({})
   const [problem, setProblem] = useState<string | null>(null)
 
   const save = useMutation({
-    mutationFn: (submitted: DishForm) => createDish(submitted),
-    onSuccess: async (dish) => {
+    mutationFn: (submitted: DishForm) =>
+      dish ? editDish(dish.id, submitted, version) : createDish(submitted),
+    onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ['dish'] })
-      const category = menu.categories.find((each) => each.id === dish.categoryId)
+      const category = menu.categories.find((each) => each.id === saved.categoryId)
       showToast({
-        title: t('menu.dish.added', { dish: dish.name, category: category?.name ?? '' }),
+        title: dish
+          ? t('menu.dish.saved', { dish: saved.name })
+          : t('menu.dish.added', { dish: saved.name, category: category?.name ?? '' }),
       })
       onOpenChange(false)
     },
-    onError: (error: unknown) => {
+    onError: async (error: unknown) => {
       const body = failureBody(error)
       const reported = fieldErrorsFrom(body)
 
@@ -81,6 +122,21 @@ export function DishDialog({ open, onOpenChange, menu, categoryId }: DishDialogP
       // read again so the category list behind it is true.
       setFields({})
       setProblem(apiErrorMessage(body, common))
+
+      // Stale, most often because the kitchen switched the dish off since the
+      // form opened: show what the dish is now, and save against that.
+      if (dish && failureCode(error) === 'dish_changed') {
+        const fresh = await queryClient.fetchQuery({ ...adminMenuQuery, staleTime: 0 })
+        const current = fresh.categories
+          .flatMap((category) => category.dishes)
+          .find((each) => each.id === dish.id)
+        if (current) {
+          setForm(formFor(current, fresh.currencyDecimals))
+          setVersion(current.version)
+        }
+        return
+      }
+
       void queryClient.invalidateQueries({ queryKey: ['dish'] })
     },
   })
@@ -111,12 +167,12 @@ export function DishDialog({ open, onOpenChange, menu, categoryId }: DishDialogP
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={t('menu.dish.addTitle')}
-      description={t('menu.dish.addBody')}
+      title={dish ? t('menu.dish.editTitle') : t('menu.dish.addTitle')}
+      description={dish ? t('menu.dish.editBody') : t('menu.dish.addBody')}
       footer={
         <>
           <Button type="submit" form={formId} disabled={save.isPending}>
-            {save.isPending ? t('menu.dish.adding') : t('menu.dish.add')}
+            {save.isPending ? t('menu.saving') : dish ? t('menu.dish.save') : t('menu.dish.add')}
           </Button>
           <Button
             variant="secondary"
@@ -139,6 +195,7 @@ export function DishDialog({ open, onOpenChange, menu, categoryId }: DishDialogP
         <Field
           label={t('menu.dish.category')}
           required
+          {...(dish ? { hint: t('menu.dish.moveHint') } : {})}
           {...fieldErrorProps(fields['categoryId'], common)}
         >
           <Select
@@ -149,7 +206,7 @@ export function DishDialog({ open, onOpenChange, menu, categoryId }: DishDialogP
             }}
           >
             {menu.categories.map((category) => (
-              <option key={category.id} value={category.id}>
+              <option key={category.id} value={category.id} lang={restaurantLanguage()}>
                 {category.name}
               </option>
             ))}

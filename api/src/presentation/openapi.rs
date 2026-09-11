@@ -45,7 +45,10 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         service::kitchen_tickets,
         service::mark_line_ready,
         admin_menu::admin_menu,
+        admin_menu::create_category,
+        admin_menu::rename_category,
         admin_menu::create_dish,
+        admin_menu::edit_dish,
         menu::set_availability,
     ),
     components(schemas(
@@ -94,6 +97,9 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::ArchivedDishDto,
         admin_menu::CategoryDto,
         admin_menu::CreateDishRequest,
+        admin_menu::CreateCategoryRequest,
+        admin_menu::RenameCategoryRequest,
+        admin_menu::EditDishRequest,
     )),
     tags(
         (name = "system", description = "Health and live updates."),

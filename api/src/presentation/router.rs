@@ -54,7 +54,16 @@ pub fn build(state: AppState, config: &Config) -> Router {
         // The menu. Admin only under `/api/admin`, and the one switch a chef
         // may throw beside the read it changes.
         .route("/api/admin/menu", get(admin_menu::admin_menu))
+        .route(
+            "/api/admin/menu/categories",
+            post(admin_menu::create_category),
+        )
+        .route(
+            "/api/admin/menu/categories/{id}",
+            put(admin_menu::rename_category),
+        )
         .route("/api/admin/menu/dishes", post(admin_menu::create_dish))
+        .route("/api/admin/menu/dishes/{id}", put(admin_menu::edit_dish))
         .route("/api/dishes/{id}/availability", put(menu::set_availability))
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(

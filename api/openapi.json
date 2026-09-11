@@ -51,6 +51,162 @@
         }
       }
     },
+    "/api/admin/menu/categories": {
+      "post": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Adds a category to the end of the category list.",
+        "description": "It appears on the admin's screen at once, and on waiters' screens as soon as\nit holds a live dish: the ordering menu leaves an empty heading out.\n\n# Errors\n\nReturns `400` naming the field that was not accepted, including\n`fields.name=already_taken`, `401` if nobody is signed in, and `403` for a\nwaiter or a chef.",
+        "operationId": "create_category",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The category, at the end of the list. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/menu/categories/{id}": {
+      "put": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Renames a category, provided nobody changed it since the form loaded.",
+        "description": "# Errors\n\nReturns `409 category_changed` if the stored version is newer, `404` if\nthere is no such live category, `400` naming the field that was not\naccepted, `401` if nobody is signed in, and `403` for a waiter or a chef.",
+        "operationId": "rename_category",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The category to rename.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed category. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live category.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`category_changed`: somebody changed it after the form loaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/menu/dishes": {
       "post": {
         "tags": [
@@ -122,6 +278,100 @@
           },
           "409": {
             "description": "`category_archived`: that category is no longer on the menu.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/menu/dishes/{id}": {
+      "put": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Edits a dish, moving it when its category changes.",
+        "description": "The target category is checked before the version, so an edit that is both\nstale and aimed at a removed category reports the category first: that is\nwhat the admin has to change before anything else will save.\n\n# Errors\n\nReturns `400` naming each field that was not accepted, `409\ncategory_archived` if the target category has been archived, `409\ndish_changed` if the stored version is newer, `404` if there is no such live\ndish or category, `401` if nobody is signed in, and `403` for a waiter or a\nchef.",
+        "operationId": "edit_dish",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The dish to edit.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditDishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The dish after the edit. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DishDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live dish or category.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`category_archived` or `dish_changed`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1475,6 +1725,19 @@
           "down"
         ]
       },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "description": "What adding a category asks for.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it is called. At most 60 characters, unique among live categories\nignoring letter case."
+          }
+        }
+      },
       "CreateDishRequest": {
         "type": "object",
         "description": "What adding a dish asks for.\n\nNo availability: a new dish is available, and only the switch changes that.\nNo position: it goes to the end of its category.",
@@ -1578,6 +1841,48 @@
             "type": "integer",
             "format": "int32",
             "description": "Which edit of the dish this is. Send it back with an edit."
+          }
+        }
+      },
+      "EditDishRequest": {
+        "type": "object",
+        "description": "What editing a dish asks for: everything the dish should be, and which\nversion of it the form loaded.\n\nNo availability. Only the switch writes that, so an edit form opened before\nthe kitchen switched a dish off cannot switch it back on; the switch bumps\nthe version, and the form's save is refused as stale.",
+        "required": [
+          "categoryId",
+          "name",
+          "price",
+          "diet",
+          "version"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which live category it should sit under. A different one moves it to\nthe end of that category."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it is, or `null` for no description."
+          },
+          "diet": {
+            "$ref": "#/components/schemas/DietDto",
+            "description": "Whether it is veg, non veg, or egg."
+          },
+          "name": {
+            "type": "string",
+            "description": "What it should be called."
+          },
+          "price": {
+            "type": "string",
+            "description": "What it should cost, as a decimal string. Lines already sent keep the\nprice they copied."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The version the edit form loaded."
           }
         }
       },
@@ -2194,6 +2499,25 @@
           "restaurantName": {
             "type": "string",
             "description": "What the restaurant is called."
+          }
+        }
+      },
+      "RenameCategoryRequest": {
+        "type": "object",
+        "description": "What renaming a category asks for.",
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it should be called."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The version the rename form loaded. An older one is refused as stale."
           }
         }
       },

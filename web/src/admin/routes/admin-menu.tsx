@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { BookOpenText, Plus } from 'lucide-react'
+import { BookOpenText, FolderPlus, Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { adminMenuQuery, type AdminCategory, type AdminMenu } from '@/admin/api/menu'
+import { CategoryDialog } from '@/admin/menu/category-dialog'
 import { DishDialog } from '@/admin/menu/dish-dialog'
 import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
@@ -12,6 +13,7 @@ import { useDishAvailability, type DishAvailability } from '@/shared/api/use-dis
 import { formatMoney } from '@/shared/format'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
+import { DietMark } from '@/shared/ui/diet-mark'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { Icon } from '@/shared/ui/icon'
 import { RestaurantText } from '@/shared/ui/restaurant-text'
@@ -19,7 +21,10 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { Switch } from '@/shared/ui/switch'
 
 /** Which dialog is open, and what it was opened from. */
-type Opened = { kind: 'dish'; categoryId?: string } | null
+type Opened =
+  | { kind: 'dish'; categoryId?: string; dish?: Dish }
+  | { kind: 'category'; category?: AdminCategory }
+  | null
 
 /**
  * The admin's menu: every category and dish, laid out the way the printed menu
@@ -106,14 +111,25 @@ export function AdminMenuScreen() {
         </div>
 
         {categories.length > 0 && (
-          <Button
-            onClick={() => {
-              setOpened({ kind: 'dish' })
-            }}
-          >
-            <Icon icon={Plus} size="sm" />
-            {t('menu.addDish')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setOpened({ kind: 'category' })
+              }}
+            >
+              <Icon icon={FolderPlus} size="sm" />
+              {t('menu.addCategory')}
+            </Button>
+            <Button
+              onClick={() => {
+                setOpened({ kind: 'dish' })
+              }}
+            >
+              <Icon icon={Plus} size="sm" />
+              {t('menu.addDish')}
+            </Button>
+          </div>
         )}
       </header>
 
@@ -122,6 +138,16 @@ export function AdminMenuScreen() {
           icon={BookOpenText}
           title={t('menu.emptyTitle')}
           description={t('menu.emptyBody')}
+          action={
+            <Button
+              onClick={() => {
+                setOpened({ kind: 'category' })
+              }}
+            >
+              <Icon icon={FolderPlus} size="sm" />
+              {t('menu.addFirstCategory')}
+            </Button>
+          }
         />
       ) : (
         <ol className="space-y-6">
@@ -133,6 +159,12 @@ export function AdminMenuScreen() {
                 availability={availability}
                 onAddDish={() => {
                   setOpened({ kind: 'dish', categoryId: category.id })
+                }}
+                onRename={() => {
+                  setOpened({ kind: 'category', category })
+                }}
+                onEditDish={(dish) => {
+                  setOpened({ kind: 'dish', dish })
                 }}
               />
             </li>
@@ -148,6 +180,17 @@ export function AdminMenuScreen() {
           }}
           menu={menu.data}
           {...(opened.categoryId === undefined ? {} : { categoryId: opened.categoryId })}
+          {...(opened.dish === undefined ? {} : { dish: opened.dish })}
+        />
+      )}
+
+      {opened?.kind === 'category' && (
+        <CategoryDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setOpened(null)
+          }}
+          {...(opened.category === undefined ? {} : { category: opened.category })}
         />
       )}
     </div>
@@ -159,10 +202,19 @@ interface CategorySectionProps {
   menu: AdminMenu
   availability: DishAvailability
   onAddDish: () => void
+  onRename: () => void
+  onEditDish: (dish: Dish) => void
 }
 
 /** One category: its heading, its actions, and its dishes in printed order. */
-function CategorySection({ category, menu, availability, onAddDish }: CategorySectionProps) {
+function CategorySection({
+  category,
+  menu,
+  availability,
+  onAddDish,
+  onRename,
+  onEditDish,
+}: CategorySectionProps) {
   const { t } = useTranslation('admin')
   const headingId = `category-${category.id}`
 
@@ -178,10 +230,26 @@ function CategorySection({ category, menu, availability, onAddDish }: CategorySe
           </span>
         </div>
 
-        <Button variant="secondary" size="sm" onClick={onAddDish}>
-          <Icon icon={Plus} size="sm" />
-          {t('menu.addDishTo', { category: category.name })}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t('menu.renameCategoryNamed', { category: category.name })}
+            onClick={onRename}
+          >
+            <Icon icon={Pencil} size="sm" />
+            {t('menu.renameCategory')}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-label={t('menu.addDishTo', { category: category.name })}
+            onClick={onAddDish}
+          >
+            <Icon icon={Plus} size="sm" />
+            {t('menu.addDishHere')}
+          </Button>
+        </div>
       </header>
 
       {category.dishes.length === 0 ? (
@@ -191,7 +259,15 @@ function CategorySection({ category, menu, availability, onAddDish }: CategorySe
       ) : (
         <ul className="divide-y divide-border">
           {category.dishes.map((dish) => (
-            <DishRow key={dish.id} dish={dish} menu={menu} availability={availability} />
+            <DishRow
+              key={dish.id}
+              dish={dish}
+              menu={menu}
+              availability={availability}
+              onEdit={() => {
+                onEditDish(dish)
+              }}
+            />
           ))}
         </ul>
       )}
@@ -203,15 +279,18 @@ interface DishRowProps {
   dish: Dish
   menu: AdminMenu
   availability: DishAvailability
+  onEdit: () => void
 }
 
 /** One dish: what it is, what it costs, and whether the kitchen can make it. */
-function DishRow({ dish, menu, availability }: DishRowProps) {
+function DishRow({ dish, menu, availability, onEdit }: DishRowProps) {
   const { t } = useTranslation('admin')
   const available = availability.valueFor(dish.id, dish.available)
 
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+      <DietMark diet={dish.diet} size="md" />
+
       <div className="min-w-0 flex-1">
         <p className="truncate text-base font-medium text-card-foreground">
           <RestaurantText>{dish.name}</RestaurantText>
@@ -245,6 +324,16 @@ function DishRow({ dish, menu, availability }: DishRowProps) {
           {available ? t('menu.available') : t('menu.off')}
         </span>
       </div>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={t('menu.editDishNamed', { dish: dish.name })}
+        onClick={onEdit}
+      >
+        <Icon icon={Pencil} size="sm" />
+        {t('menu.editDish')}
+      </Button>
     </li>
   )
 }

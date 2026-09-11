@@ -57,3 +57,52 @@ export async function createDish(form: DishForm): Promise<Dish> {
   if (!data) throw new ApiCallError(error)
   return data
 }
+
+/** A category as every write on one answers with it. */
+export type Category = components['schemas']['CategoryDto']
+
+/** Adds a category to the end of the category list. */
+export async function createCategory(name: string): Promise<Category> {
+  const { data, error } = await api.POST('/api/admin/menu/categories', { body: { name } })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}
+
+/** Renames a category, naming the version the form loaded. */
+export async function renameCategory(
+  categoryId: string,
+  name: string,
+  version: number,
+): Promise<Category> {
+  const { data, error } = await api.PUT('/api/admin/menu/categories/{id}', {
+    params: { path: { id: categoryId } },
+    body: { name, version },
+  })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}
+
+/**
+ * Edits a dish, naming the version the form loaded.
+ *
+ * A different category moves it to the end of that category. Availability is
+ * not in here and cannot be: only the switch writes it.
+ */
+export async function editDish(dishId: string, form: DishForm, version: number): Promise<Dish> {
+  const { data, error } = await api.PUT('/api/admin/menu/dishes/{id}', {
+    params: { path: { id: dishId } },
+    body: {
+      categoryId: form.categoryId,
+      name: form.name,
+      description: form.description,
+      price: form.price,
+      diet: form.diet,
+      version,
+    },
+  })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}

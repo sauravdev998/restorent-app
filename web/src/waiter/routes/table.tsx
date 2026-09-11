@@ -13,6 +13,7 @@ import { formatMoney } from '@/shared/format'
 import { Alert } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
+import { DietMark } from '@/shared/ui/diet-mark'
 import { ElapsedTime } from '@/shared/ui/elapsed-time'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { Skeleton } from '@/shared/ui/skeleton'
@@ -214,7 +215,8 @@ export function WaiterTable() {
                 <ul className="divide-y divide-border">
                   {category.dishes.map((dish) => (
                     <li key={dish.id} className="flex items-center justify-between gap-3 py-2">
-                      <div className="min-w-0">
+                      <DietMark diet={dish.diet} />
+                      <div className="min-w-0 flex-1">
                         <p
                           className={
                             dish.available

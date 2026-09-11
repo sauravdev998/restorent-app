@@ -126,8 +126,31 @@
       "priceHintWhole": "In {{currency}}, in whole amounts.",
       "diet": "Diet",
       "add": "Add dish",
-      "adding": "Adding",
-      "added": "{{dish}} added to {{category}}"
+      "added": "{{dish}} added to {{category}}",
+      "editTitle": "Edit this dish",
+      "editBody": "Changes reach every waiter within a few seconds. Dishes already sent to the kitchen keep the name and price they were ordered at.",
+      "moveHint": "Choosing another category moves the dish to the end of it.",
+      "save": "Save changes",
+      "saved": "{{dish}} saved"
+    },
+    "addCategory": "Add a category",
+    "addFirstCategory": "Add the first category",
+    "renameCategory": "Rename",
+    "renameCategoryNamed": "Rename {{category}}",
+    "editDish": "Edit",
+    "editDishNamed": "Edit {{dish}}",
+    "saving": "Saving",
+    "category": {
+      "addTitle": "Add a category",
+      "addBody": "It goes at the end of the menu. Waiters see it once it has a dish in it.",
+      "renameTitle": "Rename this category",
+      "renameBody": "The new name reaches every waiter within a few seconds.",
+      "name": "Name",
+      "nameHint": "Up to 60 characters, such as Starters or Breads.",
+      "add": "Add category",
+      "rename": "Save name",
+      "added": "{{category}} added to the menu",
+      "renamed": "Renamed to {{category}}"
     }
   }
 }

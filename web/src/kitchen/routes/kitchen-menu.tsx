@@ -9,6 +9,7 @@ import { menuQuery } from '@/shared/api/menu'
 import { useDishAvailability } from '@/shared/api/use-dish-availability'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
+import { DietMark } from '@/shared/ui/diet-mark'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { RestaurantText } from '@/shared/ui/restaurant-text'
 import { Skeleton } from '@/shared/ui/skeleton'
@@ -110,7 +111,8 @@ export function KitchenMenu() {
                     const available = availability.valueFor(dish.id, dish.available)
 
                     return (
-                      <li key={dish.id} className="flex items-center justify-between gap-4 py-2">
+                      <li key={dish.id} className="flex items-center gap-4 py-2">
+                        <DietMark diet={dish.diet} />
                         <RestaurantText
                           as="p"
                           className={
@@ -122,7 +124,7 @@ export function KitchenMenu() {
                           {dish.name}
                         </RestaurantText>
 
-                        <div className="flex shrink-0 items-center gap-3">
+                        <div className="ms-auto flex shrink-0 items-center gap-3">
                           <span
                             className={
                               available

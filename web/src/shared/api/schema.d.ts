@@ -27,6 +27,57 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/admin/menu/categories': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Adds a category to the end of the category list.
+     * @description It appears on the admin's screen at once, and on waiters' screens as soon as
+     *     it holds a live dish: the ordering menu leaves an empty heading out.
+     *
+     *     # Errors
+     *
+     *     Returns `400` naming the field that was not accepted, including
+     *     `fields.name=already_taken`, `401` if nobody is signed in, and `403` for a
+     *     waiter or a chef.
+     */
+    post: operations['create_category']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Renames a category, provided nobody changed it since the form loaded.
+     * @description # Errors
+     *
+     *     Returns `409 category_changed` if the stored version is newer, `404` if
+     *     there is no such live category, `400` naming the field that was not
+     *     accepted, `401` if nobody is signed in, and `403` for a waiter or a chef.
+     */
+    put: operations['rename_category']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/admin/menu/dishes': {
     parameters: {
       query?: never
@@ -46,6 +97,36 @@ export interface paths {
      *     waiter or a chef.
      */
     post: operations['create_dish']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/dishes/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Edits a dish, moving it when its category changes.
+     * @description The target category is checked before the version, so an edit that is both
+     *     stale and aimed at a removed category reports the category first: that is
+     *     what the admin has to change before anything else will save.
+     *
+     *     # Errors
+     *
+     *     Returns `400` naming each field that was not accepted, `409
+     *     category_archived` if the target category has been archived, `409
+     *     dish_changed` if the stored version is newer, `404` if there is no such live
+     *     dish or category, `401` if nobody is signed in, and `403` for a waiter or a
+     *     chef.
+     */
+    put: operations['edit_dish']
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -736,6 +817,14 @@ export interface components {
      * @enum {string}
      */
     Component: 'up' | 'down'
+    /** @description What adding a category asks for. */
+    CreateCategoryRequest: {
+      /**
+       * @description What it is called. At most 60 characters, unique among live categories
+       *     ignoring letter case.
+       */
+      name: string
+    }
     /**
      * @description What adding a dish asks for.
      *
@@ -808,6 +897,38 @@ export interface components {
       /**
        * Format: int32
        * @description Which edit of the dish this is. Send it back with an edit.
+       */
+      version: number
+    }
+    /**
+     * @description What editing a dish asks for: everything the dish should be, and which
+     *     version of it the form loaded.
+     *
+     *     No availability. Only the switch writes that, so an edit form opened before
+     *     the kitchen switched a dish off cannot switch it back on; the switch bumps
+     *     the version, and the form's save is refused as stale.
+     */
+    EditDishRequest: {
+      /**
+       * Format: uuid
+       * @description Which live category it should sit under. A different one moves it to
+       *     the end of that category.
+       */
+      categoryId: string
+      /** @description What it is, or `null` for no description. */
+      description?: string | null
+      /** @description Whether it is veg, non veg, or egg. */
+      diet: components['schemas']['DietDto']
+      /** @description What it should be called. */
+      name: string
+      /**
+       * @description What it should cost, as a decimal string. Lines already sent keep the
+       *     price they copied.
+       */
+      price: string
+      /**
+       * Format: int32
+       * @description The version the edit form loaded.
        */
       version: number
     }
@@ -1187,6 +1308,16 @@ export interface components {
       /** @description What the restaurant is called. */
       restaurantName: string
     }
+    /** @description What renaming a category asks for. */
+    RenameCategoryRequest: {
+      /** @description What it should be called. */
+      name: string
+      /**
+       * Format: int32
+       * @description The version the rename form loaded. An older one is refused as stale.
+       */
+      version: number
+    }
     /**
      * @description The restaurant the signed in person works at, as every screen reads it.
      *
@@ -1457,6 +1588,129 @@ export interface operations {
       }
     }
   }
+  create_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateCategoryRequest']
+      }
+    }
+    responses: {
+      /** @description The category, at the end of the list. Admins only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  rename_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The category to rename. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RenameCategoryRequest']
+      }
+    }
+    responses: {
+      /** @description The renamed category. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `category_changed`: somebody changed it after the form loaded. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   create_dish: {
     parameters: {
       query?: never
@@ -1516,6 +1770,78 @@ export interface operations {
         }
       }
       /** @description `category_archived`: that category is no longer on the menu. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  edit_dish: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The dish to edit. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EditDishRequest']
+      }
+    }
+    responses: {
+      /** @description The dish after the edit. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live dish or category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `category_archived` or `dish_changed`. */
       409: {
         headers: {
           [name: string]: unknown

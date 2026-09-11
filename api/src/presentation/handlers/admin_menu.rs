@@ -16,7 +16,7 @@
 //! `409 name_taken`.
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -24,9 +24,9 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::error::{ConflictKind, DomainError, FieldError, FieldErrors};
-use crate::domain::ids::MenuCategoryId;
+use crate::domain::ids::{DishId, MenuCategoryId};
 use crate::domain::menu;
-use crate::infrastructure::db::repository::catalog::{self, NewDish};
+use crate::infrastructure::db::repository::catalog::{self, DishEdit, NewDish};
 use crate::presentation::dto::{DietDto, DishDto};
 use crate::presentation::error::{ApiError, ErrorBody};
 use crate::presentation::extract::{Actor, Admin, JsonBody};
@@ -222,6 +222,122 @@ pub async fn admin_menu(
 }
 
 // ===========================================================================
+// Categories
+// ===========================================================================
+
+/// What adding a category asks for.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateCategoryRequest {
+    /// What it is called. At most 60 characters, unique among live categories
+    /// ignoring letter case.
+    pub name: String,
+}
+
+/// What renaming a category asks for.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RenameCategoryRequest {
+    /// What it should be called.
+    pub name: String,
+    /// The version the rename form loaded. An older one is refused as stale.
+    pub version: i32,
+}
+
+/// Adds a category to the end of the category list.
+///
+/// It appears on the admin's screen at once, and on waiters' screens as soon as
+/// it holds a live dish: the ordering menu leaves an empty heading out.
+///
+/// # Errors
+///
+/// Returns `400` naming the field that was not accepted, including
+/// `fields.name=already_taken`, `401` if nobody is signed in, and `403` for a
+/// waiter or a chef.
+#[utoipa::path(
+    post,
+    path = "/api/admin/menu/categories",
+    tag = "menu",
+    request_body = CreateCategoryRequest,
+    responses(
+        (status = 201, description = "The category, at the end of the list. Admins only.", body = CategoryDto),
+        (status = 400, description = "A field was not accepted.", body = ErrorBody),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+    )
+)]
+pub async fn create_category(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    JsonBody(request): JsonBody<CreateCategoryRequest>,
+) -> Result<(StatusCode, Json<CategoryDto>), ApiError> {
+    let name = category_name(&request.name)?;
+
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let category = catalog::create_menu_category(&mut tx, &name, actor.staff_id())
+        .await
+        .map_err(name_taken_on_the_name_box)?;
+
+    tx.commit().await?;
+
+    Ok((StatusCode::CREATED, Json(category.into())))
+}
+
+/// Renames a category, provided nobody changed it since the form loaded.
+///
+/// # Errors
+///
+/// Returns `409 category_changed` if the stored version is newer, `404` if
+/// there is no such live category, `400` naming the field that was not
+/// accepted, `401` if nobody is signed in, and `403` for a waiter or a chef.
+#[utoipa::path(
+    put,
+    path = "/api/admin/menu/categories/{id}",
+    tag = "menu",
+    params(("id" = Uuid, Path, description = "The category to rename.")),
+    request_body = RenameCategoryRequest,
+    responses(
+        (status = 200, description = "The renamed category. Admins only.", body = CategoryDto),
+        (status = 400, description = "A field was not accepted.", body = ErrorBody),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 404, description = "No such live category.", body = ErrorBody),
+        (status = 409, description = "`category_changed`: somebody changed it after the form loaded.", body = ErrorBody),
+    )
+)]
+pub async fn rename_category(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    Path(category_id): Path<Uuid>,
+    JsonBody(request): JsonBody<RenameCategoryRequest>,
+) -> Result<Json<CategoryDto>, ApiError> {
+    let name = category_name(&request.name)?;
+
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let category = catalog::rename_menu_category(
+        &mut tx,
+        MenuCategoryId::from_uuid(category_id),
+        &name,
+        request.version,
+        actor.staff_id(),
+    )
+    .await
+    .map_err(name_taken_on_the_name_box)?;
+
+    tx.commit().await?;
+
+    Ok(Json(category.into()))
+}
+
+/// A category name, trimmed, or the field error saying why not.
+fn category_name(text: &str) -> Result<String, ApiError> {
+    menu::name(text, menu::CATEGORY_NAME_MAX)
+        .map_err(|error| DomainError::InvalidFields(FieldErrors::one("name", error)).into())
+}
+
+// ===========================================================================
 // Dishes
 // ===========================================================================
 
@@ -305,6 +421,98 @@ pub async fn create_dish(
     tx.commit().await?;
 
     Ok((StatusCode::CREATED, Json(dish.into())))
+}
+
+/// What editing a dish asks for: everything the dish should be, and which
+/// version of it the form loaded.
+///
+/// No availability. Only the switch writes that, so an edit form opened before
+/// the kitchen switched a dish off cannot switch it back on; the switch bumps
+/// the version, and the form's save is refused as stale.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EditDishRequest {
+    /// Which live category it should sit under. A different one moves it to
+    /// the end of that category.
+    pub category_id: Uuid,
+    /// What it should be called.
+    pub name: String,
+    /// What it is, or `null` for no description.
+    #[serde(default)]
+    pub description: Option<String>,
+    /// What it should cost, as a decimal string. Lines already sent keep the
+    /// price they copied.
+    pub price: String,
+    /// Whether it is veg, non veg, or egg.
+    pub diet: DietDto,
+    /// The version the edit form loaded.
+    pub version: i32,
+}
+
+/// Edits a dish, moving it when its category changes.
+///
+/// The target category is checked before the version, so an edit that is both
+/// stale and aimed at a removed category reports the category first: that is
+/// what the admin has to change before anything else will save.
+///
+/// # Errors
+///
+/// Returns `400` naming each field that was not accepted, `409
+/// category_archived` if the target category has been archived, `409
+/// dish_changed` if the stored version is newer, `404` if there is no such live
+/// dish or category, `401` if nobody is signed in, and `403` for a waiter or a
+/// chef.
+#[utoipa::path(
+    put,
+    path = "/api/admin/menu/dishes/{id}",
+    tag = "menu",
+    params(("id" = Uuid, Path, description = "The dish to edit.")),
+    request_body = EditDishRequest,
+    responses(
+        (status = 200, description = "The dish after the edit. Admins only.", body = DishDto),
+        (status = 400, description = "A field was not accepted.", body = ErrorBody),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 404, description = "No such live dish or category.", body = ErrorBody),
+        (status = 409, description = "`category_archived` or `dish_changed`.", body = ErrorBody),
+    )
+)]
+pub async fn edit_dish(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    Path(dish_id): Path<Uuid>,
+    JsonBody(request): JsonBody<EditDishRequest>,
+) -> Result<Json<DishDto>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let restaurant = catalog::restaurant(&mut tx).await?;
+    let fields = menu::dish_fields(
+        &request.name,
+        request.description.as_deref(),
+        &request.price,
+        restaurant.currency.decimals(),
+    )
+    .map_err(DomainError::InvalidFields)?;
+
+    let dish = catalog::update_dish(
+        &mut tx,
+        DishId::from_uuid(dish_id),
+        &DishEdit {
+            category_id: MenuCategoryId::from_uuid(request.category_id),
+            name: fields.name,
+            description: fields.description,
+            price: fields.price,
+            diet: request.diet.into(),
+            version: request.version,
+        },
+        actor.staff_id(),
+    )
+    .await
+    .map_err(name_taken_on_the_name_box)?;
+
+    tx.commit().await?;
+
+    Ok(Json(dish.into()))
 }
 
 /// Puts a live name clash beside the name box rather than at the top of the
