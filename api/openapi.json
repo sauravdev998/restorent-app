@@ -113,6 +113,71 @@
         }
       }
     },
+    "/api/admin/menu/categories/order": {
+      "put": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Puts the categories in a new order, the order waiters then see.",
+        "description": "No audit row: a reorder moves nothing of consequence and changes no\nversion, so it makes no open form stale.\n\n# Errors\n\nReturns `409 menu_changed` if the list is not exactly the live categories,\n`401` if nobody is signed in, and `403` for a waiter or a chef.",
+        "operationId": "reorder_categories",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The live categories in their new order. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`menu_changed`: the list is not the live set any more.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/menu/categories/{id}": {
       "put": {
         "tags": [
@@ -196,6 +261,93 @@
           },
           "409": {
             "description": "`category_changed`: somebody changed it after the form loaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/menu/categories/{id}/dish-order": {
+      "put": {
+        "tags": [
+          "menu"
+        ],
+        "summary": "Puts one category's dishes in a new order.",
+        "description": "A dish cannot be dragged into another category here: moving it is an edit,\nmade in the edit form, where its version is checked.\n\n# Errors\n\nReturns `409 menu_changed` if the list is not exactly that category's live\ndishes, `404` if there is no such live category, `401` if nobody is signed\nin, and `403` for a waiter or a chef.",
+        "operationId": "reorder_dishes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The category whose dishes are being ordered.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The category's live dishes in their new order. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DishDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live category.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`menu_changed`: the list is not the live set any more.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2518,6 +2670,23 @@
             "type": "integer",
             "format": "int32",
             "description": "The version the rename form loaded. An older one is refused as stale."
+          }
+        }
+      },
+      "ReorderRequest": {
+        "type": "object",
+        "description": "What a reorder asks for: the complete list, in its new order.\n\nThe whole list rather than a move, so the server never has to guess what\n\"after that one\" meant when the list changed underneath the drag. A list\nthat is not exactly the live set is refused with `409 menu_changed`.",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Every live id in the list, each exactly once, in the new order."
           }
         }
       },

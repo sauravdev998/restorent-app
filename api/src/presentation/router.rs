@@ -59,8 +59,16 @@ pub fn build(state: AppState, config: &Config) -> Router {
             post(admin_menu::create_category),
         )
         .route(
+            "/api/admin/menu/categories/order",
+            put(admin_menu::reorder_categories),
+        )
+        .route(
             "/api/admin/menu/categories/{id}",
             put(admin_menu::rename_category),
+        )
+        .route(
+            "/api/admin/menu/categories/{id}/dish-order",
+            put(admin_menu::reorder_dishes),
         )
         .route("/api/admin/menu/dishes", post(admin_menu::create_dish))
         .route("/api/admin/menu/dishes/{id}", put(admin_menu::edit_dish))

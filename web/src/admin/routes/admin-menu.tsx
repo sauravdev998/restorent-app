@@ -1,11 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { BookOpenText, FolderPlus, Pencil, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { adminMenuQuery, type AdminCategory, type AdminMenu } from '@/admin/api/menu'
+import {
+  adminMenuQuery,
+  reorderCategories,
+  reorderDishes,
+  type AdminCategory,
+  type AdminMenu,
+} from '@/admin/api/menu'
 import { CategoryDialog } from '@/admin/menu/category-dialog'
 import { DishDialog } from '@/admin/menu/dish-dialog'
+import { ReorderableList } from '@/admin/menu/reorderable'
 import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import type { Dish } from '@/shared/api/menu'
@@ -150,26 +157,31 @@ export function AdminMenuScreen() {
           }
         />
       ) : (
-        <ol className="space-y-6">
-          {categories.map((category) => (
-            <li key={category.id}>
-              <CategorySection
-                category={category}
-                menu={menu.data}
-                availability={availability}
-                onAddDish={() => {
-                  setOpened({ kind: 'dish', categoryId: category.id })
-                }}
-                onRename={() => {
-                  setOpened({ kind: 'category', category })
-                }}
-                onEditDish={(dish) => {
-                  setOpened({ kind: 'dish', dish })
-                }}
-              />
-            </li>
-          ))}
-        </ol>
+        <ReorderableList
+          items={categories}
+          nameOf={(category) => category.name}
+          kind="category"
+          save={reorderCategories}
+          className="space-y-6"
+        >
+          {(category, handle) => (
+            <CategorySection
+              category={category}
+              handle={handle}
+              menu={menu.data}
+              availability={availability}
+              onAddDish={() => {
+                setOpened({ kind: 'dish', categoryId: category.id })
+              }}
+              onRename={() => {
+                setOpened({ kind: 'category', category })
+              }}
+              onEditDish={(dish) => {
+                setOpened({ kind: 'dish', dish })
+              }}
+            />
+          )}
+        </ReorderableList>
       )}
 
       {opened?.kind === 'dish' && (
@@ -199,6 +211,8 @@ export function AdminMenuScreen() {
 
 interface CategorySectionProps {
   category: AdminCategory
+  /** The drag handle that moves the whole category. */
+  handle: ReactNode
   menu: AdminMenu
   availability: DishAvailability
   onAddDish: () => void
@@ -209,6 +223,7 @@ interface CategorySectionProps {
 /** One category: its heading, its actions, and its dishes in printed order. */
 function CategorySection({
   category,
+  handle,
   menu,
   availability,
   onAddDish,
@@ -221,7 +236,8 @@ function CategorySection({
   return (
     <Card as="section" aria-labelledby={headingId} className="space-y-3">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-baseline gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {handle}
           <h2 id={headingId} className="truncate text-lg font-semibold text-card-foreground">
             <RestaurantText>{category.name}</RestaurantText>
           </h2>
@@ -257,19 +273,26 @@ function CategorySection({
           {t('menu.categoryEmpty')}
         </p>
       ) : (
-        <ul className="divide-y divide-border">
-          {category.dishes.map((dish) => (
+        <ReorderableList
+          items={category.dishes}
+          nameOf={(dish) => dish.name}
+          kind="dish"
+          save={(ids) => reorderDishes(category.id, ids)}
+          className="divide-y divide-border"
+          itemClassName="bg-card"
+        >
+          {(dish, dishHandle) => (
             <DishRow
-              key={dish.id}
               dish={dish}
+              handle={dishHandle}
               menu={menu}
               availability={availability}
               onEdit={() => {
                 onEditDish(dish)
               }}
             />
-          ))}
-        </ul>
+          )}
+        </ReorderableList>
       )}
     </Card>
   )
@@ -277,18 +300,21 @@ function CategorySection({
 
 interface DishRowProps {
   dish: Dish
+  /** The drag handle that moves this dish within its category. */
+  handle: ReactNode
   menu: AdminMenu
   availability: DishAvailability
   onEdit: () => void
 }
 
 /** One dish: what it is, what it costs, and whether the kitchen can make it. */
-function DishRow({ dish, menu, availability, onEdit }: DishRowProps) {
+function DishRow({ dish, handle, menu, availability, onEdit }: DishRowProps) {
   const { t } = useTranslation('admin')
   const available = availability.valueFor(dish.id, dish.available)
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+      {handle}
       <DietMark diet={dish.diet} size="md" />
 
       <div className="min-w-0 flex-1">
@@ -334,6 +360,6 @@ function DishRow({ dish, menu, availability, onEdit }: DishRowProps) {
         <Icon icon={Pencil} size="sm" />
         {t('menu.editDish')}
       </Button>
-    </li>
+    </div>
   )
 }

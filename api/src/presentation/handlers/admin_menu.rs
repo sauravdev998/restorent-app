@@ -331,6 +331,95 @@ pub async fn rename_category(
     Ok(Json(category.into()))
 }
 
+/// What a reorder asks for: the complete list, in its new order.
+///
+/// The whole list rather than a move, so the server never has to guess what
+/// "after that one" meant when the list changed underneath the drag. A list
+/// that is not exactly the live set is refused with `409 menu_changed`.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReorderRequest {
+    /// Every live id in the list, each exactly once, in the new order.
+    pub ids: Vec<Uuid>,
+}
+
+/// Puts the categories in a new order, the order waiters then see.
+///
+/// No audit row: a reorder moves nothing of consequence and changes no
+/// version, so it makes no open form stale.
+///
+/// # Errors
+///
+/// Returns `409 menu_changed` if the list is not exactly the live categories,
+/// `401` if nobody is signed in, and `403` for a waiter or a chef.
+#[utoipa::path(
+    put,
+    path = "/api/admin/menu/categories/order",
+    tag = "menu",
+    request_body = ReorderRequest,
+    responses(
+        (status = 200, description = "The live categories in their new order. Admins only.", body = [CategoryDto]),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 409, description = "`menu_changed`: the list is not the live set any more.", body = ErrorBody),
+    )
+)]
+pub async fn reorder_categories(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    JsonBody(request): JsonBody<ReorderRequest>,
+) -> Result<Json<Vec<CategoryDto>>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    let categories = catalog::reorder_menu_categories(&mut tx, &request.ids).await?;
+    tx.commit().await?;
+
+    Ok(Json(
+        categories.into_iter().map(CategoryDto::from).collect(),
+    ))
+}
+
+/// Puts one category's dishes in a new order.
+///
+/// A dish cannot be dragged into another category here: moving it is an edit,
+/// made in the edit form, where its version is checked.
+///
+/// # Errors
+///
+/// Returns `409 menu_changed` if the list is not exactly that category's live
+/// dishes, `404` if there is no such live category, `401` if nobody is signed
+/// in, and `403` for a waiter or a chef.
+#[utoipa::path(
+    put,
+    path = "/api/admin/menu/categories/{id}/dish-order",
+    tag = "menu",
+    params(("id" = Uuid, Path, description = "The category whose dishes are being ordered.")),
+    request_body = ReorderRequest,
+    responses(
+        (status = 200, description = "The category's live dishes in their new order. Admins only.", body = [DishDto]),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not an admin.", body = ErrorBody),
+        (status = 404, description = "No such live category.", body = ErrorBody),
+        (status = 409, description = "`menu_changed`: the list is not the live set any more.", body = ErrorBody),
+    )
+)]
+pub async fn reorder_dishes(
+    State(state): State<AppState>,
+    actor: Actor<Admin>,
+    Path(category_id): Path<Uuid>,
+    JsonBody(request): JsonBody<ReorderRequest>,
+) -> Result<Json<Vec<DishDto>>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+    let dishes = catalog::reorder_dishes(
+        &mut tx,
+        MenuCategoryId::from_uuid(category_id),
+        &request.ids,
+    )
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(dishes.into_iter().map(DishDto::from).collect()))
+}
+
 /// A category name, trimmed, or the field error saying why not.
 fn category_name(text: &str) -> Result<String, ApiError> {
     menu::name(text, menu::CATEGORY_NAME_MAX)

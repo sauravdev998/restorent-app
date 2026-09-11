@@ -106,3 +106,22 @@ export async function editDish(dishId: string, form: DishForm, version: number):
   if (!data) throw new ApiCallError(error)
   return data
 }
+
+/** Puts the categories in a new order: the complete list, in that order. */
+export async function reorderCategories(ids: string[]): Promise<Category[]> {
+  const { data, error } = await api.PUT('/api/admin/menu/categories/order', { body: { ids } })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}
+
+/** Puts one category's dishes in a new order: the complete list, in that order. */
+export async function reorderDishes(categoryId: string, ids: string[]): Promise<Dish[]> {
+  const { data, error } = await api.PUT('/api/admin/menu/categories/{id}/dish-order', {
+    params: { path: { id: categoryId } },
+    body: { ids },
+  })
+
+  if (!data) throw new ApiCallError(error)
+  return data
+}

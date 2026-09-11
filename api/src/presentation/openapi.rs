@@ -47,6 +47,8 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::admin_menu,
         admin_menu::create_category,
         admin_menu::rename_category,
+        admin_menu::reorder_categories,
+        admin_menu::reorder_dishes,
         admin_menu::create_dish,
         admin_menu::edit_dish,
         menu::set_availability,
@@ -100,6 +102,7 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::CreateCategoryRequest,
         admin_menu::RenameCategoryRequest,
         admin_menu::EditDishRequest,
+        admin_menu::ReorderRequest,
     )),
     tags(
         (name = "system", description = "Health and live updates."),

@@ -151,6 +151,20 @@
       "rename": "Save name",
       "added": "{{category}} added to the menu",
       "renamed": "Renamed to {{category}}"
+    },
+    "order": {
+      "moveDish": "Move {{name}}",
+      "moveCategory": "Move the {{name}} category",
+      "dishRole": "movable dish",
+      "categoryRole": "movable category",
+      "dishInstructions": "To move a dish, press Space or Enter to pick it up. Use the up and down arrow keys to move it within its category, then press Space or Enter again to drop it, or Escape to put it back.",
+      "categoryInstructions": "To move a category, press Space or Enter to pick it up. Use the up and down arrow keys to move it, then press Space or Enter again to drop it, or Escape to put it back.",
+      "pickedUp": "Picked up {{name}}. It is in position {{position}} of {{total}}.",
+      "movedTo": "{{name}} moved to position {{position}} of {{total}}.",
+      "outside": "{{name}} is outside the list.",
+      "dropped": "{{name}} dropped in position {{position}} of {{total}}.",
+      "droppedBack": "{{name}} was put back where it was.",
+      "cancelled": "Moving cancelled. {{name}} is back in position {{position}} of {{total}}."
     }
   }
 }

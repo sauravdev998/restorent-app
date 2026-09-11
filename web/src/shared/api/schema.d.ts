@@ -54,6 +54,32 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/admin/menu/categories/order': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Puts the categories in a new order, the order waiters then see.
+     * @description No audit row: a reorder moves nothing of consequence and changes no
+     *     version, so it makes no open form stale.
+     *
+     *     # Errors
+     *
+     *     Returns `409 menu_changed` if the list is not exactly the live categories,
+     *     `401` if nobody is signed in, and `403` for a waiter or a chef.
+     */
+    put: operations['reorder_categories']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/admin/menu/categories/{id}': {
     parameters: {
       query?: never
@@ -71,6 +97,33 @@ export interface paths {
      *     accepted, `401` if nobody is signed in, and `403` for a waiter or a chef.
      */
     put: operations['rename_category']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/{id}/dish-order': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Puts one category's dishes in a new order.
+     * @description A dish cannot be dragged into another category here: moving it is an edit,
+     *     made in the edit form, where its version is checked.
+     *
+     *     # Errors
+     *
+     *     Returns `409 menu_changed` if the list is not exactly that category's live
+     *     dishes, `404` if there is no such live category, `401` if nobody is signed
+     *     in, and `403` for a waiter or a chef.
+     */
+    put: operations['reorder_dishes']
     post?: never
     delete?: never
     options?: never
@@ -1319,6 +1372,17 @@ export interface components {
       version: number
     }
     /**
+     * @description What a reorder asks for: the complete list, in its new order.
+     *
+     *     The whole list rather than a move, so the server never has to guess what
+     *     "after that one" meant when the list changed underneath the drag. A list
+     *     that is not exactly the live set is refused with `409 menu_changed`.
+     */
+    ReorderRequest: {
+      /** @description Every live id in the list, each exactly once, in the new order. */
+      ids: string[]
+    }
+    /**
      * @description The restaurant the signed in person works at, as every screen reads it.
      *
      *     Carries the five settings spec 0005's formatting layer needs and nothing
@@ -1639,6 +1703,57 @@ export interface operations {
       }
     }
   }
+  reorder_categories: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReorderRequest']
+      }
+    }
+    responses: {
+      /** @description The live categories in their new order. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto'][]
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `menu_changed`: the list is not the live set any more. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   rename_category: {
     parameters: {
       query?: never
@@ -1701,6 +1816,69 @@ export interface operations {
         }
       }
       /** @description `category_changed`: somebody changed it after the form loaded. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  reorder_dishes: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The category whose dishes are being ordered. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReorderRequest']
+      }
+    }
+    responses: {
+      /** @description The category's live dishes in their new order. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto'][]
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `menu_changed`: the list is not the live set any more. */
       409: {
         headers: {
           [name: string]: unknown
