@@ -492,6 +492,18 @@ test('the diet marks keep their shapes under forced colours, and print in black'
   const admin = await signIn(browser, ADMIN)
   await admin.getByRole('link', { name: /^menu$/i }).click()
   await expect(admin.getByRole('heading', { level: 1, name: /^menu$/i })).toBeVisible()
+
+  // The seeded menu is veg and non veg only, so the third mark has to be put
+  // on the page before anything can be read off it. Chosen by value, not by
+  // its English word, so the language the run starts in does not matter.
+  await admin.getByRole('button', { name: /^add a dish$/i }).click()
+  const form = admin.getByRole('dialog')
+  await form.getByLabel(/^name/i).fill(`E2E egg dish ${String(Date.now())}`)
+  await form.getByLabel(/^price/i).fill('90')
+  await form.getByLabel(/^diet/i).selectOption('egg')
+  await form.getByRole('button', { name: /^add dish$/i }).click()
+  await expect(form).toBeHidden()
+
   await expect(admin.locator('svg[role="img"]').first()).toBeVisible()
 
   /** One sample per diet marker: its colour, and a signature of its drawing. */
