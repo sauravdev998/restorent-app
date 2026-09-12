@@ -34,6 +34,11 @@ function onEverySurface(on: string, note: string): ContrastPair[] {
   return SURFACES.map((against) => ({ on, against, kind: 'text' as const, note }))
 }
 
+/** The same, for a mark that is a shape rather than text, which clears 3:1. */
+function shapeOnEverySurface(on: string, note: string): ContrastPair[] {
+  return SURFACES.map((against) => ({ on, against, kind: 'interface' as const, note }))
+}
+
 export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   // Body text, wherever it lands.
   ...onEverySurface('foreground', 'body text'),
@@ -47,6 +52,13 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
   ...onEverySurface('status-served', 'a dish already taken to the table'),
   ...onEverySurface('status-voided', 'a dish struck off the bill'),
   ...onEverySurface('status-late', 'a round that has waited too long'),
+
+  // The diet marks, on every surface a dish row can sit on. They are shapes
+  // rather than text, so they clear the 3:1 a graphic needs; the shape inside
+  // the square is what carries the meaning, and the colour only repeats it.
+  ...shapeOnEverySurface('diet-veg', 'the veg mark on a dish'),
+  ...shapeOnEverySurface('diet-non-veg', 'the non veg mark on a dish'),
+  ...shapeOnEverySurface('diet-egg', 'the egg mark on a dish'),
 
   // Text sitting on its own paired surface.
   { on: 'card-foreground', against: 'card', kind: 'text', note: 'text inside a card' },

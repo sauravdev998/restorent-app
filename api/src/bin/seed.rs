@@ -24,11 +24,13 @@ use api::application::ports::PasswordHasher as _;
 use api::domain::catalog::{Dish, MenuCategory};
 use api::domain::country::CountryCode;
 use api::domain::credentials::{EmailAddress, Password};
-use api::domain::enums::StaffRole;
-use api::domain::ids::{DiningTableId, DishId, MenuCategoryId, RestaurantId, TableSectionId};
+use api::domain::enums::{Diet, StaffRole};
+use api::domain::ids::{
+    DiningTableId, DishId, MenuCategoryId, RestaurantId, StaffId, TableSectionId,
+};
 use api::domain::session::SessionToken;
 use api::infrastructure::config::{Config, Environment};
-use api::infrastructure::db::repository::catalog::NewDish;
+use api::infrastructure::db::repository::catalog::{DishEdit, NewDish};
 use api::infrastructure::db::repository::{accounts, catalog, sessions};
 use api::infrastructure::db::{Database, ScopedTx};
 use api::infrastructure::passwords::Argon2Passwords;
@@ -95,6 +97,10 @@ struct SeedDish {
     name: &'static str,
     /// What it costs, as an exact decimal.
     price: &'static str,
+    /// Veg, non veg, or egg. Set on a database where the dish already exists
+    /// too, because 0006 filled every existing dish as veg and a developer's
+    /// fish pakora should not read as vegetarian.
+    diet: Diet,
     /// Whether the kitchen can make it. One of the six is off on purpose.
     available: bool,
 }
@@ -113,16 +119,19 @@ const MENU: [(&str, &[SeedDish]); 2] = [
             SeedDish {
                 name: "Tomato soup",
                 price: "180.00",
+                diet: Diet::Veg,
                 available: true,
             },
             SeedDish {
                 name: "Paneer tikka",
                 price: "320.00",
+                diet: Diet::Veg,
                 available: true,
             },
             SeedDish {
                 name: "Fish pakora",
                 price: "290.00",
+                diet: Diet::NonVeg,
                 available: false,
             },
         ],
@@ -133,16 +142,19 @@ const MENU: [(&str, &[SeedDish]); 2] = [
             SeedDish {
                 name: "Dal makhani",
                 price: "340.00",
+                diet: Diet::Veg,
                 available: true,
             },
             SeedDish {
                 name: "Chicken biryani",
                 price: "480.50",
+                diet: Diet::NonVeg,
                 available: true,
             },
             SeedDish {
                 name: "Butter naan",
                 price: "70.00",
+                diet: Diet::Veg,
                 available: true,
             },
         ],
@@ -166,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("could not open the database connection pool")?;
 
-    let (restaurant_id, cookie_value) = ensure_restaurant(&database).await?;
+    let (restaurant_id, admin, cookie_value) = ensure_restaurant(&database).await?;
 
     let mut tx = database
         .begin_scoped(restaurant_id)
@@ -175,7 +187,7 @@ async fn main() -> anyhow::Result<()> {
 
     ensure_staff(&mut tx).await?;
     let tables = ensure_floor(&mut tx).await?;
-    let dishes = ensure_menu(&mut tx).await?;
+    let dishes = ensure_menu(&mut tx, admin).await?;
 
     tx.commit().await.context("committing the seed")?;
 
@@ -186,16 +198,19 @@ async fn main() -> anyhow::Result<()> {
 
 /// The restaurant and its admin, registered if they are not there yet.
 ///
-/// Returns the restaurant, and the session cookie value if one was just minted.
-/// A repeat run mints none: a fresh session row every time somebody runs the
-/// seed would be the one thing about this command that did duplicate.
-async fn ensure_restaurant(database: &Database) -> anyhow::Result<(RestaurantId, Option<String>)> {
+/// Returns the restaurant, its admin, who every menu change is audited as, and
+/// the session cookie value if one was just minted. A repeat run mints none: a
+/// fresh session row every time somebody runs the seed would be the one thing
+/// about this command that did duplicate.
+async fn ensure_restaurant(
+    database: &Database,
+) -> anyhow::Result<(RestaurantId, StaffId, Option<String>)> {
     if let Some(existing) = database
         .find_staff_for_login(ADMIN.email)
         .await
         .context("checking whether the seed has already run")?
     {
-        return Ok((existing.restaurant_id, None));
+        return Ok((existing.restaurant_id, existing.staff_id, None));
     }
 
     let email = EmailAddress::new(ADMIN.email).context("the seed admin's email address")?;
@@ -231,7 +246,7 @@ async fn ensure_restaurant(database: &Database) -> anyhow::Result<(RestaurantId,
 
     tx.commit().await.context("committing the registration")?;
 
-    Ok((restaurant_id, Some(token.cookie_value())))
+    Ok((restaurant_id, admin, Some(token.cookie_value())))
 }
 
 /// The waiter and the chef, created if they are not there yet.
@@ -318,14 +333,18 @@ async fn create_table(
 }
 
 /// The two categories and their six dishes, created if they are not there yet.
-async fn ensure_menu(tx: &mut ScopedTx<'_>) -> anyhow::Result<Vec<DishId>> {
+///
+/// Every change goes through the same repository calls the admin screen uses,
+/// audited as the seeded admin. New ones land at the end of their list, so
+/// creating them in the order written here is what gives the printed order.
+async fn ensure_menu(tx: &mut ScopedTx<'_>, admin: StaffId) -> anyhow::Result<Vec<DishId>> {
     let mut created = Vec::new();
 
-    for (category_index, (category_name, dishes)) in MENU.iter().enumerate() {
-        let category = ensure_category(tx, category_name, position_of(category_index)).await?;
+    for (category_name, dishes) in &MENU {
+        let category = ensure_category(tx, category_name, admin).await?;
 
-        for (dish_index, dish) in dishes.iter().enumerate() {
-            let id = ensure_dish(tx, category, dish, position_of(dish_index)).await?;
+        for dish in *dishes {
+            let id = ensure_dish(tx, category, dish, admin).await?;
             created.push(id);
         }
     }
@@ -337,7 +356,7 @@ async fn ensure_menu(tx: &mut ScopedTx<'_>) -> anyhow::Result<Vec<DishId>> {
 async fn ensure_category(
     tx: &mut ScopedTx<'_>,
     name: &str,
-    position: i32,
+    admin: StaffId,
 ) -> anyhow::Result<MenuCategoryId> {
     let existing = catalog::live_menu_categories(tx)
         .await
@@ -347,18 +366,23 @@ async fn ensure_category(
 
     match existing {
         Some(found) => Ok(found.id),
-        None => catalog::create_menu_category(tx, name, position)
+        None => catalog::create_menu_category(tx, name, admin)
             .await
+            .map(|category| category.id)
             .with_context(|| format!("creating the seeded category {name}")),
     }
 }
 
-/// One dish, by name, under its category.
+/// One dish, by name, under its category, with the right diet marker.
+///
+/// An existing dish is left where it is and as available as it is, because a
+/// developer may have moved or switched it on purpose. Only a wrong diet marker
+/// is corrected, through the same audited edit an admin would make.
 async fn ensure_dish(
     tx: &mut ScopedTx<'_>,
     category_id: MenuCategoryId,
     dish: &SeedDish,
-    position: i32,
+    admin: StaffId,
 ) -> anyhow::Result<DishId> {
     let existing = catalog::live_dishes(tx)
         .await
@@ -367,6 +391,24 @@ async fn ensure_dish(
         .find(|existing: &Dish| existing.name == dish.name);
 
     if let Some(found) = existing {
+        if found.diet != dish.diet {
+            catalog::update_dish(
+                tx,
+                found.id,
+                &DishEdit {
+                    category_id: found.category_id,
+                    name: found.name.clone(),
+                    description: found.description.clone(),
+                    price: found.price,
+                    diet: dish.diet,
+                    version: found.version,
+                },
+                admin,
+            )
+            .await
+            .with_context(|| format!("setting the diet marker on {}", dish.name))?;
+        }
+
         return Ok(found.id);
     }
 
@@ -375,19 +417,29 @@ async fn ensure_dish(
         .parse()
         .with_context(|| format!("the seeded price for {}", dish.name))?;
 
-    catalog::create_dish(
+    let created = catalog::create_dish(
         tx,
         &NewDish {
             category_id,
             name: dish.name,
             description: None,
             price,
-            is_available: dish.available,
-            position,
+            diet: dish.diet,
         },
+        admin,
     )
     .await
-    .with_context(|| format!("creating the seeded dish {}", dish.name))
+    .with_context(|| format!("creating the seeded dish {}", dish.name))?;
+
+    // Created available, the way every new dish is, and switched off through
+    // the same switch a chef uses.
+    if !dish.available {
+        catalog::set_dish_availability(tx, created.id, false, admin)
+            .await
+            .with_context(|| format!("switching off the seeded dish {}", dish.name))?;
+    }
+
+    Ok(created.id)
 }
 
 /// Where the nth thing in a seeded list sits, counting from one.
@@ -526,6 +578,23 @@ mod tests {
                 assert!(price > Decimal::ZERO, "{} is priced at nothing", dish.name);
             }
         }
+    }
+
+    /// The marker is what a customer with a dietary rule reads first, so the
+    /// seed has to get it right on the dishes a developer will look at.
+    #[test]
+    fn every_seeded_dish_carries_the_diet_it_really_is() {
+        let diet_of = |name: &str| {
+            MENU.iter()
+                .flat_map(|(_, dishes)| dishes.iter())
+                .find(|dish| dish.name == name)
+                .map(|dish| dish.diet)
+        };
+
+        assert_eq!(diet_of("Fish pakora"), Some(Diet::NonVeg));
+        assert_eq!(diet_of("Chicken biryani"), Some(Diet::NonVeg));
+        assert_eq!(diet_of("Paneer tikka"), Some(Diet::Veg));
+        assert_eq!(diet_of("Dal makhani"), Some(Diet::Veg));
     }
 
     /// Two dishes with the same name would make the idempotency check treat the

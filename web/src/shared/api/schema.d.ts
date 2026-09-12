@@ -4,6 +4,294 @@
  */
 
 export interface paths {
+  '/api/admin/menu': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * The admin's whole menu, live and archived.
+     * @description # Errors
+     *
+     *     Returns `401` if nobody is signed in, `403` for a waiter or a chef, and
+     *     `503` if the database is unavailable.
+     */
+    get: operations['admin_menu']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Adds a category to the end of the category list.
+     * @description It appears on the admin's screen at once, and on waiters' screens as soon as
+     *     it holds a live dish: the ordering menu leaves an empty heading out.
+     *
+     *     # Errors
+     *
+     *     Returns `400` naming the field that was not accepted, including
+     *     `fields.name=already_taken`, `401` if nobody is signed in, and `403` for a
+     *     waiter or a chef.
+     */
+    post: operations['create_category']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/order': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Puts the categories in a new order, the order waiters then see.
+     * @description No audit row: a reorder moves nothing of consequence and changes no
+     *     version, so it makes no open form stale.
+     *
+     *     # Errors
+     *
+     *     Returns `409 menu_changed` if the list is not exactly the live categories,
+     *     `401` if nobody is signed in, and `403` for a waiter or a chef.
+     */
+    put: operations['reorder_categories']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Renames a category, provided nobody changed it since the form loaded.
+     * @description # Errors
+     *
+     *     Returns `409 category_changed` if the stored version is newer, `404` if
+     *     there is no such live category, `400` naming the field that was not
+     *     accepted, `401` if nobody is signed in, and `403` for a waiter or a chef.
+     */
+    put: operations['rename_category']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/{id}/archive': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Takes a category off the menu. It moves to the Archived section.
+     * @description Refused while it still holds a live dish, including one being created in or
+     *     moved into it at the same instant: no live dish ever sits in an archived
+     *     category.
+     *
+     *     # Errors
+     *
+     *     Returns `409 category_not_empty` if it holds a live dish, `404` if there is
+     *     no such live category, `401` if nobody is signed in, and `403` for a waiter
+     *     or a chef.
+     */
+    post: operations['archive_category']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/{id}/dish-order': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Puts one category's dishes in a new order.
+     * @description A dish cannot be dragged into another category here: moving it is an edit,
+     *     made in the edit form, where its version is checked.
+     *
+     *     # Errors
+     *
+     *     Returns `409 menu_changed` if the list is not exactly that category's live
+     *     dishes, `404` if there is no such live category, `401` if nobody is signed
+     *     in, and `403` for a waiter or a chef.
+     */
+    put: operations['reorder_dishes']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/categories/{id}/restore': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Puts an archived category back, at the end of the category list.
+     * @description # Errors
+     *
+     *     Returns `409 name_taken` if a live category now has its name, `404` if
+     *     there is no such archived category, `401` if nobody is signed in, and `403`
+     *     for a waiter or a chef.
+     */
+    post: operations['restore_category']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/dishes': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Adds a dish to the end of a category.
+     * @description # Errors
+     *
+     *     Returns `400` naming each field that was not accepted, `409
+     *     category_archived` if the category has been archived, `404` for a category
+     *     this restaurant does not have, `401` if nobody is signed in, and `403` for a
+     *     waiter or a chef.
+     */
+    post: operations['create_dish']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/dishes/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Edits a dish, moving it when its category changes.
+     * @description The target category is checked before the version, so an edit that is both
+     *     stale and aimed at a removed category reports the category first: that is
+     *     what the admin has to change before anything else will save.
+     *
+     *     # Errors
+     *
+     *     Returns `400` naming each field that was not accepted, `409
+     *     category_archived` if the target category has been archived, `409
+     *     dish_changed` if the stored version is newer, `404` if there is no such live
+     *     dish or category, `401` if nobody is signed in, and `403` for a waiter or a
+     *     chef.
+     */
+    put: operations['edit_dish']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/dishes/{id}/archive': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Takes a dish off the menu. It moves to the Archived section.
+     * @description Every order line, round, and bill that referred to it still resolves and
+     *     reads exactly as before: a line copied the name and the price when it was
+     *     sent.
+     *
+     *     # Errors
+     *
+     *     Returns `404` if there is no such live dish, `401` if nobody is signed in,
+     *     and `403` for a waiter or a chef.
+     */
+    post: operations['archive_dish']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/menu/dishes/{id}/restore': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Puts an archived dish back, at the end of a live category.
+     * @description It keeps its name, description, price, diet marker, and availability.
+     *
+     *     # Errors
+     *
+     *     Returns `409 name_taken` if a live dish now has its name, `409
+     *     category_archived` if the chosen category has been archived, `404` if there
+     *     is no such archived dish or category, `401` if nobody is signed in, and
+     *     `403` for a waiter or a chef.
+     */
+    post: operations['restore_dish']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/auth/register': {
     parameters: {
       query?: never
@@ -85,6 +373,34 @@ export interface paths {
      *     unavailable.
      */
     post: operations['sign_out']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/dishes/{id}/availability': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Switches a dish on or off.
+     * @description Admins and chefs, and it is the only menu change a chef can make. Every
+     *     waiter's ordering screen greys the dish within a second or two, through the
+     *     `dish` event this write sends. Never refused as stale; setting the value it
+     *     already has succeeds and changes nothing.
+     *
+     *     # Errors
+     *
+     *     Returns `404` if there is no such live dish, including one archived a moment
+     *     earlier, `401` if nobody is signed in, and `403` for a waiter.
+     */
+    put: operations['set_availability']
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -262,8 +578,8 @@ export interface paths {
      * The restaurant's live menu, in printed order.
      * @description # Errors
      *
-     *     Returns `401` if nobody is signed in, `403` if the caller is not a waiter,
-     *     and `503` if the database is unavailable.
+     *     Returns `401` if nobody is signed in, `403` if the caller is neither a
+     *     waiter nor a chef, and `503` if the database is unavailable.
      */
     get: operations['menu']
     put?: never
@@ -464,10 +780,11 @@ export interface paths {
      *
      *     # Errors
      *
-     *     Returns `400` if the basket is empty, a quantity is not positive, or a dish
-     *     is archived or currently unavailable, `409 visit_not_open` if the party has
-     *     left, `404` if there is no such visit, `401` if nobody is signed in, and
-     *     `403` if the caller is not a waiter.
+     *     Returns `400` if the basket is empty or a quantity is not positive, `409
+     *     dish_not_orderable` if a dish was switched off or taken off the menu before
+     *     the ticket went, which refuses the whole ticket, `409 visit_not_open` if the
+     *     party has left, `404` if there is no such visit, `401` if nobody is signed
+     *     in, and `403` if the caller is not a waiter.
      */
     post: operations['send_round']
     delete?: never
@@ -480,6 +797,96 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** @description One live category with its dishes. */
+    AdminCategoryDto: {
+      /** @description Its live dishes, in printed order. */
+      dishes: components['schemas']['DishDto'][]
+      /**
+       * Format: uuid
+       * @description Which category this is.
+       */
+      id: string
+      /** @description What it is called. */
+      name: string
+      /**
+       * Format: int32
+       * @description Which edit of the category this is. Send it back with a rename.
+       */
+      version: number
+    }
+    /** @description The whole menu as the admin works on it, live and archived. */
+    AdminMenuResponse: {
+      /** @description What has been taken off the menu and can be put back. */
+      archived: components['schemas']['ArchivedMenuDto']
+      /**
+       * @description Every live category in printed order, each with every live dish in it,
+       *     available or not. Unlike the ordering menu, an empty category is kept:
+       *     it is exactly the one an admin is about to fill.
+       */
+      categories: components['schemas']['AdminCategoryDto'][]
+      /** @description What this restaurant charges in. */
+      currencyCode: string
+      /**
+       * Format: int32
+       * @description How many decimal places that currency uses, which is also how many a
+       *     price may carry.
+       */
+      currencyDecimals: number
+    }
+    /** @description One archived category. */
+    ArchivedCategoryDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the menu.
+       */
+      archivedAt: string
+      /**
+       * Format: uuid
+       * @description Which category this is.
+       */
+      id: string
+      /** @description What it was called. */
+      name: string
+    }
+    /** @description One archived dish, with what the restore dialog needs. */
+    ArchivedDishDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the menu.
+       */
+      archivedAt: string
+      /**
+       * Format: uuid
+       * @description The category it was in when it was removed.
+       */
+      categoryId: string
+      /**
+       * @description Whether that category is still live. The restore dialog offers it as
+       *     the default only when it is.
+       */
+      categoryLive: boolean
+      /**
+       * @description What that category is called, carried here because it may be archived
+       *     too and so appear nowhere else on the screen.
+       */
+      categoryName: string
+      /** @description Whether it is veg, non veg, or egg. */
+      diet: components['schemas']['DietDto']
+      /**
+       * Format: uuid
+       * @description Which dish this is.
+       */
+      id: string
+      /** @description What it is called. */
+      name: string
+    }
+    /** @description Everything in the Archived section. */
+    ArchivedMenuDto: {
+      /** @description Archived categories, most recently removed first. */
+      categories: components['schemas']['ArchivedCategoryDto'][]
+      /** @description Archived dishes, most recently removed first. */
+      dishes: components['schemas']['ArchivedDishDto'][]
+    }
     /**
      * @description A bill, open or closed, with every figure it currently carries.
      *
@@ -538,6 +945,26 @@ export interface components {
       /** @description What rate was charged, as an exact decimal string. */
       ratePercent: string
     }
+    /** @description One category, as a write on it answers. */
+    CategoryDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the menu, or `null` while it is on it.
+       */
+      archivedAt?: string | null
+      /**
+       * Format: uuid
+       * @description Which category this is.
+       */
+      id: string
+      /** @description What it is called. */
+      name: string
+      /**
+       * Format: int32
+       * @description Which edit of the category this is.
+       */
+      version: number
+    }
     /** @description What changing your own password asks for. */
     ChangePasswordRequest: {
       /** @description The password they are signing in with now. */
@@ -550,6 +977,121 @@ export interface components {
      * @enum {string}
      */
     Component: 'up' | 'down'
+    /** @description What adding a category asks for. */
+    CreateCategoryRequest: {
+      /**
+       * @description What it is called. At most 60 characters, unique among live categories
+       *     ignoring letter case.
+       */
+      name: string
+    }
+    /**
+     * @description What adding a dish asks for.
+     *
+     *     No availability: a new dish is available, and only the switch changes that.
+     *     No position: it goes to the end of its category.
+     */
+    CreateDishRequest: {
+      /**
+       * Format: uuid
+       * @description Which live category it goes in.
+       */
+      categoryId: string
+      /** @description What it is, for the waiter to read out. At most 300 characters. */
+      description?: string | null
+      /** @description Whether it is veg, non veg, or egg. Required. */
+      diet: components['schemas']['DietDto']
+      /**
+       * @description What it is called. At most 80 characters, unique among live dishes
+       *     ignoring letter case.
+       */
+      name: string
+      /**
+       * @description What it costs, as a decimal string such as `"320.50"`. Never a JSON
+       *     number. Zero or more, below ten billion, and no more decimal places than
+       *     the restaurant's currency uses.
+       */
+      price: string
+    }
+    /**
+     * @description Whether a dish is veg, non veg, or egg, on the wire.
+     *
+     *     The same three words the `dish_diet` enum stores, kept that way by the test
+     *     at the foot of this file.
+     * @enum {string}
+     */
+    DietDto: 'veg' | 'non_veg' | 'egg'
+    /**
+     * @description One dish, with everything an admin's edit form needs.
+     *
+     *     What every menu write answers with, and what the admin menu lists. The
+     *     `version` is the one the form sends back, which is how an edit made from a
+     *     stale form is told apart from a current one.
+     */
+    DishDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the menu, or `null` while it is on it.
+       */
+      archivedAt?: string | null
+      /** @description Whether the kitchen can make it right now. */
+      available: boolean
+      /**
+       * Format: uuid
+       * @description Which category it sits under.
+       */
+      categoryId: string
+      /** @description What it is, for the waiter to read out. `null` when there is none. */
+      description?: string | null
+      /** @description Whether it is veg, non veg, or egg. */
+      diet: components['schemas']['DietDto']
+      /**
+       * Format: uuid
+       * @description Which dish this is.
+       */
+      id: string
+      /** @description What it is called. */
+      name: string
+      /** @description What it costs, as an exact decimal string. Never a JSON number. */
+      price: string
+      /**
+       * Format: int32
+       * @description Which edit of the dish this is. Send it back with an edit.
+       */
+      version: number
+    }
+    /**
+     * @description What editing a dish asks for: everything the dish should be, and which
+     *     version of it the form loaded.
+     *
+     *     No availability. Only the switch writes that, so an edit form opened before
+     *     the kitchen switched a dish off cannot switch it back on; the switch bumps
+     *     the version, and the form's save is refused as stale.
+     */
+    EditDishRequest: {
+      /**
+       * Format: uuid
+       * @description Which live category it should sit under. A different one moves it to
+       *     the end of that category.
+       */
+      categoryId: string
+      /** @description What it is, or `null` for no description. */
+      description?: string | null
+      /** @description Whether it is veg, non veg, or egg. */
+      diet: components['schemas']['DietDto']
+      /** @description What it should be called. */
+      name: string
+      /**
+       * @description What it should cost, as a decimal string. Lines already sent keep the
+       *     price they copied.
+       */
+      price: string
+      /**
+       * Format: int32
+       * @description The version the edit form loaded.
+       */
+      version: number
+    }
     /** @description The body every failed request returns. */
     ErrorBody: {
       /**
@@ -570,7 +1112,8 @@ export interface components {
        *     most of them, so nothing that was already reading this body changes.
        *     Each value is one of a closed set of codes: `already_taken`,
        *     `too_short`, `too_long`, `invalid_format`, `unknown_country`,
-       *     `not_in_catalogue`, `incorrect`, `required`.
+       *     `not_in_catalogue`, `incorrect`, `required`, `not_a_number`,
+       *     `negative`, `too_large`, `too_many_decimals`.
        * @example {
        *       "email": "already_taken"
        *     }
@@ -754,6 +1297,8 @@ export interface components {
       available: boolean
       /** @description What it is, for the waiter to read out. */
       description?: string | null
+      /** @description Whether it is veg, non veg, or egg, drawn as the square mark. */
+      diet: components['schemas']['DietDto']
       /**
        * Format: uuid
        * @description Which dish this is.
@@ -923,6 +1468,27 @@ export interface components {
       /** @description What the restaurant is called. */
       restaurantName: string
     }
+    /** @description What renaming a category asks for. */
+    RenameCategoryRequest: {
+      /** @description What it should be called. */
+      name: string
+      /**
+       * Format: int32
+       * @description The version the rename form loaded. An older one is refused as stale.
+       */
+      version: number
+    }
+    /**
+     * @description What a reorder asks for: the complete list, in its new order.
+     *
+     *     The whole list rather than a move, so the server never has to guess what
+     *     "after that one" meant when the list changed underneath the drag. A list
+     *     that is not exactly the live set is refused with `409 menu_changed`.
+     */
+    ReorderRequest: {
+      /** @description Every live id in the list, each exactly once, in the new order. */
+      ids: string[]
+    }
     /**
      * @description The restaurant the signed in person works at, as every screen reads it.
      *
@@ -964,6 +1530,15 @@ export interface components {
        */
       timezone: string
     }
+    /** @description What restoring a dish asks for. */
+    RestoreDishRequest: {
+      /**
+       * Format: uuid
+       * @description Which live category to put it in. The dialog offers the dish's old one
+       *     when that is still live.
+       */
+      categoryId: string
+    }
     /**
      * @description What a member of staff is allowed to be, on the wire.
      *
@@ -1003,6 +1578,14 @@ export interface components {
     SendRoundRequest: {
       /** @description The basket, one entry per dish. At least one. */
       lines: components['schemas']['SendRoundLine'][]
+    }
+    /** @description What the availability switch asks for. */
+    SetAvailabilityRequest: {
+      /**
+       * @description What the dish should be: `true` for orderable, `false` for off. An
+       *     absolute value, never a toggle, so two quick taps cannot cancel out.
+       */
+      available: boolean
     }
     /** @description What signing in asks for. */
     SignInRequest: {
@@ -1147,6 +1730,653 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  admin_menu: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The whole menu, live and archived. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AdminMenuResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  create_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateCategoryRequest']
+      }
+    }
+    responses: {
+      /** @description The category, at the end of the list. Admins only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  reorder_categories: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReorderRequest']
+      }
+    }
+    responses: {
+      /** @description The live categories in their new order. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto'][]
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `menu_changed`: the list is not the live set any more. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  rename_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The category to rename. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RenameCategoryRequest']
+      }
+    }
+    responses: {
+      /** @description The renamed category. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `category_changed`: somebody changed it after the form loaded. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  archive_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The category to remove. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The archived category. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `category_not_empty`: it still holds a live dish. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  reorder_dishes: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The category whose dishes are being ordered. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReorderRequest']
+      }
+    }
+    responses: {
+      /** @description The category's live dishes in their new order. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto'][]
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `menu_changed`: the list is not the live set any more. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  restore_category: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The archived category to put back. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The category, live again. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CategoryDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such archived category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `name_taken`: a live category has that name now. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  create_dish: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateDishRequest']
+      }
+    }
+    responses: {
+      /** @description The dish, available, at the end of its category. Admins only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `category_archived`: that category is no longer on the menu. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  edit_dish: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The dish to edit. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EditDishRequest']
+      }
+    }
+    responses: {
+      /** @description The dish after the edit. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live dish or category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `category_archived` or `dish_changed`. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  archive_dish: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The dish to remove. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The archived dish. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live dish. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  restore_dish: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The archived dish to put back. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RestoreDishRequest']
+      }
+    }
+    responses: {
+      /** @description The dish, live again. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such archived dish or category. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `name_taken` or `category_archived`. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   register: {
     parameters: {
       query?: never
@@ -1231,6 +2461,60 @@ export interface operations {
       }
       /** @description Nobody was signed in. */
       401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  set_availability: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The dish to switch. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SetAvailabilityRequest']
+      }
+    }
+    responses: {
+      /** @description The dish after the switch. Admins and chefs. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['DishDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description A waiter asked. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live dish. */
+      404: {
         headers: {
           [name: string]: unknown
         }
@@ -1494,7 +2778,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description The live menu. Waiters only. */
+      /** @description The live menu. Waiters and chefs. */
       200: {
         headers: {
           [name: string]: unknown
@@ -1512,7 +2796,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody']
         }
       }
-      /** @description Not a waiter. */
+      /** @description Neither a waiter nor a chef. */
       403: {
         headers: {
           [name: string]: unknown
@@ -1886,7 +3170,7 @@ export interface operations {
           'application/json': components['schemas']['OrderRoundDto']
         }
       }
-      /** @description An empty basket, or a dish that cannot be ordered. */
+      /** @description An empty basket, or a quantity below one. */
       400: {
         headers: {
           [name: string]: unknown
@@ -1922,7 +3206,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody']
         }
       }
-      /** @description That party has already left. */
+      /** @description `visit_not_open`: that party has already left. `dish_not_orderable`: a dish went off before the ticket went, and nothing was sent. */
       409: {
         headers: {
           [name: string]: unknown

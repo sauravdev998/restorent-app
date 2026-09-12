@@ -5,7 +5,7 @@
 mod common;
 
 use api::domain::enums::{LineStatus, RoundStatus, VisitStatus};
-use api::domain::error::DomainError;
+use api::domain::error::{ConflictKind, DomainError};
 use api::domain::ids::RestaurantId;
 use api::domain::service::NewOrderLine;
 use api::infrastructure::db::repository::{billing, catalog, service};
@@ -391,10 +391,20 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     catalog::archive_dish(&mut tx, f.soup, f.admin)
         .await
         .expect("archiving the soup");
+
+    let dishes = catalog::live_dishes(&mut tx).await.expect("reading dishes");
+    assert_eq!(dishes.len(), 1, "the archived dish is still on the menu");
+    assert!(dishes.iter().all(|dish| dish.id != f.soup));
+
+    // A category holding a live dish cannot go (spec 0008), so the steak goes
+    // first.
+    catalog::archive_dish(&mut tx, f.steak, f.admin)
+        .await
+        .expect("archiving the steak");
     catalog::archive_dining_table(&mut tx, f.table_two)
         .await
         .expect("archiving a table");
-    catalog::archive_menu_category(&mut tx, f.category)
+    catalog::archive_menu_category(&mut tx, f.category, f.admin)
         .await
         .expect("archiving the category");
     catalog::deactivate_staff(&mut tx, f.chef, f.admin)
@@ -402,9 +412,13 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
         .expect("deactivating the chef");
 
     // Gone from every working query.
-    let dishes = catalog::live_dishes(&mut tx).await.expect("reading dishes");
-    assert_eq!(dishes.len(), 1, "the archived dish is still on the menu");
-    assert!(dishes.iter().all(|dish| dish.id != f.soup));
+    assert!(
+        catalog::live_dishes(&mut tx)
+            .await
+            .expect("reading dishes")
+            .is_empty(),
+        "an archived dish is still on the menu"
+    );
 
     assert_eq!(
         catalog::live_dining_tables(&mut tx)
@@ -434,10 +448,13 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     assert_eq!(reread.dish_name, "Soup");
     assert_eq!(reread.unit_price, common::money("9.5000"));
 
-    // An archived dish cannot be ordered again.
+    // An archived dish cannot be ordered again, and says why (spec 0008).
     let refused = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
     assert!(
-        matches!(refused, Err(DomainError::Invalid(_))),
+        matches!(
+            refused,
+            Err(DomainError::Conflict(ConflictKind::DishNotOrderable))
+        ),
         "an archived dish was ordered: {refused:?}"
     );
 
@@ -468,23 +485,16 @@ async fn an_unavailable_dish_cannot_be_ordered_but_one_already_sent_is_untouched
         .await
         .expect("sending the ticket");
 
-    catalog::update_dish(
-        &mut tx,
-        f.soup,
-        &catalog::DishEdit {
-            name: "Soup".to_owned(),
-            description: None,
-            price: common::money("9.5000"),
-            is_available: false,
-        },
-        f.admin,
-    )
-    .await
-    .expect("the kitchen runs out of soup");
+    catalog::set_dish_availability(&mut tx, f.soup, false, f.chef)
+        .await
+        .expect("the kitchen runs out of soup");
 
     let refused = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
     assert!(
-        matches!(refused, Err(DomainError::Invalid(_))),
+        matches!(
+            refused,
+            Err(DomainError::Conflict(ConflictKind::DishNotOrderable))
+        ),
         "a dish the kitchen ran out of was ordered anyway: {refused:?}"
     );
 

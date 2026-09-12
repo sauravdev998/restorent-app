@@ -32,8 +32,16 @@ pub enum FieldError {
     /// The value given does not match what is stored, as with a current
     /// password.
     Incorrect,
-    /// The field is required and was not sent at all.
+    /// The field is required and was not sent at all, or was sent blank.
     Required,
+    /// Meant to be a number and is not one, such as `abc` in a price box.
+    NotANumber,
+    /// Below zero where zero is the least a value may be.
+    Negative,
+    /// Larger than the column holding it can store.
+    TooLarge,
+    /// More decimal places than the currency writes, such as `12.345` rupees.
+    TooManyDecimals,
 }
 
 impl FieldError {
@@ -49,6 +57,10 @@ impl FieldError {
             Self::NotInCatalogue => "not_in_catalogue",
             Self::Incorrect => "incorrect",
             Self::Required => "required",
+            Self::NotANumber => "not_a_number",
+            Self::Negative => "negative",
+            Self::TooLarge => "too_large",
+            Self::TooManyDecimals => "too_many_decimals",
         }
     }
 }
@@ -139,6 +151,29 @@ pub enum ConflictKind {
     /// and turns it into a field error on the email box, so the message lands
     /// beside the control rather than at the top of the form.
     EmailTaken,
+    /// The dish changed after the edit form loaded it, so saving the form
+    /// would write over that change.
+    DishChanged,
+    /// The category was renamed, archived, or restored after the rename form
+    /// loaded it.
+    CategoryChanged,
+    /// A reorder named a different set of dishes or categories from the live
+    /// one, because something was added, moved, or removed meanwhile.
+    MenuChanged,
+    /// The category still holds a live dish, so archiving it would leave that
+    /// dish under a heading nobody can see.
+    CategoryNotEmpty,
+    /// The category a dish is being put into has been archived.
+    CategoryArchived,
+    /// A live dish or category already has that name.
+    ///
+    /// Reaches the wire as a conflict only from a restore. A create, a rename,
+    /// and an edit catch it and turn it into `already_taken` on the name box,
+    /// the way `EmailTaken` becomes a field error on registration.
+    NameTaken,
+    /// A dish in the basket was switched off or taken off the menu before the
+    /// ticket went, so the whole ticket was refused.
+    DishNotOrderable,
 }
 
 impl ConflictKind {
@@ -167,6 +202,13 @@ impl ConflictKind {
             Self::BillNotClosed => "bill_not_closed",
             Self::SessionCollision => "session_collision",
             Self::EmailTaken => "email_taken",
+            Self::DishChanged => "dish_changed",
+            Self::CategoryChanged => "category_changed",
+            Self::MenuChanged => "menu_changed",
+            Self::CategoryNotEmpty => "category_not_empty",
+            Self::CategoryArchived => "category_archived",
+            Self::NameTaken => "name_taken",
+            Self::DishNotOrderable => "dish_not_orderable",
         }
     }
 }
@@ -196,6 +238,13 @@ impl std::fmt::Display for ConflictKind {
             Self::BillNotClosed => "a bill has to be closed before it can be paid",
             Self::SessionCollision => "that session token is already in use",
             Self::EmailTaken => "that email address already has an account",
+            Self::DishChanged => "that dish changed after the form was opened",
+            Self::CategoryChanged => "that category changed after the form was opened",
+            Self::MenuChanged => "the menu changed while it was being reordered",
+            Self::CategoryNotEmpty => "that category still has dishes on the menu",
+            Self::CategoryArchived => "that category is no longer on the menu",
+            Self::NameTaken => "something live on the menu already has that name",
+            Self::DishNotOrderable => "a dish in the basket cannot be ordered right now",
         };
 
         formatter.write_str(sentence)
@@ -263,7 +312,7 @@ mod tests {
     use super::*;
 
     /// Every kind, so the tests below run over all of them.
-    const ALL: [ConflictKind; 18] = [
+    const ALL: [ConflictKind; 25] = [
         ConflictKind::TableOccupied,
         ConflictKind::VisitNot(VisitStatus::Open),
         ConflictKind::VisitNot(VisitStatus::Closed),
@@ -282,6 +331,13 @@ mod tests {
         ConflictKind::BillNotClosed,
         ConflictKind::SessionCollision,
         ConflictKind::EmailTaken,
+        ConflictKind::DishChanged,
+        ConflictKind::CategoryChanged,
+        ConflictKind::MenuChanged,
+        ConflictKind::CategoryNotEmpty,
+        ConflictKind::CategoryArchived,
+        ConflictKind::NameTaken,
+        ConflictKind::DishNotOrderable,
     ];
 
     /// covers: AC-12, AC-13

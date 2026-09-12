@@ -222,3 +222,50 @@ export function formatUnitList(parts: string[]): string {
 export function formatRelativeTime(value: number, unit: Intl.RelativeTimeFormatUnit): string {
   return relativeTimeFormat(formattingContext().locale, { numeric: 'auto' }).format(value, unit)
 }
+
+/**
+ * What a person typed into a price box, as the plain decimal string the API
+ * reads, or `null` when it is not one.
+ *
+ * Two decimal marks are accepted: the ASCII point, which every keyboard has,
+ * and the formatting locale's own mark, so an owner in Germany can type `12,50`
+ * the way they write it. Either becomes a point on the way out. Nothing else is
+ * accepted, and in particular no grouping separator: `1,500` in an Indian
+ * locale is a thousand and a half written with a comma the API cannot tell from
+ * a decimal mark, so it is refused here rather than guessed at.
+ *
+ * Only ASCII digits. The formatting layer pins every number it writes to Latin
+ * digits, so that is also what every screen shows back.
+ *
+ * `null` is not the refusal a person reads. The form sends what was typed
+ * anyway and the API answers with the field code, because the API is the
+ * authority on every rule a price has to pass.
+ *
+ * @param text what was typed.
+ * @param locale the formatting locale; the restaurant's own by default.
+ */
+export function parseDecimalInput(text: string, locale?: string): string | null {
+  const trimmed = text.trim()
+  if (trimmed === '') return null
+
+  const mark = decimalMarkOf(locale ?? formattingContext().locale)
+  const sign = trimmed.startsWith('-') ? '-' : ''
+  let unsigned = sign === '' ? trimmed : trimmed.slice(1)
+
+  if (mark !== '.') {
+    // One mark at most, whichever it is: `1.234,5` is a grouped number.
+    if (unsigned.includes('.') && unsigned.includes(mark)) return null
+    unsigned = unsigned.replace(mark, '.')
+  }
+
+  return /^\d+(?:\.\d+)?$/u.test(unsigned) ? `${sign}${unsigned}` : null
+}
+
+/** The character a locale writes between the whole part and the fraction. */
+function decimalMarkOf(locale: string): string {
+  const part = numberFormat(locale, {})
+    .formatToParts(1.5)
+    .find((piece) => piece.type === 'decimal')
+
+  return part?.value ?? '.'
+}

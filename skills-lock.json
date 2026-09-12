@@ -61,6 +61,12 @@
       "skillPath": "skills/document/SKILL.md",
       "computedHash": "68f768feb819eb6b7866b8a85e42a30e7d5ef20a1380b307ab22ccc1563532e8"
     },
+    "implementing-drag-drop": {
+      "source": "ancoleman/ai-design-components",
+      "sourceType": "github",
+      "skillPath": "skills/implementing-drag-drop/SKILL.md",
+      "computedHash": "ecfa0db75736dc7c1503ee6178ffdece34359e7691d91e39b8ceb887bcaf7904"
+    },
     "lucide-icons": {
       "source": "aksuharun/skills",
       "sourceType": "github",

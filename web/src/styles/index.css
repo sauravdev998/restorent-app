@@ -88,6 +88,15 @@
   --rose-300: #f87171;
   --rose-800: #b91c1c;
   --rose-ink: #1a0507;
+
+  /* The three diet marks. Their own values rather than the status ones, so a
+     veg mark and a ready pill are never the same green on the same screen. */
+  --leaf-400: #3fb950;
+  --leaf-700: #15803d;
+  --bark-300: #d99a6c;
+  --bark-800: #8a4a1c;
+  --yolk-400: #e3a33b;
+  --yolk-700: #a15c07;
 }
 
 /* --- Layer 2: semantic roles. -------------------------------------------- */
@@ -124,6 +133,10 @@
   --status-served: var(--console-400);
   --status-voided: var(--console-300);
   --status-late: var(--rose-400);
+
+  --diet-veg: var(--leaf-400);
+  --diet-non-veg: var(--bark-300);
+  --diet-egg: var(--yolk-400);
 }
 
 /* A device asking for light gets a light theme that was designed, not a dark
@@ -158,6 +171,10 @@
     --status-served: var(--paper-600);
     --status-voided: var(--paper-700);
     --status-late: var(--rose-800);
+
+    --diet-veg: var(--leaf-700);
+    --diet-non-veg: var(--bark-800);
+    --diet-egg: var(--yolk-700);
   }
 }
 
@@ -201,6 +218,10 @@
   --status-served: var(--console-400);
   --status-voided: var(--console-300);
   --status-late: var(--rose-400);
+
+  --diet-veg: var(--leaf-400);
+  --diet-non-veg: var(--bark-300);
+  --diet-egg: var(--yolk-400);
 }
 
 [data-theme='light'] {
@@ -232,6 +253,10 @@
   --status-served: var(--paper-600);
   --status-voided: var(--paper-700);
   --status-late: var(--rose-800);
+
+  --diet-veg: var(--leaf-700);
+  --diet-non-veg: var(--bark-800);
+  --diet-egg: var(--yolk-700);
 }
 
 /* Paper is white and ink is black, whatever the screen was doing. A kitchen
@@ -268,6 +293,12 @@
     --status-served: #000000;
     --status-voided: #000000;
     --status-late: #000000;
+
+    /* On paper the three marks are ink like everything else. Each is its own
+       shape, which is what carried the meaning all along. */
+    --diet-veg: #000000;
+    --diet-non-veg: #000000;
+    --diet-egg: #000000;
   }
 }
 
@@ -305,6 +336,10 @@
     --status-served: CanvasText;
     --status-voided: CanvasText;
     --status-late: CanvasText;
+
+    --diet-veg: CanvasText;
+    --diet-non-veg: CanvasText;
+    --diet-egg: CanvasText;
   }
 }
 
@@ -443,6 +478,10 @@
   --color-status-served: var(--status-served);
   --color-status-voided: var(--status-voided);
   --color-status-late: var(--status-late);
+
+  --color-diet-veg: var(--diet-veg);
+  --color-diet-non-veg: var(--diet-non-veg);
+  --color-diet-egg: var(--diet-egg);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

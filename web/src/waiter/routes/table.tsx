@@ -1,30 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ReceiptText, UtensilsCrossed } from 'lucide-react'
+import { ReceiptText, TriangleAlert, UtensilsCrossed } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 
+import { failureBody, failureCode } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
-import { floorKey, visitKey } from '@/shared/events/query-keys'
+import { menuQuery } from '@/shared/api/menu'
+import { floorKey, menuKey, visitKey } from '@/shared/events/query-keys'
 import { clockOffset, onDeviceClock } from '@/shared/events/server-clock'
 import { formatMoney } from '@/shared/format'
 import { Alert } from '@/shared/ui/alert'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
+import { DietMark } from '@/shared/ui/diet-mark'
 import { ElapsedTime } from '@/shared/ui/elapsed-time'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { Icon } from '@/shared/ui/icon'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
+import { closeVisit, markRoundServed, sendRound, visitQuery, type Round } from '@/waiter/api/orders'
 import {
-  ApiCallError,
-  closeVisit,
-  markRoundServed,
-  menuQuery,
-  sendRound,
-  visitQuery,
-  type Round,
-} from '@/waiter/api/orders'
+  addOne,
+  basketSize,
+  removeOne,
+  takeOut,
+  unorderableDishes,
+  type Basket,
+} from '@/waiter/basket'
 
 /**
  * One table, for the whole meal: what has been ordered, what is ready, and what
@@ -57,7 +61,7 @@ export function WaiterTable() {
   const visit = useQuery(visitQuery(visitId))
   const menu = useQuery(menuQuery)
 
-  const [basket, setBasket] = useState<Record<string, number>>({})
+  const [basket, setBasket] = useState<Basket>({})
   const [pending, setPending] = useState<string | null>(null)
 
   // Rounds this screen has already shouted about. A ref, not state: announcing
@@ -84,7 +88,7 @@ export function WaiterTable() {
     mutationFn: () =>
       sendRound(
         visitId,
-        Object.entries(basket).map(([dishId, quantity]) => ({ dishId, quantity })),
+        Object.entries(basket).map(([dishId, line]) => ({ dishId, quantity: line.quantity })),
       ),
     onSuccess: async () => {
       // Cleared only on success. A send that failed leaves the basket exactly
@@ -94,6 +98,12 @@ export function WaiterTable() {
       await queryClient.invalidateQueries({ queryKey: visitKey(visitId) })
     },
     onError: (error: unknown) => {
+      // A dish went off between the menu this screen holds and the send. The
+      // whole ticket was refused, so nothing reached the kitchen; the menu is
+      // read again, and the line that caused it is flagged in the basket.
+      if (failureCode(error) === 'dish_not_orderable') {
+        void queryClient.invalidateQueries({ queryKey: menuKey })
+      }
       refuse(error)
     },
   })
@@ -127,23 +137,17 @@ export function WaiterTable() {
 
   function refuse(error: unknown): void {
     showToast({
-      title: apiErrorMessage(error instanceof ApiCallError ? error.body : error, common),
+      title: apiErrorMessage(failureBody(error), common),
       tone: 'late',
     })
   }
 
-  function add(dishId: string): void {
-    setBasket((current) => ({ ...current, [dishId]: (current[dishId] ?? 0) + 1 }))
+  function add(dishId: string, name: string): void {
+    setBasket((current) => addOne(current, dishId, name))
   }
 
   function remove(dishId: string): void {
-    setBasket((current) => {
-      const next = { ...current }
-      const left = (next[dishId] ?? 0) - 1
-      if (left > 0) next[dishId] = left
-      else delete next[dishId]
-      return next
-    })
+    setBasket((current) => removeOne(current, dishId))
   }
 
   if (visit.isPending) {
@@ -155,10 +159,7 @@ export function WaiterTable() {
       <EmptyState
         icon={UtensilsCrossed}
         title={common('error.title')}
-        description={apiErrorMessage(
-          visit.error instanceof ApiCallError ? visit.error.body : visit.error,
-          common,
-        )}
+        description={apiErrorMessage(failureBody(visit.error), common)}
         action={
           <Button
             onClick={() => {
@@ -174,7 +175,11 @@ export function WaiterTable() {
 
   const { bill } = visit.data
   const closed = visit.data.status === 'closed'
-  const basketSize = Object.values(basket).reduce((total, quantity) => total + quantity, 0)
+  const plates = basketSize(basket)
+  // Checked against the menu this screen holds, which the live stream keeps
+  // fresh: a dish the kitchen switches off is flagged here within a second or
+  // two, before the waiter tries to send it.
+  const flagged = unorderableDishes(basket, menu.data)
 
   /** Money on this bill, in the bill's own copied currency, never today's. */
   const billMoney = (amount: string): string =>
@@ -223,7 +228,8 @@ export function WaiterTable() {
                 <ul className="divide-y divide-border">
                   {category.dishes.map((dish) => (
                     <li key={dish.id} className="flex items-center justify-between gap-3 py-2">
-                      <div className="min-w-0">
+                      <DietMark diet={dish.diet} />
+                      <div className="min-w-0 flex-1">
                         <p
                           className={
                             dish.available
@@ -247,7 +253,7 @@ export function WaiterTable() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {(basket[dish.id] ?? 0) > 0 && (
+                        {(basket[dish.id]?.quantity ?? 0) > 0 && (
                           <>
                             <Button
                               variant="secondary"
@@ -260,7 +266,7 @@ export function WaiterTable() {
                               −
                             </Button>
                             <span className="tabular w-6 text-center text-sm">
-                              {basket[dish.id] ?? 0}
+                              {basket[dish.id]?.quantity ?? 0}
                             </span>
                           </>
                         )}
@@ -269,7 +275,7 @@ export function WaiterTable() {
                           disabled={!dish.available}
                           aria-label={t('table.addOne', { dish: dish.name })}
                           onClick={() => {
-                            add(dish.id)
+                            add(dish.id, dish.name)
                           }}
                         >
                           +
@@ -282,13 +288,70 @@ export function WaiterTable() {
             ))
           )}
 
+          {plates > 0 && (
+            <Card as="section" aria-labelledby="basket-heading" className="space-y-2">
+              <h3 id="basket-heading" className="text-sm font-medium text-muted-foreground">
+                {t('basket.title')}
+              </h3>
+
+              {/* A status, so it is read out the moment a line goes off,
+                  whether or not the waiter is looking at the phone. */}
+              {flagged.length > 0 && (
+                <p
+                  role="status"
+                  className="flex items-start gap-2 text-sm font-medium text-status-late"
+                >
+                  <Icon icon={TriangleAlert} size="sm" className="mt-1" />
+                  {t('basket.flagged', { count: flagged.length })}
+                </p>
+              )}
+
+              <ul className="divide-y divide-border">
+                {Object.entries(basket).map(([dishId, line]) => {
+                  const off = flagged.includes(dishId)
+
+                  return (
+                    <li key={dishId} className="flex items-center justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <p
+                          className={
+                            off ? 'truncate text-muted-foreground line-through' : 'truncate'
+                          }
+                        >
+                          {line.quantity} × {line.name}
+                        </p>
+                        {off && (
+                          <p className="text-xs font-medium text-status-late">
+                            {t('basket.lineOff')}
+                          </p>
+                        )}
+                      </div>
+                      {off && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-label={t('basket.takeOutNamed', { dish: line.name })}
+                          onClick={() => {
+                            setBasket((current) => takeOut(current, dishId))
+                          }}
+                        >
+                          {t('basket.takeOut')}
+                        </Button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          )}
+
           <Button
-            disabled={basketSize === 0 || send.isPending}
+            disabled={plates === 0 || flagged.length > 0 || send.isPending}
             onClick={() => {
               send.mutate()
             }}
           >
-            {send.isPending ? t('table.sending') : t('table.send', { count: basketSize })}
+            {send.isPending ? t('table.sending') : t('table.send', { count: plates })}
           </Button>
         </section>
       )}

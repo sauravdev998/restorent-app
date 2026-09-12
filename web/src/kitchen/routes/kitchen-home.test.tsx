@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/shared/api/client'
@@ -107,9 +108,22 @@ function failWith(body: unknown) {
   vi.mocked(api.GET).mockResolvedValue({ error: body })
 }
 
+/**
+ * The screen inside a query client and a router.
+ *
+ * The router is there because the pass carries the kitchen's tab links, and a
+ * link needs to know where it is to say which tab is current.
+ */
 function wrap(ui: ReactElement) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return { queryClient, ui: <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider> }
+  return {
+    queryClient,
+    ui: (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/kitchen']}>{ui}</MemoryRouter>
+      </QueryClientProvider>
+    ),
+  }
 }
 
 /**
@@ -407,7 +421,9 @@ describe('KitchenHome', () => {
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
       >
-        <KitchenHome />
+        <MemoryRouter initialEntries={['/kitchen']}>
+          <KitchenHome />
+        </MemoryRouter>
       </QueryClientProvider>,
     )
   }) // covers: AC-19

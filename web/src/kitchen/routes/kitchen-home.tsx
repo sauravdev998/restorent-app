@@ -3,6 +3,7 @@ import { CookingPot } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import { kitchenKey } from '@/shared/events/query-keys'
 import { clockOffset, onDeviceClock } from '@/shared/events/server-clock'
@@ -14,7 +15,7 @@ import { Skeleton } from '@/shared/ui/skeleton'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
 import { kitchenQuery, markLineReady } from '@/kitchen/api/tickets'
-import { ApiCallError } from '@/waiter/api/orders'
+import { KitchenTabs } from '@/kitchen/components/kitchen-tabs'
 
 /**
  * The pass: every ticket the kitchen still has work on, oldest first.
@@ -62,7 +63,7 @@ export function KitchenHome() {
       void queryClient.invalidateQueries({ queryKey: kitchenKey })
 
       showToast({
-        title: apiErrorMessage(error instanceof ApiCallError ? error.body : error, common),
+        title: apiErrorMessage(failureBody(error), common),
         tone: 'late',
       })
     },
@@ -74,6 +75,7 @@ export function KitchenHome() {
   if (queue.isPending) {
     return (
       <div className="space-y-4">
+        <KitchenTabs />
         <h1 className="text-2xl font-semibold text-foreground">{t('pass.title')}</h1>
         <Skeleton className="h-72 w-full" label={common('loading.label')} />
       </div>
@@ -83,14 +85,12 @@ export function KitchenHome() {
   if (queue.isError) {
     return (
       <div className="space-y-4">
+        <KitchenTabs />
         <h1 className="text-2xl font-semibold text-foreground">{t('pass.title')}</h1>
         <EmptyState
           icon={CookingPot}
           title={common('error.title')}
-          description={apiErrorMessage(
-            queue.error instanceof ApiCallError ? queue.error.body : queue.error,
-            common,
-          )}
+          description={apiErrorMessage(failureBody(queue.error), common)}
           action={
             <Button
               onClick={() => {
@@ -107,6 +107,7 @@ export function KitchenHome() {
 
   return (
     <div className="space-y-4">
+      <KitchenTabs />
       <h1 className="text-2xl font-semibold text-foreground">{t('pass.title')}</h1>
 
       {queue.data.tickets.length === 0 ? (

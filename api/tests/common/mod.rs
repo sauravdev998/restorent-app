@@ -280,8 +280,9 @@ async fn seed_dish(
 
     sqlx::query(
         "INSERT INTO dishes
-             (id, restaurant_id, category_id, name, price, is_available, position, updated_at)
-         VALUES ($1, $2, $3, $4, $5, true, $6, now())",
+             (id, restaurant_id, category_id, name, price, diet, is_available, position,
+              updated_at)
+         VALUES ($1, $2, $3, $4, $5, 'non_veg', true, $6, now())",
     )
     .bind(id.as_uuid())
     .bind(restaurant_id)

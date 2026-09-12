@@ -25,6 +25,10 @@ export const FIELD_ERROR_CODES = [
   'not_in_catalogue',
   'incorrect',
   'required',
+  'not_a_number',
+  'negative',
+  'too_large',
+  'too_many_decimals',
 ] as const
 
 /** One of them. */

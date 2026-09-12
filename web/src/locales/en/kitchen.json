@@ -8,5 +8,19 @@
     "marking": "Marking",
     "quietTitle": "Nothing on the pass",
     "quietBody": "New tickets appear here on their own, with no refresh."
+  },
+  "tabs": {
+    "label": "Kitchen screens",
+    "pass": "The pass",
+    "menu": "Menu"
+  },
+  "menu": {
+    "title": "Menu",
+    "intro": "Switch a dish off the moment you run out. Every waiter sees it greyed within seconds.",
+    "on": "On",
+    "off": "Off",
+    "availabilityLabel": "{{dish}} available",
+    "emptyTitle": "Nothing on the menu yet",
+    "emptyBody": "Dishes appear here once an admin adds them to the menu."
   }
 }

@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE menu_categories AS c\n        SET name = $2, version = c.version + 1, updated_at = now()\n        FROM (SELECT id, name FROM menu_categories WHERE id = $1) AS old\n        WHERE c.id = old.id AND c.version = $3 AND c.archived_at IS NULL\n        RETURNING old.name AS \"old_name!\", c.position AS \"position!\", c.version AS \"version!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "old_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "position!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "position"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "version!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "menu_categories",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ab353b3715f19e9255a964bbc3fe4f85f8b21ef9577fea7b55ca3de6e1e418a3"
+}

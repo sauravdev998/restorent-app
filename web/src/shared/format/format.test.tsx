@@ -4,7 +4,13 @@ import type { RestaurantFormatting } from '@/shared/session/identity'
 
 import i18next from '@/shared/i18n'
 
-import { formatMoney, formatNumber, formatTimestamp, formatUnitList } from './index'
+import {
+  formatMoney,
+  formatNumber,
+  formatTimestamp,
+  formatUnitList,
+  parseDecimalInput,
+} from './index'
 
 /**
  * The formatters, checked against the cases that actually break.
@@ -206,4 +212,37 @@ describe('formatNumber and formatUnitList', () => {
 
     expect(amount).toBe('1,234,567')
   }) // covers: AC-12
+})
+
+describe('parseDecimalInput', () => {
+  it('turns what was typed into the plain decimal the API reads', () => {
+    expect(parseDecimalInput('320', 'en-IN')).toBe('320')
+    expect(parseDecimalInput(' 320.50 ', 'en-IN')).toBe('320.50')
+    expect(parseDecimalInput('0', 'en-IN')).toBe('0')
+  }) // covers: AC-14 (spec 0008)
+
+  it("accepts the locale's own decimal mark as well as the point", () => {
+    // An owner in Germany types a price the way they write one.
+    expect(parseDecimalInput('12,50', 'de-DE')).toBe('12.50')
+    expect(parseDecimalInput('12.50', 'de-DE')).toBe('12.50')
+  }) // covers: AC-14 (spec 0008)
+
+  it('refuses a grouping separator rather than guessing what it meant', () => {
+    // In an Indian locale the comma groups thousands, so `1,500` is fifteen
+    // hundred to the person typing and one and a half to anything guessing.
+    expect(parseDecimalInput('1,500', 'en-IN')).toBeNull()
+    expect(parseDecimalInput('1.234,5', 'de-DE')).toBeNull()
+    expect(parseDecimalInput('1,2,3', 'de-DE')).toBeNull()
+  }) // covers: AC-14 (spec 0008)
+
+  it('refuses anything that is not digits and one mark', () => {
+    for (const text of ['', '   ', 'abc', '.5', '5.', '1e3', '₹5', '1 000', '--1']) {
+      expect(parseDecimalInput(text, 'en-IN'), text).toBeNull()
+    }
+  }) // covers: AC-14 (spec 0008)
+
+  it('passes a minus sign through, for the API to refuse by name', () => {
+    // The API says `negative`, which reads better than "not a number".
+    expect(parseDecimalInput('-1', 'en-IN')).toBe('-1')
+  }) // covers: AC-14 (spec 0008)
 })

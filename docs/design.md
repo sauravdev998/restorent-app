@@ -12,7 +12,8 @@ See it all at once: run `pnpm dev:web` and open `/design`. That route exists onl
 ## Character
 
 A dark console. Deep slate surfaces, one luminous cyan for the action you are meant to take, and
-colour otherwise held back and spent only on order status. It should feel like equipment rather than
+colour otherwise held back and spent only on order status (and on the three diet marks, the one
+deliberate exception, below). It should feel like equipment rather than
 a website: quiet, high contrast, nothing decorative competing with the one number a chef needs to
 read from across a hot kitchen.
 
@@ -161,6 +162,31 @@ state the database does not have.
 
 The map lives in `web/src/shared/ui/status.ts`.
 
+## Diet marks
+
+The square veg, non veg, or egg mark every dish carries, decided in
+[spec 0008](specs/0008-menu-management/index.md). **This is the one place colour means something
+other than order status**, on purpose: a customer in India reads the mark before anything else on a
+menu, and green, brown, and amber are what the mark is expected to look like.
+
+It still never rests on colour alone. All three share the same square outline and differ by the
+shape inside it, so the shape is the meaning and the colour only repeats it.
+
+| Diet | Shape in the square | Token | Dark | Light | Accessible name |
+|---|---|---|---|---|---|
+| `veg` | filled circle | `--diet-veg` | `#3FB950` | `#15803D` | `t('diet.veg')` |
+| `non_veg` | filled triangle | `--diet-non-veg` | `#D99A6C` | `#8A4A1C` | `t('diet.non_veg')` |
+| `egg` | filled oval | `--diet-egg` | `#E3A33B` | `#A15C07` | `t('diet.egg')` |
+
+- The values are their own palette entries, not the status ones, so a veg mark and a ready pill are
+  never the same green on the same screen.
+- The contrast script holds each at 3:1 or better against all four surfaces in dark, light, and
+  print, the threshold for a graphic rather than text.
+- In print all three are ink, and under forced colours all three are `CanvasText`. Either way the
+  shapes still differ.
+- `DietMark` is an `svg` with `role="img"` and a translated name, drawn on the admin menu (live and
+  Archived rows), the waiter's ordering screen, and the chef's Menu tab.
+
 ## Components
 
 All in `web/src/shared/ui/`, one file each.
@@ -183,6 +209,8 @@ All in `web/src/shared/ui/`, one file each.
 | `EmptyState` | with and without an action | the one empty pattern every list uses |
 | `DataTable` | sorted, unsorted, empty | real table semantics, a caption, one row header per row, `aria-sort`; the scroll box is a focusable region named by the caption, which is what lets a keyboard user reach the far side of a table that does not fit a phone |
 | `ConnectionStatus` | connecting, open, closed | announced politely |
+| `Switch` | on, off, disabled | a Radix `button` with `role="switch"` and `aria-checked`; the hit area is `target-min` with the track inside it; the thumb moves (mirrored under `dir="rtl"`) so on and off are never colour alone; the thumb opts out of forced colours and paints itself `CanvasText`, or `Highlight` when on; disabled is `aria-disabled`, kept in the tab order like `Button` |
+| `DietMark` | veg, non veg, egg × sm, md | a square outline holding a circle, triangle, or oval; `role="img"` with a translated name; its colour repeats the shape and never replaces it (see Diet marks above) |
 
 ### The late threshold
 
@@ -196,7 +224,7 @@ takes it as a prop so feature 13 supplies the real value with nothing here rewri
 
 | Gate | What it catches | Where |
 |---|---|---|
-| the contrast script | a colour edit that drops any declared pair below 4.5:1 (text) or 3:1 (boundaries and rings), in dark, light, and print | `web/scripts/check-contrast.ts`, reading the real stylesheet, 144 pairs |
+| the contrast script | a colour edit that drops any declared pair below 4.5:1 (text) or 3:1 (boundaries and rings), in dark, light, and print | `web/scripts/check-contrast.ts`, reading the real stylesheet, 180 pairs |
 | lint | bad markup (`jsx-a11y` strict), any physical direction utility in a class string, and any user facing string written into a component | `web/eslint.config.js` |
 | axe | any violation in any base component, in both appearances and all three densities, six renders each | `web/src/test/axe.tsx` |
 

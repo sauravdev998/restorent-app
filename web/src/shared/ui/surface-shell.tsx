@@ -97,9 +97,14 @@ export function SurfaceShell({
                 <ShellLink to={home}>{t(`nav.${identity.staff.role}`)}</ShellLink>
               </li>
               {identity.staff.role === 'admin' && (
-                <li>
-                  <ShellLink to="/admin/settings">{t('nav.settings')}</ShellLink>
-                </li>
+                <>
+                  <li>
+                    <ShellLink to="/admin/menu">{t('nav.menu')}</ShellLink>
+                  </li>
+                  <li>
+                    <ShellLink to="/admin/settings">{t('nav.settings')}</ShellLink>
+                  </li>
+                </>
               )}
               <li>
                 <ShellLink to="/account">{t('nav.account')}</ShellLink>

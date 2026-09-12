@@ -4,14 +4,14 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::http::StatusCode;
-use axum::routing::{get, patch, post};
+use axum::routing::{get, patch, post, put};
 use tower_http::compression::CompressionLayer;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::infrastructure::config::Config;
 
-use super::handlers::{auth, billing, dev, events, health, me, menu, service};
+use super::handlers::{admin_menu, auth, billing, dev, events, health, me, menu, service};
 use super::origin;
 use super::state::AppState;
 
@@ -51,6 +51,44 @@ pub fn build(state: AppState, config: &Config) -> Router {
             "/api/order-lines/{id}/ready",
             post(service::mark_line_ready),
         )
+        // The menu. Admin only under `/api/admin`, and the one switch a chef
+        // may throw beside the read it changes.
+        .route("/api/admin/menu", get(admin_menu::admin_menu))
+        .route(
+            "/api/admin/menu/categories",
+            post(admin_menu::create_category),
+        )
+        .route(
+            "/api/admin/menu/categories/order",
+            put(admin_menu::reorder_categories),
+        )
+        .route(
+            "/api/admin/menu/categories/{id}",
+            put(admin_menu::rename_category),
+        )
+        .route(
+            "/api/admin/menu/categories/{id}/dish-order",
+            put(admin_menu::reorder_dishes),
+        )
+        .route(
+            "/api/admin/menu/categories/{id}/archive",
+            post(admin_menu::archive_category),
+        )
+        .route(
+            "/api/admin/menu/categories/{id}/restore",
+            post(admin_menu::restore_category),
+        )
+        .route("/api/admin/menu/dishes", post(admin_menu::create_dish))
+        .route("/api/admin/menu/dishes/{id}", put(admin_menu::edit_dish))
+        .route(
+            "/api/admin/menu/dishes/{id}/archive",
+            post(admin_menu::archive_dish),
+        )
+        .route(
+            "/api/admin/menu/dishes/{id}/restore",
+            post(admin_menu::restore_dish),
+        )
+        .route("/api/dishes/{id}/availability", put(menu::set_availability))
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

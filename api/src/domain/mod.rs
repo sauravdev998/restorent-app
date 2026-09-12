@@ -18,6 +18,7 @@ pub mod error;
 pub mod event;
 pub mod ids;
 pub mod language;
+pub mod menu;
 pub mod money;
 pub mod people;
 pub mod service;

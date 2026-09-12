@@ -28,6 +28,8 @@ pub enum EntityKind {
     Bill,
     /// A menu item changed, most often its availability.
     Dish,
+    /// A menu category was added, renamed, reordered, archived, or restored.
+    MenuCategory,
     /// A table was added, renamed, or archived.
     DiningTable,
     /// A staff account changed.
@@ -54,6 +56,7 @@ impl EntityKind {
             Self::OrderLine => "order_line",
             Self::Bill => "bill",
             Self::Dish => "dish",
+            Self::MenuCategory => "menu_category",
             Self::DiningTable => "dining_table",
             Self::Staff => "staff",
             Self::Probe => "probe",
@@ -85,12 +88,13 @@ mod tests {
     /// Every kind, in one place, so the tests below cover all of them.
     ///
     /// Kept honest by [`position`], the same way `domain::audit` does it.
-    const ALL: [EntityKind; 8] = [
+    const ALL: [EntityKind; 9] = [
         EntityKind::Visit,
         EntityKind::OrderRound,
         EntityKind::OrderLine,
         EntityKind::Bill,
         EntityKind::Dish,
+        EntityKind::MenuCategory,
         EntityKind::DiningTable,
         EntityKind::Staff,
         EntityKind::Probe,
@@ -108,9 +112,10 @@ mod tests {
             EntityKind::OrderLine => 2,
             EntityKind::Bill => 3,
             EntityKind::Dish => 4,
-            EntityKind::DiningTable => 5,
-            EntityKind::Staff => 6,
-            EntityKind::Probe => 7,
+            EntityKind::MenuCategory => 5,
+            EntityKind::DiningTable => 6,
+            EntityKind::Staff => 7,
+            EntityKind::Probe => 8,
         }
     }
 

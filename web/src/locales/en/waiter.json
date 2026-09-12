@@ -41,5 +41,13 @@
     "total": "Total",
     "close": "Close the bill",
     "closing": "Closing"
+  },
+  "basket": {
+    "title": "Basket, not sent yet",
+    "flagged_one": "{{count}} dish in the basket has just gone off. Take it out to send the rest.",
+    "flagged_other": "{{count}} dishes in the basket have just gone off. Take them out to send the rest.",
+    "lineOff": "Off now, cannot be sent",
+    "takeOut": "Take out",
+    "takeOutNamed": "Take {{dish}} out of the basket"
   }
 }

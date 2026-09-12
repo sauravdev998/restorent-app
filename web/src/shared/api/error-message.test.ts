@@ -68,6 +68,13 @@ const CODES = [
   'bill_has_no_lines',
   'bill_not_closed',
   'session_collision',
+  'dish_changed',
+  'category_changed',
+  'menu_changed',
+  'category_not_empty',
+  'category_archived',
+  'name_taken',
+  'dish_not_orderable',
 ]
 
 /** A failed response, shaped the way every one of them is. */
