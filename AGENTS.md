@@ -108,6 +108,7 @@ Frontend:
 - [react-router-data-mode](.agents/skills/react-router-data-mode/): `remix-run/agent-skills`, route objects, loaders, actions, pending and optimistic UI
 - [tanstack-query](.agents/skills/tanstack-query/): `tanstack-skills/tanstack-skills`, server state, caching, refetching, cache updates from incoming events
 - [shadcn](.agents/skills/shadcn/): `shadcn/ui`, component installation, composition, styling, and forms
+- [implementing-drag-drop](.agents/skills/implementing-drag-drop/): `ancoleman/ai-design-components`, sortable lists and drag and drop with keyboard, touch, and announcements
 - [tailwind-4-docs](.agents/skills/tailwind-4-docs/): `lombiq/tailwind-agent-skills`, Tailwind v4 utilities, variants, and its CSS based configuration
 - [react-i18next](.agents/skills/react-i18next/): `yildizberkay/skills`, translation setup, namespaces, plurals, interpolation
 - [vitest](.agents/skills/vitest/): `antfu/skills`, web unit tests, mocking, coverage, fixtures

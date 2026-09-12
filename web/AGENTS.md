@@ -18,6 +18,7 @@ project wide rules; this file holds what is true only here.
 | `src/app/query-client.ts` | Cache defaults. Deliberately quiet on automatic refetching |
 | `src/shared/api/client.ts` | The typed client. Every real API call goes through it |
 | `src/shared/api/schema.d.ts` | Generated from `api/openapi.json`. Never edit it |
+| `src/shared/api/call-error.ts` | `ApiCallError`, what every failed request throws, and the readers that get a code out of it |
 | `src/shared/events/use-live-events.ts` | The stream, and the two rules that keep the cache honest |
 | `src/shared/events/query-keys.ts` | The written map from event kind to the query key prefixes it feeds |
 | `src/shared/events/server-clock.ts` | The offset between the server's clock and this device's, so an age is true on a tablet set wrong |
@@ -51,6 +52,7 @@ Formatting is a root command, `pnpm format`. This package has no format script o
 - **Import through `@/`**, never through a chain of `../../..`. The alias is set in both `vite.config.ts` and `tsconfig.app.json`.
 - **Every real API call goes through `api` in `src/shared/api/client.ts`.** A hand written `fetch` to `/api` anywhere else drops the typed seam on the floor.
 - **`src/shared/api/schema.d.ts` is generated and committed.** ESLint ignores it, continuous integration regenerates it and fails on a difference. Rename a field in Rust and this stops compiling, which is the point.
+- **A failed request throws `ApiCallError`**, from `src/shared/api/call-error.ts`, never the raw body. All three surfaces throw it, and `apiErrorMessage` and `fieldErrorsFrom` read the body back out, which is what lets a refusal be shown from its code in the reader's own language rather than from the API's English sentence.
 - **No user facing string is written into a component.** Everything goes through `t()` and `src/locales/<lang>/common.json`.
 - **Server state lives in TanStack Query**, shared query options rather than a hook per screen (see `shared/api/health.ts`), so every screen hits one cache entry.
 - **Strictness is not negotiable.** `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and a lint error on non null assertions.
@@ -65,6 +67,7 @@ Formatting is a root command, `pnpm format`. This package has no format script o
 - **The app never names a restaurant; the session does.** `identity.ts` holds what the server returned for the signed in person, and it is a cache of that answer, not a second source of truth. Nothing sends a restaurant id to the API.
 - **Sign in and register render outside `RootLayout`.** They are the two screens a signed out visitor reaches, so the shell that sets `lang` and `dir` and holds the event stream is not above them. `signed-out-shell.tsx` gives them their own frame and they set the document language themselves, which is easy to forget when adding a third such screen.
 - **A `401` from anywhere takes one path**, `signed-out.ts`: clear the cached identity, go to sign in, and keep the path the person was on so signing back in returns them to it. The stream's fatal error, told apart by `readyState`, uses that same path rather than its own.
+- **A pending mutation's value is held in component state, never written into the cache.** A dropped drag order and a flipped availability switch are held while the request is in flight and released only once the confirmed refetch has landed, so the screen never flickers back to the old value and never shows one the server has not confirmed. Invalidating in `onSuccess` is a refetch after a confirmation and is fine; writing the new value straight into the cache is the thing that is not.
 - **shadcn/ui is installed**, brought in by feature 5 (design system and accessibility baseline). The base components live in `src/shared/ui/`; build on those rather than adding a second set.
 
 ## Agent skills
@@ -72,6 +75,7 @@ Formatting is a root command, `pnpm format`. This package has no format script o
 - [react-router-data-mode](../.agents/skills/react-router-data-mode/): `remix-run/agent-skills`, route objects, loaders, actions, pending and optimistic UI
 - [tanstack-query](../.agents/skills/tanstack-query/): `tanstack-skills/tanstack-skills`, server state, caching, refetching, cache updates from incoming events
 - [shadcn](../.agents/skills/shadcn/): `shadcn/ui`, component installation, composition, styling, and forms
+- [implementing-drag-drop](../.agents/skills/implementing-drag-drop/): `ancoleman/ai-design-components`, sortable lists and drag and drop with keyboard, touch, and announcements
 - [tailwind-4-docs](../.agents/skills/tailwind-4-docs/): `lombiq/tailwind-agent-skills`, Tailwind v4 utilities, variants, and its CSS based configuration
 - [react-i18next](../.agents/skills/react-i18next/): `yildizberkay/skills`, translation setup, namespaces, plurals, interpolation
 - [vitest](../.agents/skills/vitest/): `antfu/skills`, web unit tests, mocking, coverage, fixtures

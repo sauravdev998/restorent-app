@@ -19,7 +19,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 6 | Language and text foundation | Foundation | done |
 | 7 | Accounts, restaurants, and roles | Foundation | done |
 | 8 | The thin order thread | Slice 1 | done |
-| 9 | Menu management | Slice 2 | in-progress |
+| 9 | Menu management | Slice 2 | done |
 | 10 | Staff accounts | Slice 2 | planned |
 | 11 | Tables and floor plan | Slice 2 | planned |
 | 12 | Waiter service flow | Slice 3 | planned |
@@ -153,7 +153,7 @@ spec [0007](../specs/0007-the-thin-order-thread/index.md) · verify [0007](../sp
 
 Thicken the setup segment, so a real restaurant's own menu, staff, and tables drive the thread rather than the one hardcoded dish and table from slice 1.
 
-### 9. Menu management · in-progress
+### 9. Menu management · done
 The admin builds the real menu: categories, dishes with a price, and a switch to mark a dish unavailable when the kitchen runs out, which immediately stops waiters ordering it.
 **Done when:** an admin can create, edit, reorder, and remove categories and dishes; marking a dish unavailable removes it from the waiter's ordering screen at once; a dish already on an open bill is unaffected.
 spec [0008](../specs/0008-menu-management/index.md) · verify [0008](../specs/0008-menu-management/verify.md) · migration `api/migrations/0006_menu_management.sql` · api in `api/src/presentation/handlers/{admin_menu,menu,service}.rs`, `api/src/infrastructure/db/repository/{catalog,service}.rs`, `api/src/domain/{menu,catalog,enums,error,event,audit}.rs`, `api/src/presentation/extract/actor.rs`, `api/src/bin/seed.rs`, `api/tests/menu.rs` · web in `web/src/admin/`, `web/src/kitchen/routes/kitchen-menu.tsx`, `web/src/kitchen/components/kitchen-tabs.tsx`, `web/src/waiter/basket.ts`, `web/src/shared/api/{menu,use-dish-availability,call-error}.ts`, `web/src/shared/ui/{switch,diet-mark}.tsx`, `web/src/styles/index.css` · browser test in `web/e2e/menu.spec.ts`
