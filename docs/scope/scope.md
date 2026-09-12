@@ -164,10 +164,10 @@ spec [0008](../specs/0008-menu-management/index.md) · verify [0008](../specs/00
   - [x] Order: the two reorder endpoints and dnd-kit drag and drop with keyboard, touch, and translated announcements (AC-4, AC-5)
   - [x] Remove and restore: the archive rules and their locks, the Archived section, and the restore dialog (AC-6, AC-7, AC-8, AC-17)
   - [x] The waiter's side and proof: basket flagging and `dish_not_orderable`, the base `Switch`, every state and translation, and the full tests (AC-9, AC-10, AC-11, AC-12, AC-16, AC-19, AC-20)
-- [ ] Verify it: `/check verify menu management`
-- [ ] Test it: `/test menu management`
-- [ ] Review it (fresh model): `/check review menu management`
-- [ ] Document it: `/document menu management`
+- [x] Verify it: `/check verify menu management`
+- [x] Test it: `/test menu management`
+- [x] Review it (fresh model): `/check review menu management`
+- [x] Document it: `/document menu management`
 
 ### 10. Staff accounts · needs a decision
 The admin creates waiter and chef accounts, hands out access, changes someone's role, and shuts off an account when a person leaves. Staff never register themselves.
