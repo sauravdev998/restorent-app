@@ -38,6 +38,7 @@ function identity(restaurantLanguage: string, staffLanguage: string | null): Ide
       email: 'ada@example.test',
       role: 'admin',
       language: staffLanguage,
+      mustChangePassword: false,
     },
     restaurant: {
       id: '00000000-0000-7000-8000-000000000002',

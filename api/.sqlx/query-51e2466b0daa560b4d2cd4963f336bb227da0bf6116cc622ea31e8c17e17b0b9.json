@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE staff\n           SET password_hash = $2, must_change_password = true,\n               version = version + 1, updated_at = now()\n         WHERE id = $1 AND deactivated_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "51e2466b0daa560b4d2cd4963f336bb227da0bf6116cc622ea31e8c17e17b0b9"
+}

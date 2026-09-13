@@ -15,7 +15,7 @@ mod common;
 
 use api::domain::ids::RestaurantId;
 use api::domain::language::{FormattingLocale, LanguageCode, catalogue};
-use api::infrastructure::db::repository::catalog;
+use api::infrastructure::db::repository::{catalog, staff};
 
 /// AC-15: the columns exist with the defaults the catalogue names, so a
 /// restaurant nobody has configured is still readable and still valid.
@@ -99,7 +99,7 @@ async fn a_staff_members_own_language_is_stored_and_can_be_cleared() {
 
     // Nobody starts with one. A staff member created by feature 10 needs no
     // value, which is why the column is nullable.
-    let before = catalog::active_staff(&mut tx).await.expect("reading staff");
+    let before = staff::list(&mut tx).await.expect("reading staff");
     assert!(
         before.iter().all(|member| member.language.is_none()),
         "a seeded staff member should have no personal language"
@@ -110,7 +110,7 @@ async fn a_staff_members_own_language_is_stored_and_can_be_cleared() {
         .await
         .expect("setting the waiter's language");
 
-    let after = catalog::active_staff(&mut tx).await.expect("reading staff");
+    let after = staff::list(&mut tx).await.expect("reading staff");
     let waiter = after
         .iter()
         .find(|member| member.id == fixture.waiter)
@@ -134,7 +134,7 @@ async fn a_staff_members_own_language_is_stored_and_can_be_cleared() {
         .await
         .expect("clearing the waiter's language");
 
-    let cleared = catalog::active_staff(&mut tx).await.expect("reading staff");
+    let cleared = staff::list(&mut tx).await.expect("reading staff");
     let waiter = cleared
         .iter()
         .find(|member| member.id == fixture.waiter)
@@ -208,7 +208,7 @@ async fn a_language_write_cannot_cross_a_restaurant_boundary() {
     // Beta's row really is unchanged, checked from beta's own scope rather than
     // inferred from the error.
     common::rescope(&mut tx, beta).await;
-    let beta_staff = catalog::active_staff(&mut tx).await.expect("reading staff");
+    let beta_staff = staff::list(&mut tx).await.expect("reading staff");
     assert!(
         beta_staff.iter().all(|member| member.language.is_none()),
         "beta's staff language was changed from outside beta"

@@ -33,6 +33,22 @@ pub struct Staff {
     /// When their account was switched off, if it was. A deactivated account
     /// keeps its row so historical bills stay attributable.
     pub deactivated_at: Option<DateTime<Utc>>,
+    /// When they last signed in, or [`None`] if they never have. Written by the
+    /// sign in path; the admin's staff list is what reads it, because "created
+    /// on Monday and never once signed in" is a typo somebody should hear about
+    /// on Tuesday rather than on Friday night.
+    pub last_sign_in_at: Option<DateTime<Utc>>,
+    /// Whether the password on this row was written by somebody else.
+    ///
+    /// True from the moment an admin writes it, at creation or at a reset, and
+    /// false again only when this person writes their own. While it is true
+    /// they may reach exactly two endpoints, which is what makes a password two
+    /// people know valid for one sign in rather than for a season.
+    pub must_change_password: bool,
+    /// Which edit of the row this is. Sent back with an edit, so one made from
+    /// a form that has gone stale is refused rather than written over somebody
+    /// else's change.
+    pub version: i32,
 }
 
 /// One signed in session.
@@ -94,4 +110,11 @@ pub struct ResolvedSession {
     /// absolute ceiling, so `expires_at` is no longer always this plus one
     /// session lifetime.
     pub last_seen_at: DateTime<Utc>,
+    /// Whether this person still owes their own password.
+    ///
+    /// Carried on the same answer as the role, so the gate that refuses
+    /// somebody who owes one costs no second read on any request in the
+    /// product. The two endpoints that let them settle it are the only two
+    /// that opt out of that gate.
+    pub must_change_password: bool,
 }
