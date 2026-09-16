@@ -9,7 +9,8 @@
     "chef": "Kitchen",
     "settings": "Settings",
     "account": "Account",
-    "menu": "Menu"
+    "menu": "Menu",
+    "staff": "Staff"
   },
   "a11y": {
     "skipToMain": "Skip to main content",
@@ -100,7 +101,12 @@
     "categoryNotEmpty": "That category still has dishes in it. Move or remove them first.",
     "categoryArchived": "That category has been removed. Choose another one.",
     "nameTaken": "Something on the menu already has that name. Rename one of them first.",
-    "dishNotOrderable": "A dish in the basket has just gone off. It is marked below; take it out to send the rest."
+    "dishNotOrderable": "A dish in the basket has just gone off. It is marked below; take it out to send the rest.",
+    "passwordChangeRequired": "Choose your own password before doing anything else.",
+    "staffChanged": "Somebody changed this person first. Their details above are how they stand now.",
+    "lastAdmin": "A restaurant has to keep at least one admin who can sign in. Make somebody else an admin first.",
+    "cannotActOnSelf": "You cannot do that to your own account. Your name, language, and password are on your account screen.",
+    "staffInactive": "That account is switched off. Bring it back first."
   },
   "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land.",
   "signIn": {
@@ -128,6 +134,15 @@
     "submitting": "Registering",
     "haveAccount": "Already have an account?",
     "signIn": "Sign in"
+  },
+  "choosePassword": {
+    "title": "Choose your own password",
+    "subtitle": "The password you were given works once. Pick your own and you are through.",
+    "current": "The password you were given",
+    "currentHint": "The one your manager read out to you.",
+    "new": "Your new password",
+    "submit": "Save and carry on",
+    "submitting": "Saving"
   },
   "account": {
     "title": "Your account",

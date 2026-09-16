@@ -15,7 +15,7 @@ import {
 } from '@/admin/api/menu'
 import { ArchivedSection } from '@/admin/menu/archived-section'
 import { CategoryDialog } from '@/admin/menu/category-dialog'
-import { ConfirmDialog } from '@/admin/menu/confirm-dialog'
+import { ConfirmDialog } from '@/admin/confirm-dialog'
 import { DishDialog } from '@/admin/menu/dish-dialog'
 import { ReorderableList } from '@/admin/menu/reorderable'
 import { RestoreDishDialog } from '@/admin/menu/restore-dish-dialog'
@@ -238,6 +238,7 @@ export function AdminMenuScreen() {
           confirmLabel={t('menu.remove.dishConfirm')}
           doneMessage={t('menu.remove.dishDone', { dish: opened.dish.name })}
           action={() => archiveDish(opened.dish.id)}
+          invalidateKey={['dish']}
         />
       )}
 
@@ -255,6 +256,7 @@ export function AdminMenuScreen() {
           confirmLabel={t('menu.remove.categoryConfirm')}
           doneMessage={t('menu.remove.categoryDone', { category: opened.category.name })}
           action={() => archiveCategory(opened.category.id)}
+          invalidateKey={['dish']}
         />
       )}
 

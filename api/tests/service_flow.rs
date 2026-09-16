@@ -8,7 +8,7 @@ use api::domain::enums::{LineStatus, RoundStatus, VisitStatus};
 use api::domain::error::{ConflictKind, DomainError};
 use api::domain::ids::RestaurantId;
 use api::domain::service::NewOrderLine;
-use api::infrastructure::db::repository::{billing, catalog, service};
+use api::infrastructure::db::repository::{billing, catalog, service, staff};
 
 /// One dish, the usual way to order it.
 fn one(dish_id: api::domain::ids::DishId) -> Vec<NewOrderLine> {
@@ -383,10 +383,7 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
             .len(),
         2
     );
-    assert_eq!(
-        catalog::active_staff(&mut tx).await.expect("reading").len(),
-        3
-    );
+    assert_eq!(staff::list(&mut tx).await.expect("reading").len(), 3);
 
     catalog::archive_dish(&mut tx, f.soup, f.admin)
         .await
@@ -407,7 +404,7 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     catalog::archive_menu_category(&mut tx, f.category, f.admin)
         .await
         .expect("archiving the category");
-    catalog::deactivate_staff(&mut tx, f.chef, f.admin)
+    staff::deactivate(&mut tx, f.chef, f.admin)
         .await
         .expect("deactivating the chef");
 
@@ -436,9 +433,17 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
         "the archived category is still on the menu"
     );
 
-    let staff = catalog::active_staff(&mut tx).await.expect("reading staff");
-    assert_eq!(staff.len(), 2, "the deactivated chef is still listed");
-    assert!(staff.iter().all(|member| member.id != f.chef));
+    // The list carries deactivated people too, so the chef is still on it and
+    // is marked switched off rather than being gone.
+    let everybody = staff::list(&mut tx).await.expect("reading staff");
+    let working = everybody.iter().filter(|m| m.deactivated_at.is_none());
+    assert_eq!(working.count(), 2, "the switched off chef still counts");
+    assert!(
+        everybody
+            .iter()
+            .any(|m| m.id == f.chef && m.deactivated_at.is_some()),
+        "a deactivated person lost their row, so their bills lost their name"
+    );
 
     // And the line that referred to the dish still resolves, with the name and
     // price it copied when it was ordered.

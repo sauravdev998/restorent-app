@@ -213,6 +213,37 @@ pub async fn revoke_every_other(
     Ok(affected)
 }
 
+/// Ends every session this person holds, keeping none.
+///
+/// The three events spec 0006 wrote down and could not build: an account
+/// switched off, a role changed, and a password reset by an admin. All three
+/// are about somebody other than the caller, which is why none of them keeps a
+/// session the way a self service password change does: there is no session of
+/// theirs the admin is sitting in front of.
+///
+/// Returns how many were ended, for the log.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if the update fails.
+pub async fn revoke_all(tx: &mut ScopedTx<'_>, staff_id: StaffId) -> DomainResult<u64> {
+    let affected = sqlx::query!(
+        r#"
+        UPDATE sessions
+           SET revoked_at = now(),
+               updated_at = now()
+         WHERE staff_id = $1
+           AND revoked_at IS NULL
+        "#,
+        staff_id.as_uuid(),
+    )
+    .execute(tx.connection())
+    .await?
+    .rows_affected();
+
+    Ok(affected)
+}
+
 /// Clears out this person's own long dead session rows.
 ///
 /// Run on the sign in path, and scoped to the person signing in on purpose:

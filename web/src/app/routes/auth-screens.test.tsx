@@ -12,6 +12,7 @@ import { LANGUAGE_STORAGE_KEY, writeStoredLanguage } from '@/shared/i18n/resolve
 import { DEFAULT_SURFACE } from '@/shared/surface'
 import { expectAccessible } from '@/test/axe'
 
+import { ChoosePassword } from './choose-password'
 import { Register } from './register'
 import { SignIn } from './sign-in'
 
@@ -30,12 +31,12 @@ vi.mock('@/shared/api/client', () => ({
 }))
 
 /**
- * The two screens that render outside the application shell.
+ * The three screens that render outside the application shell.
  *
- * They are tested together because what makes them a pair is exactly what is
- * being checked: neither has the shell around it, so each has to provide for
+ * They are tested together because what makes them a group is exactly what is
+ * being checked: none has the shell around it, so each has to provide for
  * itself the landmark, the heading, and the language switcher the shell would
- * otherwise have provided. A third screen outside the shell means writing those
+ * otherwise have provided. Each new screen outside the shell means writing those
  * three again, and only a page level render catches a missing one.
  */
 
@@ -88,12 +89,14 @@ describe('the screens outside the shell', () => {
   it('are accessible as whole pages, landmarks and headings included', async () => {
     await expectAccessible(mount(<SignIn />), { page: true })
     await expectAccessible(mount(<Register />), { page: true })
+    await expectAccessible(mount(<ChoosePassword />), { page: true })
   }) // covers: AC-21
 
   it('each carry their own main, heading, and language switcher', () => {
     for (const [name, element] of [
       ['sign in', <SignIn key="in" />],
       ['register', <Register key="up" />],
+      ['choose password', <ChoosePassword key="pw" />],
     ] as const) {
       const view = render(mount(element))
 
@@ -118,6 +121,7 @@ describe('the screens outside the shell', () => {
     for (const [name, element] of [
       ['sign in', <SignIn key="in" />],
       ['register', <Register key="up" />],
+      ['choose password', <ChoosePassword key="pw" />],
     ] as const) {
       const view = render(mount(element))
 
@@ -261,4 +265,104 @@ describe('Register', () => {
     expect(screen.getByText('That is too short.')).toBeInTheDocument()
     expect(screen.queryByText('no')).not.toBeInTheDocument()
   }) // covers: AC-2, AC-21
+})
+
+describe('ChoosePassword', () => {
+  /** Mounts the change screen with a waiter's floor to land on afterwards. */
+  function mountWithLanding() {
+    const router = createMemoryRouter(
+      [
+        { path: '/choose-password', element: <ChoosePassword /> },
+        { path: '/waiter', element: <p>The floor</p> },
+      ],
+      { initialEntries: ['/choose-password'] },
+    )
+
+    return (
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    )
+  }
+
+  it('puts a wrong starting password beside that box, and nowhere else', async () => {
+    answerWith(400, {
+      error: 'invalid',
+      message: 'no',
+      fields: { currentPassword: 'incorrect' },
+    })
+
+    render(mount(<ChoosePassword />))
+
+    await userEvent.type(screen.getByLabelText(/The password you were given/), 'not-the-one')
+    await userEvent.type(screen.getByLabelText(/Your new password/), 'my-own-password')
+    await userEvent.click(screen.getByRole('button', { name: 'Save and carry on' }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/The password you were given/)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      )
+    })
+    expect(screen.getByLabelText(/Your new password/)).not.toHaveAttribute('aria-invalid')
+    // One alert, the field's own, and not the service being unwell.
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toHaveTextContent('That is not right.')
+  }) // covers: AC-5
+
+  it('says the service is unwell rather than blaming the password they were handed', async () => {
+    answerWith(503, { error: 'unavailable', message: 'no' })
+
+    render(mount(<ChoosePassword />))
+
+    await userEvent.type(screen.getByLabelText(/The password you were given/), 'handed-over-1')
+    await userEvent.type(screen.getByLabelText(/Your new password/), 'my-own-password')
+    await userEvent.click(screen.getByRole('button', { name: 'Save and carry on' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('not answering')
+    expect(screen.getByLabelText(/The password you were given/)).not.toHaveAttribute('aria-invalid')
+  }) // covers: AC-5
+
+  it('reads the cleared identity back and lands them on their own surface', async () => {
+    vi.mocked(api.POST).mockResolvedValue({
+      response: new Response(null, { status: 204 }),
+    })
+    vi.mocked(api.GET).mockResolvedValue({
+      data: {
+        staff: {
+          id: '00000000-0000-7000-8000-000000000011',
+          displayName: 'Bo Waiter',
+          email: 'bo@example.test',
+          role: 'waiter',
+          language: null,
+          mustChangePassword: false,
+        },
+        restaurant: {
+          id: '00000000-0000-7000-8000-000000000002',
+          name: 'The Test Kitchen',
+          address: null,
+          countryCode: 'IN',
+          currencyCode: 'INR',
+          currencyDecimals: 2,
+          timezone: 'Asia/Kolkata',
+          defaultLanguage: 'en',
+          formattingLocale: 'en-IN',
+        },
+      },
+      response: new Response(null, { status: 200 }),
+    })
+
+    render(mountWithLanding())
+
+    await userEvent.type(screen.getByLabelText(/The password you were given/), 'handed-over-1')
+    await userEvent.type(screen.getByLabelText(/Your new password/), 'my-own-password')
+    await userEvent.click(screen.getByRole('button', { name: 'Save and carry on' }))
+
+    expect(await screen.findByText('The floor')).toBeInTheDocument()
+    expect(api.POST).toHaveBeenCalledWith('/api/me/password', {
+      body: { currentPassword: 'handed-over-1', newPassword: 'my-own-password' },
+    })
+  }) // covers: AC-5, AC-19
 })
