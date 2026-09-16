@@ -31,7 +31,7 @@ use api::domain::ids::{
 use api::domain::session::SessionToken;
 use api::infrastructure::config::{Config, Environment};
 use api::infrastructure::db::repository::catalog::{DishEdit, NewDish};
-use api::infrastructure::db::repository::{accounts, catalog, sessions, staff};
+use api::infrastructure::db::repository::{accounts, catalog, sessions};
 use api::infrastructure::db::{Database, ScopedTx};
 use api::infrastructure::passwords::Argon2Passwords;
 
@@ -185,7 +185,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("opening the seed transaction")?;
 
-    ensure_staff(&mut tx, admin).await?;
+    ensure_staff(&mut tx).await?;
     let tables = ensure_floor(&mut tx).await?;
     let dishes = ensure_menu(&mut tx, admin).await?;
 
@@ -253,78 +253,33 @@ async fn ensure_restaurant(
 ///
 /// Matched on the address rather than the role, because a restaurant may have
 /// several of each and the address is what identifies an account.
-///
-/// Created through the same path the admin screen uses, so these two are
-/// accounts the product could really have made: really hashed passwords, a real
-/// audit row, and the same refusals. Then the one deliberate exception below.
-async fn ensure_staff(tx: &mut ScopedTx<'_>, admin: StaffId) -> anyhow::Result<()> {
-    let already_here = staff::list(tx)
-        .await
-        .context("reading who already works here")?;
-
+async fn ensure_staff(tx: &mut ScopedTx<'_>) -> anyhow::Result<()> {
     for account in &STAFF {
-        if already_here
-            .iter()
-            .any(|member| member.email.eq_ignore_ascii_case(account.email))
-        {
+        let existing = catalog::active_staff(tx)
+            .await
+            .context("reading who already works here")?
+            .into_iter()
+            .any(|staff| staff.email.eq_ignore_ascii_case(account.email));
+
+        if existing {
             continue;
         }
 
         let email = EmailAddress::new(account.email).context("a seed account's email address")?;
         let password_hash = hash(account.password).await?;
 
-        let created = staff::create(
+        accounts::create_staff(
             tx,
-            &staff::NewStaff {
+            &accounts::NewStaff {
                 display_name: account.display_name,
                 email: &email,
                 password_hash: &password_hash,
                 role: account.role,
             },
-            admin,
         )
         .await
         .with_context(|| format!("creating the seeded {}", account.role.as_label()))?;
-
-        // The exception, and the comment beside it is load bearing.
-        //
-        // Every account the real create path makes owes a password change, on
-        // purpose: an admin wrote the password and is about to read it out. But
-        // the two accounts here exist so a developer can sign in as a waiter and
-        // a chef, and `pnpm e2e` signs in as both. Leaving the flag set would
-        // put a password form in front of every one of those sign ins, and the
-        // browser scenario would fail on a screen the feature it is testing has
-        // nothing to do with.
-        //
-        // So it is cleared here rather than never set. The seed is the one
-        // caller in the product that does this, it does it after the fact, and
-        // the credentials it uses are in `.env.example` for exactly the reason
-        // this command refuses to run outside development.
-        clear_password_owed(tx, created.id).await.with_context(|| {
-            format!(
-                "clearing the seeded {}'s password flag",
-                account.role.as_label()
-            )
-        })?;
     }
-
-    Ok(())
-}
-
-/// Clears the password owed flag on a seeded account. Development only.
-///
-/// A statement here rather than a repository function, deliberately. Nothing in
-/// the product may clear this flag except somebody writing their own password,
-/// and putting a way to do it in `repository/staff.rs` would be putting it
-/// within reach of a handler.
-async fn clear_password_owed(tx: &mut ScopedTx<'_>, staff_id: StaffId) -> anyhow::Result<()> {
-    sqlx::query!(
-        "UPDATE staff SET must_change_password = false, updated_at = now() WHERE id = $1",
-        staff_id.as_uuid(),
-    )
-    .execute(tx.connection())
-    .await
-    .context("clearing a seeded account's password owed flag")?;
 
     Ok(())
 }

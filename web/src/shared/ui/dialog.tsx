@@ -1,6 +1,6 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from './button'
@@ -52,15 +52,20 @@ export function Dialog({
   const { t } = useTranslation()
   const openerRef = useRef<HTMLElement | null>(null)
 
-  // Records what had focus at the moment the dialog opens. A layout effect,
-  // because it runs before Radix's own focus scope moves focus inside, which it
-  // does in an ordinary effect; any later and the ref would hold the dialog's
-  // first button. Recording on open, rather than listening while shut, is what
-  // covers a dialog that mounts already open: every admin screen renders its
-  // dialogs only once something opens them, so they are never shut to listen.
-  useLayoutEffect(() => {
-    if (!open) return
-    if (document.activeElement instanceof HTMLElement) openerRef.current = document.activeElement
+  // Tracks what has focus only while the dialog is shut, so by the time it
+  // opens the ref already holds whatever was focused just before. Recording it
+  // after opening would be too late: focus has moved inside the dialog by then.
+  useEffect(() => {
+    if (open) return
+
+    const remember = (event: FocusEvent) => {
+      if (event.target instanceof HTMLElement) openerRef.current = event.target
+    }
+
+    document.addEventListener('focusin', remember)
+    return () => {
+      document.removeEventListener('focusin', remember)
+    }
   }, [open])
 
   return (

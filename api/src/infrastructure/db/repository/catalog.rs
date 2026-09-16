@@ -32,7 +32,7 @@ use crate::domain::audit::AuditAction;
 use crate::domain::catalog::{
     ArchivedDish, DiningTable, Dish, MenuCategory, Restaurant, TableSection, TaxComponent,
 };
-use crate::domain::enums::Diet;
+use crate::domain::enums::{Diet, StaffRole};
 use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::event::EntityKind;
 use crate::domain::ids::{
@@ -41,6 +41,7 @@ use crate::domain::ids::{
 use crate::domain::language::{FormattingLocale, LanguageCode};
 use crate::domain::menu;
 use crate::domain::money::Currency;
+use crate::domain::people::Staff;
 
 use super::super::{Database, ScopedTx};
 use super::{audit, conflict_on};
@@ -183,6 +184,44 @@ pub async fn live_dining_tables(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<Dinin
             archived_at: row.archived_at,
         })
         .collect())
+}
+
+/// Everybody who currently works here.
+///
+/// Deactivated accounts are left out. Their rows stay, so a bill closed by
+/// somebody who has since left still says who closed it.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Unavailable`] if the read fails.
+pub async fn active_staff(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<Staff>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, email, display_name, role AS "role: StaffRole", language, deactivated_at
+        FROM staff
+        WHERE deactivated_at IS NULL
+        ORDER BY display_name
+        "#
+    )
+    .fetch_all(tx.connection())
+    .await?;
+
+    // Not `.map(...).collect()`: building a `LanguageCode` validates against
+    // the catalogue and so can fail, and a `?` inside a closure would only
+    // return from the closure. Collecting into a `DomainResult` keeps the first
+    // bad row as the answer for the whole read.
+    rows.into_iter()
+        .map(|row| {
+            Ok(Staff {
+                id: StaffId::from_uuid(row.id),
+                email: row.email,
+                display_name: row.display_name,
+                role: row.role,
+                language: row.language.as_deref().map(LanguageCode::new).transpose()?,
+                deactivated_at: row.deactivated_at,
+            })
+        })
+        .collect()
 }
 
 /// Adds a named group of tables, such as a terrace.
@@ -519,6 +558,95 @@ pub async fn set_staff_language(
     }
 
     Ok(())
+}
+
+/// Changes what a staff member is allowed to be, and writes down that it
+/// happened.
+///
+/// # Errors
+///
+/// Returns [`DomainError::NotFound`] if no such staff member belongs to this
+/// restaurant.
+pub async fn change_staff_role(
+    tx: &mut ScopedTx<'_>,
+    staff_id: StaffId,
+    role: StaffRole,
+    actor: StaffId,
+) -> DomainResult<()> {
+    let before = sqlx::query!(
+        r#"SELECT role AS "role: StaffRole" FROM staff WHERE id = $1 FOR UPDATE"#,
+        staff_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .ok_or(DomainError::NotFound)?;
+
+    sqlx::query!(
+        "UPDATE staff SET role = $2, updated_at = now() WHERE id = $1",
+        staff_id.as_uuid(),
+        role as StaffRole,
+    )
+    .execute(tx.connection())
+    .await?;
+
+    audit::record(
+        tx,
+        Some(actor),
+        AuditAction::StaffRoleChanged,
+        "staff",
+        staff_id.as_uuid(),
+        Some(json!({ "role": before.role })),
+        Some(json!({ "role": role })),
+    )
+    .await?;
+
+    Database::notify_entity_change(tx, EntityKind::Staff, staff_id.as_uuid()).await?;
+
+    Ok(())
+}
+
+/// Switches a staff member's account off, and writes down that it happened.
+///
+/// The row stays, so historical bills stay attributable to a real person. Only
+/// deleting the whole restaurant removes anything.
+///
+/// # Errors
+///
+/// Returns [`DomainError::NotFound`] if no such active staff member belongs to
+/// this restaurant.
+pub async fn deactivate_staff(
+    tx: &mut ScopedTx<'_>,
+    staff_id: StaffId,
+    actor: StaffId,
+) -> DomainResult<DateTime<Utc>> {
+    let deactivated = sqlx::query!(
+        r#"
+        UPDATE staff
+        SET deactivated_at = now(), updated_at = now()
+        WHERE id = $1 AND deactivated_at IS NULL
+        RETURNING deactivated_at
+        "#,
+        staff_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .and_then(|row| row.deactivated_at)
+    .ok_or(DomainError::NotFound)?;
+
+    audit::record(
+        tx,
+        Some(actor),
+        AuditAction::StaffDeactivated,
+        "staff",
+        staff_id.as_uuid(),
+        Some(json!({ "deactivated_at": Option::<DateTime<Utc>>::None })),
+        Some(json!({ "deactivated_at": deactivated })),
+    )
+    .await?;
+
+    Database::notify_entity_change(tx, EntityKind::Staff, staff_id.as_uuid()).await?;
+
+    Ok(deactivated)
 }
 
 // ===========================================================================

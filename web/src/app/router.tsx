@@ -7,7 +7,6 @@ import {
 
 import { AdminHome } from '@/admin/routes/admin-home'
 import { AdminMenuScreen } from '@/admin/routes/admin-menu'
-import { AdminStaffScreen } from '@/admin/routes/admin-staff'
 import { RestaurantSettings } from '@/admin/routes/restaurant-settings'
 import { KitchenHome } from '@/kitchen/routes/kitchen-home'
 import { KitchenMenu } from '@/kitchen/routes/kitchen-menu'
@@ -20,7 +19,6 @@ import { queryClient } from './query-client'
 import { ErrorScreen } from './error-screen'
 import { NotFound } from './not-found'
 import { Account } from './routes/account'
-import { ChoosePassword, CHOOSE_PASSWORD_PATH } from './routes/choose-password'
 import { Register } from './routes/register'
 import { SignIn } from './routes/sign-in'
 import { RootLayout } from './root-layout'
@@ -57,19 +55,6 @@ async function requireIdentity({ request }: LoaderFunctionArgs): Promise<Identit
   if (!identity) {
     const url = new URL(request.url)
     goTo(signInPathFor(url.pathname, url.search))
-  }
-
-  // Somebody signed in with a password an admin wrote owes their own before
-  // anything else, and the API refuses every endpoint except two until they
-  // write it. Sending them here from the root loader is what makes that true in
-  // the browser too, one frame earlier than the first refused request: a loader
-  // runs before its element renders, so no other screen is drawn on the way.
-  //
-  // It is the same shape as the signed out redirect above and for the same
-  // reason, but it carries no return path. There is exactly one place to go
-  // after this, their own surface, and it is decided by their role.
-  if (identity.staff.mustChangePassword) {
-    goTo(CHOOSE_PASSWORD_PATH)
   }
 
   return identity
@@ -120,27 +105,6 @@ async function redirectIfSignedIn(): Promise<null> {
 }
 
 /**
- * Keeps the change screen to the people who actually owe a change.
- *
- * Signed out, they go to sign in; signed in and settled, they go to their own
- * surface. Without this, following the address by hand shows a form whose only
- * outcome is changing a password nobody asked them to change.
- */
-async function requireOwedPassword(): Promise<null> {
-  const identity = await queryClient.ensureQueryData(identityQuery)
-
-  if (!identity) {
-    goTo(SIGN_IN_PATH)
-  }
-
-  if (!identity.staff.mustChangePassword) {
-    goTo(landingFor(identity.staff.role))
-  }
-
-  return null
-}
-
-/**
  * The design gallery, in development only.
  *
  * `import.meta.env.DEV` is replaced with the literal `false` in a production
@@ -165,14 +129,6 @@ export const router = createBrowserRouter([
   // signed out visitor ever reaches.
   { path: SIGN_IN_PATH, element: <SignIn />, loader: redirectIfSignedIn },
   { path: REGISTER_PATH, element: <Register />, loader: redirectIfSignedIn },
-  // The third screen outside the shell. Its loader is the mirror of the gate
-  // above: somebody who owes nothing has no business here, and would otherwise
-  // be asked for a current password to no end.
-  {
-    path: CHOOSE_PASSWORD_PATH,
-    element: <ChoosePassword />,
-    loader: requireOwedPassword,
-  },
   {
     // Named, so a screen inside the shell can read the identity the loader
     // already resolved rather than asking for it again.
@@ -190,7 +146,6 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <AdminHome /> },
           { path: 'menu', element: <AdminMenuScreen /> },
-          { path: 'staff', element: <AdminStaffScreen /> },
           { path: 'settings', element: <RestaurantSettings /> },
         ],
       },

@@ -11,7 +11,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::infrastructure::config::Config;
 
-use super::handlers::{admin_menu, auth, billing, dev, events, health, me, menu, service, staff};
+use super::handlers::{admin_menu, auth, billing, dev, events, health, me, menu, service};
 use super::origin;
 use super::state::AppState;
 
@@ -89,17 +89,6 @@ pub fn build(state: AppState, config: &Config) -> Router {
             post(admin_menu::restore_dish),
         )
         .route("/api/dishes/{id}/availability", put(menu::set_availability))
-        // Staff accounts. Admin only, every one of them, and the restriction
-        // lives in each handler's own signature rather than here.
-        .route(
-            "/api/staff",
-            get(staff::list_staff).post(staff::create_staff),
-        )
-        .route("/api/staff/{id}", patch(staff::edit_staff))
-        .route("/api/staff/{id}/role", put(staff::change_role))
-        .route("/api/staff/{id}/password", post(staff::reset_password))
-        .route("/api/staff/{id}/deactivate", post(staff::deactivate))
-        .route("/api/staff/{id}/reactivate", post(staff::reactivate))
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

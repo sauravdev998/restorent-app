@@ -5,7 +5,7 @@
 //! session row: no environment behaves differently, and no code path in any
 //! environment can name a restaurant that did not come from a resolved session.
 //!
-//! # The five steps, in this order
+//! # The four steps, in this order
 //!
 //! The order is load bearing, and getting it wrong fails silently rather than
 //! loudly, so it is written out.
@@ -16,22 +16,14 @@
 //! 2. **Check the role**, against the marker type in the handler's own
 //!    signature, and refuse with `403` before the handler body is entered. No
 //!    database work is done for a refusal.
-//! 3. **Check whether a password is owed**, against the second marker type in
-//!    that same signature, and refuse with `403 password_change_required`.
-//!    After the role, deliberately: a waiter who also owes a password change
-//!    gets a plain `403` from an admin only endpoint, because "you may not do
-//!    this at all" is the true answer and telling them to go and change their
-//!    password would send them back to the same refusal.
-//! 4. **Slide, in its own scoped transaction, only when due.** It commits on its
+//! 3. **Slide, in its own scoped transaction, only when due.** It commits on its
 //!    own, separately from whatever the handler goes on to do: a handler that
 //!    fails afterwards must not un slide a session that was genuinely used.
-//! 5. **Run the handler**, which opens its own scoped transaction as every
+//! 4. **Run the handler**, which opens its own scoped transaction as every
 //!    handler already does.
 //!
 //! So a request costs one unscoped read always, one short scoped write at most
-//! once every five minutes, and the handler's own transaction. Neither of the
-//! two checks costs a query: the role and the flag both ride on the answer step
-//! one already had.
+//! once every five minutes, and the handler's own transaction.
 
 use std::marker::PhantomData;
 
@@ -149,78 +141,24 @@ impl RoleRequirement for WaiterOrChef {
     }
 }
 
-/// Whether a handler may be reached by somebody who owes a password change.
-///
-/// The second half of the same trick the role requirement plays. A handler that
-/// says nothing is gated, because [`PasswordSettled`] is the default, so a new
-/// endpoint is covered by omission rather than by somebody remembering to add a
-/// line. Exactly two handlers opt out, and both of them are how the person gets
-/// out of owing one.
-///
-/// Deliberately not a path match inside the extractor. That would duplicate the
-/// router table `api/AGENTS.md` calls the single source of truth, and it would
-/// break the first time a path grew a parameter or a trailing slash, silently
-/// and in the direction of letting somebody through.
-pub trait PasswordGate: Send + Sync + 'static {
-    /// What the `OpenAPI` document says about this endpoint's gate.
-    const DESCRIPTION: &'static str;
-
-    /// Whether somebody who owes a password change may reach this handler.
-    fn permits(must_change_password: bool) -> bool;
-}
-
-/// The default: somebody who owes a password change is refused here.
-///
-/// Every handler in the product carries this by saying nothing, `GET
-/// /api/events` included, so a stream cannot be opened while a password is
-/// owed.
-#[derive(Debug, Clone, Copy)]
-pub struct PasswordSettled;
-
-impl PasswordGate for PasswordSettled {
-    const DESCRIPTION: &'static str = "Refused while a password change is owed.";
-
-    fn permits(must_change_password: bool) -> bool {
-        !must_change_password
-    }
-}
-
-/// The exception, held by exactly two handlers.
-///
-/// `GET /api/me`, so the browser can find out that a change is owed, and `POST
-/// /api/me/password`, so it can be settled. Anything else naming this is a bug,
-/// and naming it is at least visible in a signature and in the document.
-#[derive(Debug, Clone, Copy)]
-pub struct PasswordMayBeOwed;
-
-impl PasswordGate for PasswordMayBeOwed {
-    const DESCRIPTION: &'static str = "Reachable while a password change is owed.";
-
-    fn permits(_must_change_password: bool) -> bool {
-        true
-    }
-}
-
 /// Who is making this request, once their session has been resolved.
 ///
-/// A handler taking `Actor<Admin>` is guaranteed three things by the time its
-/// body runs: somebody is signed in, they are an admin, and they do not owe a
-/// password change. A handler taking `Actor` (which is `Actor<AnyRole,
-/// PasswordSettled>`) is guaranteed the first and the third.
+/// A handler taking `Actor<Admin>` is guaranteed two things by the time its
+/// body runs: somebody is signed in, and they are an admin. A handler taking
+/// `Actor` (which is `Actor<AnyRole>`) is guaranteed the first.
 ///
-/// All five of restaurant, staff member, session, role, and whether a password
-/// is owed come out of one lookup, so there is no way to hold a restaurant id
-/// without knowing who is acting in it. That is what makes every audit row have
-/// a real actor.
+/// All four of restaurant, staff member, session, and role come out of one
+/// lookup, so there is no way to hold a restaurant id without knowing who is
+/// acting in it. That is what makes every audit row have a real actor.
 #[derive(Debug, Clone)]
-pub struct Actor<R: RoleRequirement = AnyRole, P: PasswordGate = PasswordSettled> {
+pub struct Actor<R: RoleRequirement = AnyRole> {
     session: ResolvedSession,
     // `fn() -> R` rather than `R`, so the marker carries no ownership and the
     // extractor stays `Send` whatever the marker type is.
-    requirement: PhantomData<fn() -> (R, P)>,
+    requirement: PhantomData<fn() -> R>,
 }
 
-impl<R: RoleRequirement, P: PasswordGate> Actor<R, P> {
+impl<R: RoleRequirement> Actor<R> {
     /// Which restaurant this request may see. Goes straight into
     /// `Database::begin_scoped`.
     #[must_use]
@@ -248,7 +186,7 @@ impl<R: RoleRequirement, P: PasswordGate> Actor<R, P> {
     }
 }
 
-impl<R: RoleRequirement, P: PasswordGate> FromRequestParts<AppState> for Actor<R, P> {
+impl<R: RoleRequirement> FromRequestParts<AppState> for Actor<R> {
     type Rejection = ApiError;
 
     async fn from_request_parts(
@@ -269,18 +207,7 @@ impl<R: RoleRequirement, P: PasswordGate> FromRequestParts<AppState> for Actor<R
             return Err(DomainError::Forbidden.into());
         }
 
-        // Step 3. After the role, which is the whole reason the two refusals
-        // stay distinguishable.
-        if !P::permits(session.must_change_password) {
-            tracing::info!(
-                staff_id = %session.staff_id,
-                restaurant_id = %session.restaurant_id,
-                "refusing a request from somebody who has not chosen their own password yet"
-            );
-            return Err(DomainError::PasswordChangeRequired.into());
-        }
-
-        // Step 4. Its own transaction, committed on its own.
+        // Step 3. Its own transaction, committed on its own.
         slide_if_due(&session, state).await;
 
         Ok(Self {
@@ -313,20 +240,8 @@ pub fn token_hash_from(headers: &HeaderMap) -> Option<Vec<u8>> {
 /// no other request, so without this its session would expire under the person
 /// watching it; and a session revoked while the stream is open has to stop
 /// resolving within one heartbeat.
-///
-/// It applies the password gate too, and that is not belt and braces. Every
-/// path that sets the flag also revokes that person's sessions, so in practice
-/// the stream would close on the revocation anyway; applying the gate here
-/// means the stream closes because the flag is set, rather than because a
-/// second thing that happens to accompany it did its job. A later path that
-/// sets the flag without revoking would otherwise leave a stream running for
-/// somebody every other endpoint is refusing.
 pub async fn resolve_and_slide(state: &AppState, token_hash: &[u8]) -> Option<ResolvedSession> {
     let session = state.database.resolve_session(token_hash).await.ok()??;
-
-    if !PasswordSettled::permits(session.must_change_password) {
-        return None;
-    }
 
     slide_if_due(&session, state).await;
 
@@ -440,46 +355,6 @@ mod tests {
              wrong person as having taken an order"
         );
         assert!(!Chef::permits(StaffRole::Admin));
-    }
-
-    /// covers: AC-4
-    ///
-    /// The gate itself, both ways round. Two markers and two states, so all
-    /// four pairs are written out rather than derived, for the same reason the
-    /// role table above is.
-    #[test]
-    fn only_the_two_named_handlers_admit_somebody_who_owes_a_password() {
-        assert!(
-            PasswordSettled::permits(false),
-            "somebody who owes nothing was refused by the default gate, which is every              endpoint in the product"
-        );
-        assert!(
-            !PasswordSettled::permits(true),
-            "somebody who owes a password change reached an ordinary endpoint, so a password              two people know is good for more than one sign in"
-        );
-
-        assert!(PasswordMayBeOwed::permits(true));
-        assert!(PasswordMayBeOwed::permits(false));
-    }
-
-    /// covers: AC-4
-    ///
-    /// The default is what makes a new endpoint covered by omission. Written as
-    /// a type level assertion rather than a comment, so a change to the default
-    /// stops compiling here instead of quietly opening every future endpoint to
-    /// somebody who has not chosen a password yet.
-    #[test]
-    fn saying_nothing_about_the_password_means_the_strict_gate() {
-        fn assert_gated<P: PasswordGate>(owed: bool) -> bool {
-            P::permits(owed)
-        }
-
-        // `Actor` with no second parameter is `Actor<AnyRole, PasswordSettled>`.
-        // If the default ever changed, this call would resolve to the other
-        // marker and the assertion below would fail.
-        let default_gate_admits_somebody_who_owes = assert_gated::<PasswordSettled>(true);
-
-        assert!(!default_gate_admits_somebody_who_owes);
     }
 
     /// Each description reaches the `OpenAPI` document and therefore the

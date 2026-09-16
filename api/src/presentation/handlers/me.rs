@@ -20,7 +20,7 @@ use crate::domain::language::{FormattingLocale, LanguageCode};
 use crate::infrastructure::db::repository::{accounts, catalog, sessions};
 use crate::presentation::dto::IdentityBundle;
 use crate::presentation::error::{ApiError, ErrorBody};
-use crate::presentation::extract::{Actor, Admin, AnyRole, JsonBody, PasswordMayBeOwed};
+use crate::presentation::extract::{Actor, Admin, JsonBody};
 use crate::presentation::state::AppState;
 
 use super::auth::password_problem;
@@ -169,12 +169,6 @@ pub async fn update_me(
 /// Every other session of theirs is revoked in the same transaction, which is
 /// what makes "I think somebody has my password" a thing they can act on alone.
 ///
-/// The other of exactly two handlers that name `PasswordMayBeOwed`, and the
-/// only way out of owing one. Somebody an admin created gives the password they
-/// were handed as their current one, and this is what spends it: the flag is
-/// cleared by the write itself, in the repository, so no path can set a
-/// password without settling what was owed on it.
-///
 /// # Errors
 ///
 /// Returns a `400` with `fields.currentPassword=incorrect` for a wrong current
@@ -186,14 +180,14 @@ pub async fn update_me(
     tag = "accounts",
     request_body = ChangePasswordRequest,
     responses(
-        (status = 204, description = "Changed. Any signed in role, own row only, and reachable while a password change is owed."),
+        (status = 204, description = "Changed. Any signed in role, own row only."),
         (status = 400, description = "The current password was wrong, or the new one broke a rule.", body = ErrorBody),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
     )
 )]
 pub async fn change_password(
     State(state): State<AppState>,
-    actor: Actor<AnyRole, PasswordMayBeOwed>,
+    actor: Actor,
     JsonBody(request): JsonBody<ChangePasswordRequest>,
 ) -> Result<StatusCode, ApiError> {
     let new_password = Password::new(&request.new_password)

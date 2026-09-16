@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE staff\n        SET deactivated_at = now(), updated_at = now()\n        WHERE id = $1 AND deactivated_at IS NULL\n        RETURNING deactivated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "deactivated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "staff",
+            "name": "deactivated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "492912e8650f28de22a8b0bf8751bc5e7feac7148241b29d5ce76d7f949b7b4b"
+}

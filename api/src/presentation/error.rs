@@ -122,18 +122,6 @@ impl IntoResponse for ApiError {
                 "forbidden",
                 "You are not allowed to do that.".to_owned(),
             ),
-            // Its own code rather than a second `forbidden`, because the two
-            // mean opposite things to whoever is reading the screen: this one
-            // says "choose your own password and carry on", and `forbidden`
-            // says "this is not yours to do". A client that could not tell them
-            // apart would either strand somebody on a refusal they can clear in
-            // ten seconds, or send everybody refused anything to a password
-            // form.
-            DomainError::PasswordChangeRequired => (
-                StatusCode::FORBIDDEN,
-                "password_change_required",
-                "Choose your own password before doing anything else.".to_owned(),
-            ),
             DomainError::Invalid(reason) => (StatusCode::BAD_REQUEST, "invalid", reason.clone()),
             // Both answered above, before this match: one carries a body member
             // the others do not, and the other carries a header.

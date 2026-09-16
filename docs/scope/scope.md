@@ -20,7 +20,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 7 | Accounts, restaurants, and roles | Foundation | done |
 | 8 | The thin order thread | Slice 1 | done |
 | 9 | Menu management | Slice 2 | done |
-| 10 | Staff accounts | Slice 2 | done |
+| 10 | Staff accounts | Slice 2 | planned |
 | 11 | Tables and floor plan | Slice 2 | planned |
 | 12 | Waiter service flow | Slice 3 | planned |
 | 13 | Kitchen display | Slice 3 | planned |
@@ -38,7 +38,6 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 25 | Dish photos | Deferred | planned |
 | 26 | Dish sizes and add ons | Deferred | planned |
 | 27 | Dish names in a second language | Deferred | planned |
-| 28 | Erasing a person on request | Deferred | planned |
 
 ## Foundations
 
@@ -170,20 +169,10 @@ spec [0008](../specs/0008-menu-management/index.md) · verify [0008](../specs/00
 - [x] Review it (fresh model): `/check review menu management`
 - [x] Document it: `/document menu management`
 
-### 10. Staff accounts · done
+### 10. Staff accounts · needs a decision
 The admin creates waiter and chef accounts, hands out access, changes someone's role, and shuts off an account when a person leaves. Staff never register themselves.
 **Done when:** an admin can create a staff member with a role, that person can sign in and lands on the right screen for their role, an admin can change a role or deactivate an account, and a deactivated account is refused at once.
-spec [0009](../specs/0009-staff-accounts/index.md) · verify [0009](../specs/0009-staff-accounts/verify.md) · migration `api/migrations/0007_staff_accounts.sql` · api in `api/src/presentation/handlers/staff.rs`, `api/src/infrastructure/db/repository/{staff,accounts,sessions}.rs`, `api/src/presentation/extract/actor.rs`, `api/src/domain/{people,error,audit}.rs`, `api/src/presentation/dto.rs`, `api/src/bin/seed.rs`, `api/tests/staff.rs` · web in `web/src/admin/{api/staff.ts,routes/admin-staff.tsx,staff/,confirm-dialog.tsx}`, `web/src/app/routes/choose-password.tsx`, `web/src/app/router.tsx`, `web/src/shared/{api/error-message.ts,events/query-keys.ts,ui/surface-shell.tsx}`
-- [x] Design it (spec): `/architect staff accounts`
-- [x] Build it: `/develop staff accounts`
-  - [x] The thread, top to bottom: migration 0007, the password gate marker on `Actor`, create and list, the forced change screen outside the shell, and the plainest admin screen, proven by creating a waiter and signing in as them (AC-1, AC-2, AC-3, AC-4, AC-5, AC-6, AC-15, AC-18, AC-19, AC-21)
-  - [x] The rest of the actions: the name edit, the role change, the admin password reset, and deactivate and reactivate, each with its session revocation and its conditional update (AC-7, AC-8, AC-9, AC-10, AC-11, AC-13, AC-14)
-  - [x] The guard rails and their proof: the advisory lock, the last active admin count, the self action refusal, the one fixed refusal order, and the tenant isolation and concurrency tests against a real Postgres (AC-12, AC-14, AC-16)
-  - [x] The surface in full: the whole admin screen with its dialogs and inactive section, the six audit rows, and the seed moved onto the real create path with its flag cleared (AC-13, AC-17, AC-18, AC-20, AC-21)
-- [x] Verify it: `/check verify staff accounts`
-- [x] Test it: `/test staff accounts`
-- [x] Review it (fresh model): `/check review staff accounts`
-- [x] Document it: `/document staff accounts`
+- [ ] Design it (spec): `/architect staff accounts`
 
 ### 11. Tables and floor plan · needs a decision
 The admin defines the restaurant's tables, optionally grouped into sections, and the waiter picks a real table when opening a bill. Occupied tables are visible at a glance.
@@ -265,7 +254,6 @@ Out of scope for the current build pass, kept so the plan stays honest. Both are
 - **23. Splitting and merging bills** `from spec 0003`: guests paying separately, and two joined tables paying as one. The schema in spec [0003](../specs/0003-core-data-model/index.md) permits both (lines carry a bill reference, and a visit owns the table rather than a bill), and nothing implements either. It needs the waiter screens for choosing which lines go where, which is the real work · needs a decision
 - **25. Dish photos** `from spec 0008`: an image per dish on the admin and waiter screens. Needs upload, S3 storage, and resizing, new infrastructure the menu feature deliberately left out · needs a decision
 - **26. Dish sizes and add ons** `from spec 0008`: half or full portions, extra cheese. Changes how a line's price is worked out and what a kitchen ticket shows, so it touches the order thread as much as the menu · needs a decision
-- **28. Erasing a person on request** `from spec 0009`: blanking a `staff` row's name, email address, and password hash while keeping the row, so every past order and audit entry still resolves. Spec [0003](../specs/0003-core-data-model/index.md) designed the path, spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) handed it to feature 10, and feature 10 scoped it out in favour of deactivate and reactivate. Until it exists, a GDPR style erasure request is a manual database operation · needs a decision
 - **27. Dish names in a second language** `from spec 0008`: an English name beside a Hindi one, say. Needs a translations shape for restaurant typed text and a rule for which name each screen shows · needs a decision
 
 ## Legend

@@ -47,12 +47,6 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   not_found: 'apiError.notFound',
   unauthenticated: 'apiError.unauthenticated',
   forbidden: 'apiError.forbidden',
-  // Its own code rather than a second `forbidden`, because the two mean
-  // opposite things: this one says "choose your own password and carry on".
-  // Almost nobody reads this sentence, because the router sends anybody who
-  // owes a password change to the change screen before a request is made. It
-  // exists for the request already in flight when the flag was set.
-  password_change_required: 'apiError.passwordChangeRequired',
   invalid: 'apiError.invalid',
   conflict: 'apiError.conflict',
   unavailable: 'apiError.unavailable',
@@ -83,10 +77,6 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   category_archived: 'apiError.categoryArchived',
   name_taken: 'apiError.nameTaken',
   dish_not_orderable: 'apiError.dishNotOrderable',
-  staff_changed: 'apiError.staffChanged',
-  last_admin: 'apiError.lastAdmin',
-  cannot_act_on_self: 'apiError.cannotActOnSelf',
-  staff_inactive: 'apiError.staffInactive',
 }
 
 /** What anything unrecognised says. */
