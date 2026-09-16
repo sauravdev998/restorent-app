@@ -266,7 +266,8 @@
       "roleHint": "Changing this signs them out everywhere.",
       "submit": "Save",
       "renamed": "{{name}} was renamed.",
-      "roleChanged": "{{name}} is now a {{role}}, and has been signed out everywhere."
+      "roleChanged": "{{name}} is now a {{role}}, and has been signed out everywhere.",
+      "roleUnchanged": "{{name}} is already a {{role}}. Nothing changed, and they are still signed in."
     },
     "reset": {
       "action": "Reset password",

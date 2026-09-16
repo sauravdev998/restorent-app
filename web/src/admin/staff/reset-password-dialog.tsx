@@ -46,10 +46,14 @@ export function ResetPasswordDialog({ onOpenChange, member }: ResetPasswordDialo
   const [handedOver, setHandedOver] = useState<string | null>(null)
 
   const save = useMutation({
-    mutationFn: () => resetStaffPassword(member.id, password),
-    onSuccess: async () => {
+    // The password travels as the mutation's variable, never through the
+    // closure: a pending mutation takes the callbacks of the latest render, so
+    // an edit made while the request is in flight would otherwise be what the
+    // panel shows, and not what was written.
+    mutationFn: (submitted: string) => resetStaffPassword(member.id, submitted),
+    onSuccess: async (_, submitted) => {
       await queryClient.invalidateQueries({ queryKey: staffKey })
-      setHandedOver(password)
+      setHandedOver(submitted)
     },
     onError: async (error: unknown) => {
       const body = failureBody(error)
@@ -71,7 +75,7 @@ export function ResetPasswordDialog({ onOpenChange, member }: ResetPasswordDialo
     event.preventDefault()
     setFields({})
     setProblem(null)
-    save.mutate()
+    save.mutate(password)
   }
 
   if (handedOver !== null) {

@@ -52,24 +52,28 @@ export function EditStaffDialog({ onOpenChange, member, what }: EditStaffDialogP
   const [displayName, setDisplayName] = useState(member.displayName)
   const [role, setRole] = useState<StaffRole>(member.role)
   const [version, setVersion] = useState(member.version)
+  // The role this person held at `version`, so a save to that same role can
+  // say it changed nothing: the API accepts it and writes nothing, revoking no
+  // session, and "signed out everywhere" would be untrue.
+  const [heldRole, setHeldRole] = useState<StaffRole>(member.role)
   const [fields, setFields] = useState<Record<string, FieldErrorCode>>({})
   const [problem, setProblem] = useState<string | null>(null)
 
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: (submitted: { role: StaffRole; heldRole: StaffRole }) =>
       what === 'name'
         ? renameStaff(member.id, displayName, version)
-        : changeStaffRole(member.id, role, version),
-    onSuccess: async (saved) => {
+        : changeStaffRole(member.id, submitted.role, version),
+    onSuccess: async (saved, submitted) => {
       await queryClient.invalidateQueries({ queryKey: staffKey })
+      const roleArgs = { name: saved.displayName, role: t(`staff.roles.${saved.role}`) }
       showToast({
         title:
           what === 'name'
             ? t('staff.edit.renamed', { name: saved.displayName })
-            : t('staff.edit.roleChanged', {
-                name: saved.displayName,
-                role: t(`staff.roles.${saved.role}`),
-              }),
+            : submitted.role === submitted.heldRole
+              ? t('staff.edit.roleUnchanged', roleArgs)
+              : t('staff.edit.roleChanged', roleArgs),
       })
       onOpenChange(false)
     },
@@ -93,6 +97,7 @@ export function EditStaffDialog({ onOpenChange, member, what }: EditStaffDialogP
         if (current) {
           setDisplayName(current.displayName)
           setRole(current.role)
+          setHeldRole(current.role)
           setVersion(current.version)
         }
         return
@@ -108,7 +113,7 @@ export function EditStaffDialog({ onOpenChange, member, what }: EditStaffDialogP
     event.preventDefault()
     setFields({})
     setProblem(null)
-    save.mutate()
+    save.mutate({ role, heldRole })
   }
 
   return (

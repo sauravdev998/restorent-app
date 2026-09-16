@@ -69,11 +69,18 @@ export function CreateStaffDialog({ onOpenChange }: CreateStaffDialogProps) {
 
   const save = useMutation({
     mutationFn: (form: NewStaffForm) => createStaff(form),
-    onSuccess: async (created) => {
+    onSuccess: async (created, submitted) => {
       await queryClient.invalidateQueries({ queryKey: staffKey })
-      // From the form, not from the response. The API returns neither the
-      // password nor its hash, which is exactly as it should be.
-      setHandOver({ displayName: created.displayName, email: created.email, password })
+      // From what was submitted, not from the response and not from the live
+      // field. The API returns neither the password nor its hash, and the field
+      // may have been edited while the request was in flight: a pending
+      // mutation takes the callbacks of the latest render, so reading `password`
+      // here could show one that was never written.
+      setHandOver({
+        displayName: created.displayName,
+        email: created.email,
+        password: submitted.password,
+      })
     },
     onError: (error: unknown) => {
       const body = failureBody(error)

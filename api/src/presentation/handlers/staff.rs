@@ -27,6 +27,7 @@ use uuid::Uuid;
 
 use crate::application::ports::PasswordHasher as _;
 use crate::domain::credentials::{EmailAddress, Password};
+use crate::domain::enums::StaffRole;
 use crate::domain::error::{ConflictKind, DomainError, FieldError, FieldErrors};
 use crate::domain::ids::StaffId;
 use crate::infrastructure::db::repository::staff;
@@ -64,8 +65,15 @@ pub struct CreateStaffRequest {
     /// The password the admin is about to hand them. They must replace it
     /// before they can do anything else.
     pub password: String,
+    // Read as text and checked beside the other fields, rather than as
+    // `RoleDto` by the deserialiser. An unknown enum value fails inside
+    // `serde_json` with a message that never names the field, so the only
+    // answer it could give is a body that could not be read, when what the
+    // admin needs is a problem beside the role box. The document still says
+    // `RoleDto`, so the generated client offers exactly the three values.
     /// What they are allowed to be.
-    pub role: RoleDto,
+    #[schema(value_type = RoleDto)]
+    pub role: String,
 }
 
 /// What renaming somebody asks for.
@@ -157,7 +165,7 @@ pub async fn create_staff(
     actor: Actor<Admin>,
     JsonBody(request): JsonBody<CreateStaffRequest>,
 ) -> Result<(StatusCode, Json<StaffMemberDto>), ApiError> {
-    let (display_name, email, password) = read_new_staff(&request)?;
+    let (display_name, email, password, role) = read_new_staff(&request)?;
 
     // Hashed before the transaction opens. `argon2id` costs tens of
     // milliseconds on purpose, and holding a transaction open across it would
@@ -173,7 +181,7 @@ pub async fn create_staff(
             display_name: &display_name,
             email: &email,
             password_hash: &password_hash,
-            role: request.role.into(),
+            role,
         },
         actor.staff_id(),
     )
@@ -414,7 +422,7 @@ pub async fn reactivate(
 /// everything at once rather than discovering one problem per round trip.
 fn read_new_staff(
     request: &CreateStaffRequest,
-) -> Result<(String, EmailAddress, Password), ApiError> {
+) -> Result<(String, EmailAddress, Password, StaffRole), ApiError> {
     let mut errors = FieldErrors::default();
 
     let display_name = request.display_name.trim();
@@ -441,12 +449,26 @@ fn read_new_staff(
         errors.add("password", password_problem(&request.password));
     }
 
+    // The exact label, no trimming and no case folding: the three values are
+    // what the client's own type offers, so anything else is not a near miss.
+    let role = StaffRole::from_label(&request.role);
+    if role.is_none() {
+        errors.add(
+            "role",
+            if request.role.trim().is_empty() {
+                FieldError::Required
+            } else {
+                FieldError::InvalidFormat
+            },
+        );
+    }
+
     if !errors.is_empty() {
         return Err(DomainError::InvalidFields(errors).into());
     }
 
-    // Both are `Ok` here: a failure would have added an error above and
-    // returned. `ok_or` rather than `expect` because the crate denies `expect`
+    // All three are present here: a failure would have added an error above
+    // and returned. `ok_or` rather than `expect` because the crate denies `expect`
     // outside tests and `main`, and the fallback is a correct, if unreachable,
     // refusal.
     let refuse = || DomainError::Invalid("the staff member could not be read".to_owned());
@@ -455,6 +477,7 @@ fn read_new_staff(
         display_name.to_owned(),
         email.map_err(|_| refuse())?,
         password.map_err(|_| refuse())?,
+        role.ok_or_else(refuse)?,
     ))
 }
 
@@ -507,7 +530,7 @@ mod tests {
             display_name: display_name.to_owned(),
             email: email.to_owned(),
             password: password.to_owned(),
-            role: RoleDto::Waiter,
+            role: "waiter".to_owned(),
         }
     }
 
@@ -518,7 +541,7 @@ mod tests {
     /// test written from the outside and fails at the column.
     #[test]
     fn the_name_that_comes_back_is_the_trimmed_one() {
-        let (display_name, _, _) = read_new_staff(&create_request(
+        let (display_name, _, _, _) = read_new_staff(&create_request(
             "  Ada  ",
             "ada@example.com",
             "correct horse",
@@ -572,6 +595,125 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
+    /// The `fields` object a refused create answers with.
+    async fn refused_fields(body: &str) -> serde_json::Value {
+        let request: CreateStaffRequest =
+            serde_json::from_str(body).expect("a body naming every field should parse");
+        let refused = read_new_staff(&request).expect_err("this create should be refused");
+
+        let response = axum::response::IntoResponse::into_response(refused);
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("a refusal has a readable body");
+        let body: serde_json::Value = serde_json::from_slice(&bytes).expect("a JSON body");
+        body["fields"].clone()
+    }
+
+    /// covers: AC-3
+    ///
+    /// A role outside the three is a field error beside the role box, not a
+    /// body the server could not read, and it arrives together with every
+    /// other problem on the form.
+    #[tokio::test]
+    async fn a_role_outside_the_three_is_a_field_error_reported_with_the_rest() {
+        let fields = refused_fields(
+            r#"{"displayName":"Ada","email":"ada@example.com","password":"correct horse","role":"owner"}"#,
+        )
+        .await;
+        assert_eq!(fields, serde_json::json!({ "role": "invalid_format" }));
+
+        let fields = refused_fields(
+            r#"{"displayName":" ","email":"ada@example.com","password":"correct horse","role":""}"#,
+        )
+        .await;
+        assert_eq!(
+            fields,
+            serde_json::json!({ "displayName": "required", "role": "required" })
+        );
+    }
+
+    /// covers: AC-1
+    ///
+    /// Every role the document offers is accepted and becomes that role. The
+    /// words are taken from `RoleDto` itself, the type the generated client is
+    /// built from, so a label the client can send but the handler refuses, or
+    /// one that quietly becomes a different role, fails here.
+    #[test]
+    fn every_role_the_client_can_send_creates_that_role() {
+        for offered in [RoleDto::Admin, RoleDto::Waiter, RoleDto::Chef] {
+            let label = serde_json::to_value(offered).expect("a role serialises");
+            let request = CreateStaffRequest {
+                role: label.as_str().expect("a role is a string").to_owned(),
+                ..create_request("Ada", "ada@example.com", "correct horse")
+            };
+
+            let (_, _, _, role) = read_new_staff(&request).expect("an offered role is accepted");
+
+            assert_eq!(
+                role,
+                StaffRole::from(offered),
+                "{label} became the wrong role"
+            );
+        }
+    }
+
+    /// covers: AC-3
+    ///
+    /// The label is matched exactly. A near miss in case or spacing is not one
+    /// of the three, and a role of nothing but spaces is a missing role rather
+    /// than a malformed one, the same split the address box makes.
+    #[tokio::test]
+    async fn a_role_is_matched_exactly_with_no_trimming_or_case_folding() {
+        for near_miss in ["Waiter", "WAITER", " waiter", "chef ", "admins"] {
+            let body = serde_json::json!({
+                "displayName": "Ada",
+                "email": "ada@example.com",
+                "password": "correct horse",
+                "role": near_miss,
+            });
+
+            let fields = refused_fields(&body.to_string()).await;
+
+            assert_eq!(
+                fields,
+                serde_json::json!({ "role": "invalid_format" }),
+                "{near_miss:?} should be refused as a malformed role"
+            );
+        }
+
+        let fields = refused_fields(
+            r#"{"displayName":"Ada","email":"ada@example.com","password":"correct horse","role":"   "}"#,
+        )
+        .await;
+        assert_eq!(fields, serde_json::json!({ "role": "required" }));
+    }
+
+    /// covers: AC-15
+    ///
+    /// The field is read as text, but the document must still describe it as
+    /// the three roles, or the generated client would let a screen send any
+    /// string at all. Dropping the `schema(value_type)` line is what this
+    /// catches.
+    #[test]
+    fn the_document_still_offers_exactly_the_three_roles_on_a_create() {
+        use utoipa::OpenApi as _;
+
+        let document = serde_json::to_value(crate::presentation::openapi::ApiDoc::openapi())
+            .expect("the document serialises");
+        let schemas = &document["components"]["schemas"];
+
+        assert_eq!(
+            schemas["CreateStaffRequest"]["properties"]["role"]["$ref"],
+            "#/components/schemas/RoleDto"
+        );
+        assert_eq!(
+            schemas["RoleDto"]["enum"],
+            serde_json::json!(["admin", "waiter", "chef"])
+        );
+    }
+
     /// covers: AC-1
     ///
     /// The address is stored exactly as typed. An admin who typed somebody's
@@ -579,7 +721,7 @@ mod tests {
     /// makes it one account either way.
     #[test]
     fn the_address_keeps_the_capitalisation_the_admin_typed() {
-        let (_, email, _) = read_new_staff(&create_request(
+        let (_, email, _, _) = read_new_staff(&create_request(
             "Ada",
             "Ada@Example.Com",
             "correct horse battery",

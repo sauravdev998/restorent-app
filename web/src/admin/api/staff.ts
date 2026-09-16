@@ -50,7 +50,7 @@ export interface NewStaffForm {
  * Adds somebody, with a password they must replace at their first sign in.
  *
  * The password goes up and never comes back. What the hand over panel shows
- * afterwards is the value still sitting in the form the admin submitted.
+ * afterwards is the value the admin submitted, carried as the mutation's variable.
  */
 export async function createStaff(form: NewStaffForm): Promise<StaffMember> {
   const { data, error } = await api.POST('/api/staff', {

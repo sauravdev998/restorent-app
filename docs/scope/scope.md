@@ -180,10 +180,10 @@ spec [0009](../specs/0009-staff-accounts/index.md) · verify [0009](../specs/000
   - [x] The rest of the actions: the name edit, the role change, the admin password reset, and deactivate and reactivate, each with its session revocation and its conditional update (AC-7, AC-8, AC-9, AC-10, AC-11, AC-13, AC-14)
   - [x] The guard rails and their proof: the advisory lock, the last active admin count, the self action refusal, the one fixed refusal order, and the tenant isolation and concurrency tests against a real Postgres (AC-12, AC-14, AC-16)
   - [x] The surface in full: the whole admin screen with its dialogs and inactive section, the six audit rows, and the seed moved onto the real create path with its flag cleared (AC-13, AC-17, AC-18, AC-20, AC-21)
-- [ ] Verify it: `/check verify staff accounts`
-- [ ] Test it: `/test staff accounts`
-- [ ] Review it (fresh model): `/check review staff accounts`
-- [ ] Document it: `/document staff accounts`
+- [x] Verify it: `/check verify staff accounts`
+- [x] Test it: `/test staff accounts`
+- [x] Review it (fresh model): `/check review staff accounts`
+- [x] Document it: `/document staff accounts`
 
 ### 11. Tables and floor plan · needs a decision
 The admin defines the restaurant's tables, optionally grouped into sections, and the waiter picks a real table when opening a bill. Occupied tables are visible at a glance.
