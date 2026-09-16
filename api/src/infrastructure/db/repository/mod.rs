@@ -25,6 +25,7 @@ pub mod billing;
 pub mod catalog;
 pub mod service;
 pub mod sessions;
+pub mod staff;
 
 use crate::domain::error::{ConflictKind, DomainError};
 

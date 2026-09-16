@@ -33,7 +33,10 @@ use crate::presentation::state::AppState;
 /// that is the more interesting job of the two. A screen held open all shift
 /// makes no other request, so its session would expire under the person
 /// watching it; and a session revoked while the stream is open has to stop
-/// delivering, which it does within one of these.
+/// delivering, which it does within one of these. The same re resolve applies
+/// the password gate, so a stream already running when an admin resets that
+/// person's password closes here rather than relying on the revocation that
+/// happens to accompany every path that sets the flag.
 const HEARTBEAT: Duration = Duration::from_secs(15);
 
 /// The SSE event name every change is published under.
@@ -173,11 +176,12 @@ pub async fn events(
                     };
 
                     if !still_signed_in {
-                        // Revoked, expired, or past its ceiling. Ending the
-                        // stream is what makes revocation instant inside a
-                        // screen that is making no other request. The browser
-                        // reconnects on its own, receives a 401, and the client
-                        // treats that as signed out.
+                        // Revoked, expired, past its ceiling, or now owing a
+                        // password change. Ending the stream is what makes all
+                        // four instant inside a screen that is making no other
+                        // request. The browser reconnects on its own, receives
+                        // a 401 or a 403, and the client treats either as a
+                        // reason to go and ask who it is talking for.
                         tracing::info!(
                             restaurant_id = %restaurant_id,
                             "a stream's session stopped resolving; closing it"

@@ -54,10 +54,18 @@ pub enum AuditAction {
     TaxComponentEdited,
     /// The restaurant's service charge changed.
     ServiceChargeEdited,
+    /// An admin created a member of staff.
+    StaffCreated,
+    /// An admin changed a staff member's display name.
+    StaffEdited,
     /// A staff member's role changed.
     StaffRoleChanged,
+    /// An admin wrote a new password onto somebody else's row.
+    StaffPasswordReset,
     /// A staff member's account was switched off.
     StaffDeactivated,
+    /// A switched off account was brought back.
+    StaffReactivated,
 }
 
 impl AuditAction {
@@ -81,8 +89,12 @@ impl AuditAction {
             Self::MenuCategoryRestored => "menu_category_restored",
             Self::TaxComponentEdited => "tax_component_edited",
             Self::ServiceChargeEdited => "service_charge_edited",
+            Self::StaffCreated => "staff_created",
+            Self::StaffEdited => "staff_edited",
             Self::StaffRoleChanged => "staff_role_changed",
+            Self::StaffPasswordReset => "staff_password_reset",
             Self::StaffDeactivated => "staff_deactivated",
+            Self::StaffReactivated => "staff_reactivated",
         }
     }
 }
@@ -117,7 +129,7 @@ mod tests {
     ///
     /// Kept honest by [`position`]: adding a variant stops that match compiling,
     /// and filling it in stops this array being the right length.
-    const ALL: [AuditAction; 18] = [
+    const ALL: [AuditAction; 22] = [
         AuditAction::RestaurantRegistered,
         AuditAction::PasswordChanged,
         AuditAction::RestaurantSettingsUpdated,
@@ -134,8 +146,12 @@ mod tests {
         AuditAction::MenuCategoryRestored,
         AuditAction::TaxComponentEdited,
         AuditAction::ServiceChargeEdited,
+        AuditAction::StaffCreated,
+        AuditAction::StaffEdited,
         AuditAction::StaffRoleChanged,
+        AuditAction::StaffPasswordReset,
         AuditAction::StaffDeactivated,
+        AuditAction::StaffReactivated,
     ];
 
     /// Where each action sits in [`ALL`].
@@ -161,8 +177,12 @@ mod tests {
             AuditAction::MenuCategoryRestored => 13,
             AuditAction::TaxComponentEdited => 14,
             AuditAction::ServiceChargeEdited => 15,
-            AuditAction::StaffRoleChanged => 16,
-            AuditAction::StaffDeactivated => 17,
+            AuditAction::StaffCreated => 16,
+            AuditAction::StaffEdited => 17,
+            AuditAction::StaffRoleChanged => 18,
+            AuditAction::StaffPasswordReset => 19,
+            AuditAction::StaffDeactivated => 20,
+            AuditAction::StaffReactivated => 21,
         }
     }
 
@@ -230,13 +250,23 @@ mod tests {
             AuditAction::ServiceChargeEdited.as_label(),
             "service_charge_edited"
         );
+        assert_eq!(AuditAction::StaffCreated.as_label(), "staff_created");
+        assert_eq!(AuditAction::StaffEdited.as_label(), "staff_edited");
         assert_eq!(
             AuditAction::StaffRoleChanged.as_label(),
             "staff_role_changed"
         );
         assert_eq!(
+            AuditAction::StaffPasswordReset.as_label(),
+            "staff_password_reset"
+        );
+        assert_eq!(
             AuditAction::StaffDeactivated.as_label(),
             "staff_deactivated"
+        );
+        assert_eq!(
+            AuditAction::StaffReactivated.as_label(),
+            "staff_reactivated"
         );
     }
 
