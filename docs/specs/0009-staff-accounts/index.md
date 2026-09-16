@@ -1,7 +1,7 @@
 # 0009. Staff accounts
 
 **Date**: 2026-09-13
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

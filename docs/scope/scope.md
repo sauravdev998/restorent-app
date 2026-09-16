@@ -20,7 +20,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 7 | Accounts, restaurants, and roles | Foundation | done |
 | 8 | The thin order thread | Slice 1 | done |
 | 9 | Menu management | Slice 2 | done |
-| 10 | Staff accounts | Slice 2 | in-progress |
+| 10 | Staff accounts | Slice 2 | done |
 | 11 | Tables and floor plan | Slice 2 | planned |
 | 12 | Waiter service flow | Slice 3 | planned |
 | 13 | Kitchen display | Slice 3 | planned |
@@ -170,7 +170,7 @@ spec [0008](../specs/0008-menu-management/index.md) · verify [0008](../specs/00
 - [x] Review it (fresh model): `/check review menu management`
 - [x] Document it: `/document menu management`
 
-### 10. Staff accounts
+### 10. Staff accounts · done
 The admin creates waiter and chef accounts, hands out access, changes someone's role, and shuts off an account when a person leaves. Staff never register themselves.
 **Done when:** an admin can create a staff member with a role, that person can sign in and lands on the right screen for their role, an admin can change a role or deactivate an account, and a deactivated account is refused at once.
 spec [0009](../specs/0009-staff-accounts/index.md) · verify [0009](../specs/0009-staff-accounts/verify.md) · migration `api/migrations/0007_staff_accounts.sql` · api in `api/src/presentation/handlers/staff.rs`, `api/src/infrastructure/db/repository/{staff,accounts,sessions}.rs`, `api/src/presentation/extract/actor.rs`, `api/src/domain/{people,error,audit}.rs`, `api/src/presentation/dto.rs`, `api/src/bin/seed.rs`, `api/tests/staff.rs` · web in `web/src/admin/{api/staff.ts,routes/admin-staff.tsx,staff/,confirm-dialog.tsx}`, `web/src/app/routes/choose-password.tsx`, `web/src/app/router.tsx`, `web/src/shared/{api/error-message.ts,events/query-keys.ts,ui/surface-shell.tsx}`
