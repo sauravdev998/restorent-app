@@ -9,7 +9,7 @@ use api::domain::error::DomainError;
 use api::domain::ids::{BillId, DishId, RestaurantId};
 use api::domain::service::NewOrderLine;
 use api::infrastructure::db::ScopedTx;
-use api::infrastructure::db::repository::{billing, catalog, service};
+use api::infrastructure::db::repository::{billing, catalog, service, staff};
 use rust_decimal::Decimal;
 
 /// Runs a whole meal on one table and leaves the bill open, ready to close.
@@ -740,10 +740,17 @@ async fn every_consequential_change_is_written_down() {
     catalog::set_service_charge(&mut tx, Some(common::money("15.0")), f.admin)
         .await
         .expect("editing the service charge");
-    catalog::change_staff_role(&mut tx, f.waiter, StaffRole::Admin, f.admin)
+    let waiter_version = staff::list(&mut tx)
+        .await
+        .expect("reading staff")
+        .into_iter()
+        .find(|member| member.id == f.waiter)
+        .expect("the waiter works here")
+        .version;
+    staff::change_role(&mut tx, f.waiter, StaffRole::Admin, waiter_version, f.admin)
         .await
         .expect("promoting the waiter");
-    catalog::deactivate_staff(&mut tx, f.chef, f.admin)
+    staff::deactivate(&mut tx, f.chef, f.admin)
         .await
         .expect("deactivating the chef");
 

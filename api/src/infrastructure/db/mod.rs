@@ -293,7 +293,8 @@ impl Database {
                    restaurant_id AS "restaurant_id!",
                    role          AS "role!: StaffRole",
                    expires_at    AS "expires_at!",
-                   last_seen_at  AS "last_seen_at!"
+                   last_seen_at  AS "last_seen_at!",
+                   must_change_password AS "must_change_password!"
             FROM resolve_session($1)
             "#,
             token_hash
@@ -308,6 +309,7 @@ impl Database {
             role: row.role,
             expires_at: row.expires_at,
             last_seen_at: row.last_seen_at,
+            must_change_password: row.must_change_password,
         }))
     }
 

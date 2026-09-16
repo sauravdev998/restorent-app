@@ -29,7 +29,7 @@ use crate::infrastructure::db::repository::{accounts, catalog, sessions};
 use crate::presentation::cookie;
 use crate::presentation::dto::IdentityBundle;
 use crate::presentation::error::{ApiError, ErrorBody};
-use crate::presentation::extract::{Actor, ClientAddress, JsonBody};
+use crate::presentation::extract::{Actor, AnyRole, ClientAddress, JsonBody, PasswordMayBeOwed};
 use crate::presentation::state::AppState;
 
 /// What registration asks for.
@@ -334,6 +334,11 @@ pub async fn sign_out(
 /// The same bundle sign in returns, so a browser that has reloaded gets back to
 /// exactly the state it had without a second endpoint or a second shape.
 ///
+/// One of exactly two handlers that name `PasswordMayBeOwed`, and it has to be:
+/// the bundle is where the browser reads that a password is owed, so gating
+/// this one would leave a browser unable to find out why everything else was
+/// refused.
+///
 /// # Errors
 ///
 /// Returns `401` if nobody is signed in, and a `503` if the database is
@@ -343,13 +348,13 @@ pub async fn sign_out(
     path = "/api/me",
     tag = "accounts",
     responses(
-        (status = 200, description = "The signed in identity.", body = IdentityBundle),
+        (status = 200, description = "The signed in identity. Any signed in role, and reachable while a password change is owed.", body = IdentityBundle),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
     )
 )]
 pub async fn me(
     State(state): State<AppState>,
-    actor: Actor,
+    actor: Actor<AnyRole, PasswordMayBeOwed>,
 ) -> Result<axum::Json<IdentityBundle>, ApiError> {
     let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
     let bundle = bundle_for(&mut tx, actor.staff_id()).await?;
