@@ -517,11 +517,6 @@ export interface paths {
      * @description The same bundle sign in returns, so a browser that has reloaded gets back to
      *     exactly the state it had without a second endpoint or a second shape.
      *
-     *     One of exactly two handlers that name `PasswordMayBeOwed`, and it has to be:
-     *     the bundle is where the browser reads that a password is owed, so gating
-     *     this one would leave a browser unable to find out why everything else was
-     *     refused.
-     *
      *     # Errors
      *
      *     Returns `401` if nobody is signed in, and a `503` if the database is
@@ -558,12 +553,6 @@ export interface paths {
      *     password on the screen in front of them is not immediately signed out of it.
      *     Every other session of theirs is revoked in the same transaction, which is
      *     what makes "I think somebody has my password" a thing they can act on alone.
-     *
-     *     The other of exactly two handlers that name `PasswordMayBeOwed`, and the
-     *     only way out of owing one. Somebody an admin created gives the password they
-     *     were handed as their current one, and this is what spends it: the flag is
-     *     cleared by the write itself, in the repository, so no path can set a
-     *     password without settling what was owed on it.
      *
      *     # Errors
      *
@@ -685,172 +674,6 @@ export interface paths {
      *     `403` if the caller is not a waiter.
      */
     post: operations['mark_round_served']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/staff': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Everybody who works here. Admins only.
-     * @description # Errors
-     *
-     *     Returns `401` if nobody is signed in, `403` for a waiter or a chef, and
-     *     `503` if the database is unavailable.
-     */
-    get: operations['list_staff']
-    put?: never
-    /**
-     * Adds somebody to the restaurant, with a password they must replace.
-     * @description The response carries the new row and never the password or its hash. What
-     *     the admin hands over is what they typed into their own form, which the
-     *     browser still has; sending it back would be putting a plain password in a
-     *     response body for no gain.
-     *
-     *     # Errors
-     *
-     *     Returns `400` naming each field that was not accepted, including
-     *     `fields.email=already_taken`, `401` if nobody is signed in, `403` for a
-     *     waiter or a chef, and `503` if the database is unavailable.
-     */
-    post: operations['create_staff']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/staff/{id}': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    /**
-     * Changes somebody's display name. Their sessions are left alone.
-     * @description # Errors
-     *
-     *     Returns `409 staff_changed` if the stored version is newer,
-     *     `409 staff_inactive` if the account is switched off, `404` for an id this
-     *     restaurant does not have, `400` naming the field that was not accepted,
-     *     `401` if nobody is signed in, and `403` for a waiter or a chef.
-     */
-    patch: operations['edit_staff']
-    trace?: never
-  }
-  '/api/staff/{id}/deactivate': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Switches an account off, and signs their devices out at once.
-     * @description Never refused because of the service. Open visits, unserved rounds, and open
-     *     bills keep pointing at the row and this succeeds regardless.
-     *
-     *     # Errors
-     *
-     *     Returns `409 cannot_act_on_self`, `409 staff_inactive`, and `409 last_admin`
-     *     in that order when more than one applies, `404` for an id this restaurant
-     *     does not have, `401` if nobody is signed in, and `403` for a waiter or a
-     *     chef.
-     */
-    post: operations['deactivate']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/staff/{id}/password': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Writes a new password onto somebody's row, and signs their devices out.
-     * @description Answers `204`, carrying nothing. The admin already has the password: they
-     *     typed it, and their own form is what shows it to them once.
-     *
-     *     # Errors
-     *
-     *     Returns `400` with `fields.password` naming the rule it broke,
-     *     `409 cannot_act_on_self`, `409 staff_inactive`, `404` for an id this
-     *     restaurant does not have, `401` if nobody is signed in, and `403` for a
-     *     waiter or a chef.
-     */
-    post: operations['reset_password']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/staff/{id}/reactivate': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Brings a switched off account back, exactly as it was.
-     * @description # Errors
-     *
-     *     Returns `409 staff_inactive` if the account is already active, `404` for an
-     *     id this restaurant does not have, `401` if nobody is signed in, and `403`
-     *     for a waiter or a chef.
-     */
-    post: operations['reactivate']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/staff/{id}/role': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    /**
-     * Changes what somebody is allowed to be, and signs their devices out.
-     * @description # Errors
-     *
-     *     Returns `409 cannot_act_on_self`, `409 staff_inactive`, `409 last_admin`,
-     *     and `409 staff_changed` in that order when more than one applies, `404` for
-     *     an id this restaurant does not have, `401` if nobody is signed in, and `403`
-     *     for a waiter or a chef.
-     */
-    put: operations['change_role']
-    post?: never
     delete?: never
     options?: never
     head?: never
@@ -1149,16 +972,6 @@ export interface components {
       /** @description What they want it to be. */
       newPassword: string
     }
-    /** @description What changing somebody's role asks for. */
-    ChangeRoleRequest: {
-      /** @description What they should be allowed to be. */
-      role: components['schemas']['RoleDto']
-      /**
-       * Format: int32
-       * @description The version the form loaded. An older one is refused as stale.
-       */
-      version: number
-    }
     /**
      * @description Whether one dependency is answering.
      * @enum {string}
@@ -1199,20 +1012,6 @@ export interface components {
        *     the restaurant's currency uses.
        */
       price: string
-    }
-    /** @description What creating a member of staff asks for. */
-    CreateStaffRequest: {
-      /** @description What to call them on screen. At most 80 characters once trimmed. */
-      displayName: string
-      /** @description The address they will sign in with. Unique across the whole platform. */
-      email: string
-      /**
-       * @description The password the admin is about to hand them. They must replace it
-       *     before they can do anything else.
-       */
-      password: string
-      /** @description What they are allowed to be. */
-      role: components['schemas']['RoleDto']
     }
     /**
      * @description Whether a dish is veg, non veg, or egg, on the wire.
@@ -1290,16 +1089,6 @@ export interface components {
       /**
        * Format: int32
        * @description The version the edit form loaded.
-       */
-      version: number
-    }
-    /** @description What renaming somebody asks for. */
-    EditStaffRequest: {
-      /** @description What they should be called. */
-      displayName: string
-      /**
-       * Format: int32
-       * @description The version the edit form loaded. An older one is refused as stale.
        */
       version: number
     }
@@ -1701,16 +1490,6 @@ export interface components {
       ids: string[]
     }
     /**
-     * @description What resetting somebody's password asks for.
-     *
-     *     No version. An admin resetting a password has decided this person needs a
-     *     new one, and whether somebody renamed them meanwhile does not change that.
-     */
-    ResetPasswordRequest: {
-      /** @description The password the admin is about to hand them. */
-      password: string
-    }
-    /**
      * @description The restaurant the signed in person works at, as every screen reads it.
      *
      *     Carries the five settings spec 0005's formatting layer needs and nothing
@@ -1839,64 +1618,8 @@ export interface components {
        *     uses", which is what a new account has.
        */
       language?: string | null
-      /**
-       * @description Whether an admin wrote the password they are signed in with, so they owe
-       *     their own before they can do anything else.
-       *
-       *     On the bundle rather than on an endpoint of its own, because every
-       *     screen has to know it and the browser already holds exactly one copy of
-       *     this bundle. A second endpoint would be a second answer, and the two
-       *     would disagree the moment one of them was refetched.
-       */
-      mustChangePassword: boolean
       /** @description What they are allowed to be. */
       role: components['schemas']['RoleDto']
-    }
-    /** @description Everybody who works here, in one response. */
-    StaffListResponse: {
-      /**
-       * @description Active people first, then by display name ignoring letter case, then by
-       *     id. Deactivated people are included, in the section below.
-       */
-      staff: components['schemas']['StaffMemberDto'][]
-    }
-    /**
-     * @description One member of staff, as the admin's staff screen reads them.
-     *
-     *     A separate shape from [`StaffDto`], which is about the person signed in.
-     *     This one is about somebody else, so it carries what an admin needs to decide
-     *     what to do next (are they switched on, have they ever managed to sign in, do
-     *     they still owe a password) and what an edit needs to be safe (the version).
-     *     It carries no language, because that is theirs to choose and not an admin's
-     *     to see.
-     */
-    StaffMemberDto: {
-      /** @description Whether the account is switched on. */
-      active: boolean
-      /** @description What to call them on screen. */
-      displayName: string
-      /** @description The address they sign in with, exactly as it was typed. */
-      email: string
-      /**
-       * Format: uuid
-       * @description Which staff member this is.
-       */
-      id: string
-      /**
-       * Format: date-time
-       * @description When they last signed in. `null` means never, which is how an admin
-       *     spots a typed address that nobody could ever have used.
-       */
-      lastSignInAt?: string | null
-      /** @description Whether they still owe their own password. */
-      mustChangePassword: boolean
-      /** @description What they are allowed to be. */
-      role: components['schemas']['RoleDto']
-      /**
-       * Format: int32
-       * @description Which edit of the row this is. Send it back with an edit.
-       */
-      version: number
     }
     /**
      * @description What one message on the stream looks like.
@@ -2944,7 +2667,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description The signed in identity. Any signed in role, and reachable while a password change is owed. */
+      /** @description The signed in identity. */
       200: {
         headers: {
           [name: string]: unknown
@@ -3019,7 +2742,7 @@ export interface operations {
       }
     }
     responses: {
-      /** @description Changed. Any signed in role, own row only, and reachable while a password change is owed. */
+      /** @description Changed. Any signed in role, own row only. */
       204: {
         headers: {
           [name: string]: unknown
@@ -3243,418 +2966,6 @@ export interface operations {
         }
       }
       /** @description That ticket is not waiting to be carried out. */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-    }
-  }
-  list_staff: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Everybody who works here, active first. Admins only. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['StaffListResponse']
-        }
-      }
-      /** @description Nobody is signed in. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Not an admin. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-    }
-  }
-  create_staff: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateStaffRequest']
-      }
-    }
-    responses: {
-      /** @description The new staff member. Admins only. */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['StaffMemberDto']
-        }
-      }
-      /** @description A field was not accepted. */
-      400: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Nobody is signed in. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Not an admin. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-    }
-  }
-  edit_staff: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description The staff member to rename. */
-        id: string
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['EditStaffRequest']
-      }
-    }
-    responses: {
-      /** @description The updated staff member. Admins only. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['StaffMemberDto']
-        }
-      }
-      /** @description A field was not accepted. */
-      400: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Nobody is signed in. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Not an admin. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description No such staff member here. */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description `staff_inactive`, or `staff_changed` if somebody changed them after the form loaded. */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-    }
-  }
-  deactivate: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description The staff member to switch off. */
-        id: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description The switched off staff member. Admins only. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['StaffMemberDto']
-        }
-      }
-      /** @description Nobody is signed in. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Not an admin. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description No such staff member here. */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description `cannot_act_on_self`, `staff_inactive`, or `last_admin`, reported in that order. */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-    }
-  }
-  reset_password: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description The staff member whose password is being reset. */
-        id: string
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ResetPasswordRequest']
-      }
-    }
-    responses: {
-      /** @description Reset, and every session of theirs ended. Admins only. */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description The password broke a rule. */
-      400: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Nobody is signed in. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Not an admin. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description No such staff member here. */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description `cannot_act_on_self` or `staff_inactive`. */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-    }
-  }
-  reactivate: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description The staff member to bring back. */
-        id: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description The staff member, active again. Admins only. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['StaffMemberDto']
-        }
-      }
-      /** @description Nobody is signed in. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Not an admin. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description No such staff member here. */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description `staff_inactive`: the account is already active. */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-    }
-  }
-  change_role: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description The staff member whose role is changing. */
-        id: string
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ChangeRoleRequest']
-      }
-    }
-    responses: {
-      /** @description The updated staff member. Admins only. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['StaffMemberDto']
-        }
-      }
-      /** @description Nobody is signed in. */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description Not an admin. */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description No such staff member here. */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ErrorBody']
-        }
-      }
-      /** @description `cannot_act_on_self`, `staff_inactive`, `last_admin`, or `staff_changed`, reported in that order. */
       409: {
         headers: {
           [name: string]: unknown

@@ -12,10 +12,10 @@ use utoipa::OpenApi;
 
 use super::dto::{
     BillDto, BillTaxDto, DietDto, DishDto, IdentityBundle, LineStatusDto, OrderLineDto,
-    OrderRoundDto, RestaurantDto, RoleDto, RoundStatusDto, StaffDto, StaffMemberDto,
+    OrderRoundDto, RestaurantDto, RoleDto, RoundStatusDto, StaffDto,
 };
 use super::error::ErrorBody;
-use super::handlers::{admin_menu, auth, billing, events, health, me, menu, service, staff};
+use super::handlers::{admin_menu, auth, billing, events, health, me, menu, service};
 
 /// The whole public API surface.
 #[derive(OpenApi)]
@@ -56,13 +56,6 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::archive_dish,
         admin_menu::restore_dish,
         menu::set_availability,
-        staff::list_staff,
-        staff::create_staff,
-        staff::edit_staff,
-        staff::change_role,
-        staff::reset_password,
-        staff::deactivate,
-        staff::reactivate,
     ),
     components(schemas(
         ErrorBody,
@@ -115,19 +108,12 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::EditDishRequest,
         admin_menu::ReorderRequest,
         admin_menu::RestoreDishRequest,
-        StaffMemberDto,
-        staff::StaffListResponse,
-        staff::CreateStaffRequest,
-        staff::EditStaffRequest,
-        staff::ChangeRoleRequest,
-        staff::ResetPasswordRequest,
     )),
     tags(
         (name = "system", description = "Health and live updates."),
         (name = "accounts", description = "Registering, signing in, and who is signed in."),
         (name = "orders", description = "The floor, the menu, tickets to the kitchen, and the bill."),
         (name = "menu", description = "Building the menu, and switching a dish on or off."),
-        (name = "staff", description = "Who works here, and the six things an admin does to an account."),
     )
 )]
 pub struct ApiDoc;
@@ -203,44 +189,6 @@ mod tests {
             assert!(
                 responses.contains(role),
                 "{method} {path} does not say {role:?} in its responses"
-            );
-            assert!(
-                responses.contains("\"403\"") && responses.contains("\"401\""),
-                "{method} {path} does not document its 401 and 403"
-            );
-        }
-    }
-
-    /// covers: AC-15
-    ///
-    /// The same check for the seven staff endpoints. A route missing from
-    /// `paths` is missing from the typed client with nothing failing, and one
-    /// that does not say who holds it leaves whoever builds the screen to guess.
-    #[test]
-    fn every_staff_endpoint_is_in_the_document_and_says_it_is_admin_only() {
-        let document = serde_json::to_value(ApiDoc::openapi()).expect("the document serialises");
-
-        let expected = [
-            ("/api/staff", "get"),
-            ("/api/staff", "post"),
-            ("/api/staff/{id}", "patch"),
-            ("/api/staff/{id}/role", "put"),
-            ("/api/staff/{id}/password", "post"),
-            ("/api/staff/{id}/deactivate", "post"),
-            ("/api/staff/{id}/reactivate", "post"),
-        ];
-
-        for (path, method) in expected {
-            let operation = &document["paths"][path][method];
-            assert!(
-                operation.is_object(),
-                "{method} {path} is missing from the OpenAPI document"
-            );
-
-            let responses = operation["responses"].to_string();
-            assert!(
-                responses.contains("Admins only."),
-                "{method} {path} does not say it is admin only in its responses"
             );
             assert!(
                 responses.contains("\"403\"") && responses.contains("\"401\""),

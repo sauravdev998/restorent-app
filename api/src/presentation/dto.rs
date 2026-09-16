@@ -44,19 +44,6 @@ impl From<StaffRole> for RoleDto {
     }
 }
 
-impl From<RoleDto> for StaffRole {
-    /// The other direction, which this feature needed: a role now arrives from
-    /// a form as well as leaving on a response, and creating somebody as the
-    /// wrong thing is the mistake that pairing catches.
-    fn from(role: RoleDto) -> Self {
-        match role {
-            RoleDto::Admin => Self::Admin,
-            RoleDto::Waiter => Self::Waiter,
-            RoleDto::Chef => Self::Chef,
-        }
-    }
-}
-
 /// Who the signed in person is.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -78,14 +65,6 @@ pub struct StaffDto {
     /// Their own interface language, or `null` for "whatever the restaurant
     /// uses", which is what a new account has.
     pub language: Option<String>,
-    /// Whether an admin wrote the password they are signed in with, so they owe
-    /// their own before they can do anything else.
-    ///
-    /// On the bundle rather than on an endpoint of its own, because every
-    /// screen has to know it and the browser already holds exactly one copy of
-    /// this bundle. A second endpoint would be a second answer, and the two
-    /// would disagree the moment one of them was refetched.
-    pub must_change_password: bool,
 }
 
 impl From<Staff> for StaffDto {
@@ -100,56 +79,6 @@ impl From<Staff> for StaffDto {
                 .as_ref()
                 .map(LanguageCode::as_str)
                 .map(str::to_owned),
-            must_change_password: staff.must_change_password,
-        }
-    }
-}
-
-/// One member of staff, as the admin's staff screen reads them.
-///
-/// A separate shape from [`StaffDto`], which is about the person signed in.
-/// This one is about somebody else, so it carries what an admin needs to decide
-/// what to do next (are they switched on, have they ever managed to sign in, do
-/// they still owe a password) and what an edit needs to be safe (the version).
-/// It carries no language, because that is theirs to choose and not an admin's
-/// to see.
-#[derive(Debug, Clone, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct StaffMemberDto {
-    /// Which staff member this is.
-    pub id: Uuid,
-    /// What to call them on screen.
-    pub display_name: String,
-    /// The address they sign in with, exactly as it was typed.
-    pub email: String,
-    /// What they are allowed to be.
-    pub role: RoleDto,
-    /// Whether the account is switched on.
-    pub active: bool,
-    /// When they last signed in. `null` means never, which is how an admin
-    /// spots a typed address that nobody could ever have used.
-    pub last_sign_in_at: Option<DateTime<Utc>>,
-    /// Whether they still owe their own password.
-    pub must_change_password: bool,
-    /// Which edit of the row this is. Send it back with an edit.
-    pub version: i32,
-}
-
-impl From<Staff> for StaffMemberDto {
-    fn from(staff: Staff) -> Self {
-        Self {
-            id: staff.id.as_uuid(),
-            display_name: staff.display_name,
-            email: staff.email,
-            role: staff.role.into(),
-            // The wire says "active", not "when they were switched off". An
-            // admin has no use for the timestamp and the screen branches on the
-            // boolean, so sending the date would be sending a value nothing
-            // reads and one more thing to format in the right timezone.
-            active: staff.deactivated_at.is_none(),
-            last_sign_in_at: staff.last_sign_in_at,
-            must_change_password: staff.must_change_password,
-            version: staff.version,
         }
     }
 }
@@ -581,9 +510,6 @@ mod tests {
             role: StaffRole::Admin,
             language: None,
             deactivated_at: None,
-            last_sign_in_at: None,
-            must_change_password: false,
-            version: 1,
         };
 
         let json = serde_json::to_value(StaffDto::from(staff)).expect("a staff member serialises");
@@ -594,82 +520,6 @@ mod tests {
             "the address came back flattened, so the account screen shows something the \
              person did not type"
         );
-    }
-
-    /// The two role enums have to agree in both directions. The wire to domain
-    /// direction is the one spec 0009 added, and a wrong pair there would
-    /// create somebody as the wrong thing entirely.
-    #[test]
-    fn every_role_arrives_as_the_role_it_was_sent_as() {
-        for (sent, expected) in [
-            (RoleDto::Admin, StaffRole::Admin),
-            (RoleDto::Waiter, StaffRole::Waiter),
-            (RoleDto::Chef, StaffRole::Chef),
-        ] {
-            assert_eq!(StaffRole::from(sent), expected);
-            assert_eq!(RoleDto::from(expected), sent);
-        }
-    }
-
-    /// covers: AC-1, AC-6 (spec 0009)
-    ///
-    /// The one thing this shape must never carry. It is built from a `Staff`
-    /// entity that has no password on it at all, which is most of the guarantee,
-    /// but the serialised bytes are what actually reach an admin's browser and
-    /// they are what is checked here.
-    #[test]
-    fn a_staff_member_reaches_an_admin_with_no_password_and_no_hash() {
-        let staff = Staff {
-            id: crate::domain::ids::StaffId::new(),
-            email: "Grace@Example.com".to_owned(),
-            display_name: "Grace".to_owned(),
-            role: StaffRole::Chef,
-            language: Some(LanguageCode::new("hi").expect("hi is in the catalogue")),
-            deactivated_at: None,
-            last_sign_in_at: None,
-            must_change_password: true,
-            version: 3,
-        };
-
-        let json =
-            serde_json::to_value(StaffMemberDto::from(staff)).expect("a staff member serialises");
-
-        assert_eq!(json["active"], true);
-        assert_eq!(json["lastSignInAt"], serde_json::Value::Null);
-        assert_eq!(json["mustChangePassword"], true);
-        assert_eq!(json["version"], 3);
-        assert!(
-            json.get("passwordHash").is_none() && json.get("password").is_none(),
-            "a password reached the staff list in {json}"
-        );
-        assert!(
-            json.get("language").is_none(),
-            "somebody's own reading language reached an admin's screen in {json}"
-        );
-    }
-
-    /// covers: AC-19
-    ///
-    /// The one member the bundle grew. Every screen reads it from this one
-    /// cache entry, so a bundle that did not say would leave the browser with
-    /// nothing to send somebody to the change screen with.
-    #[test]
-    fn the_identity_bundle_says_whether_a_password_is_owed() {
-        let staff = Staff {
-            id: crate::domain::ids::StaffId::new(),
-            email: "ada@example.com".to_owned(),
-            display_name: "Ada".to_owned(),
-            role: StaffRole::Waiter,
-            language: None,
-            deactivated_at: None,
-            last_sign_in_at: None,
-            must_change_password: true,
-            version: 1,
-        };
-
-        let json = serde_json::to_value(StaffDto::from(staff)).expect("a staff member serialises");
-
-        assert_eq!(json["mustChangePassword"], true);
     }
 
     /// covers: AC-5, AC-7

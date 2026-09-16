@@ -9,4 +9,3 @@ pub mod health;
 pub mod me;
 pub mod menu;
 pub mod service;
-pub mod staff;

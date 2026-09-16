@@ -174,19 +174,6 @@ pub enum ConflictKind {
     /// A dish in the basket was switched off or taken off the menu before the
     /// ticket went, so the whole ticket was refused.
     DishNotOrderable,
-    /// The staff member changed after the edit form loaded them, so saving the
-    /// form would write over that change.
-    StaffChanged,
-    /// The change would leave the restaurant with nobody able to administer it.
-    LastAdmin,
-    /// An admin aimed one of the three targeted actions at their own row. Their
-    /// own name, language, and password live on the account screen instead,
-    /// behind the current password check.
-    CannotActOnSelf,
-    /// The account is switched off, and every write except bringing it back
-    /// needs it on. Also what a caller reading it gets when they try to bring
-    /// back an account that was already active.
-    StaffInactive,
 }
 
 impl ConflictKind {
@@ -222,10 +209,6 @@ impl ConflictKind {
             Self::CategoryArchived => "category_archived",
             Self::NameTaken => "name_taken",
             Self::DishNotOrderable => "dish_not_orderable",
-            Self::StaffChanged => "staff_changed",
-            Self::LastAdmin => "last_admin",
-            Self::CannotActOnSelf => "cannot_act_on_self",
-            Self::StaffInactive => "staff_inactive",
         }
     }
 }
@@ -262,10 +245,6 @@ impl std::fmt::Display for ConflictKind {
             Self::CategoryArchived => "that category is no longer on the menu",
             Self::NameTaken => "something live on the menu already has that name",
             Self::DishNotOrderable => "a dish in the basket cannot be ordered right now",
-            Self::StaffChanged => "that staff member changed after the form was opened",
-            Self::LastAdmin => "a restaurant has to keep at least one admin who can sign in",
-            Self::CannotActOnSelf => "an admin cannot do that to their own account",
-            Self::StaffInactive => "that account is switched off",
         };
 
         formatter.write_str(sentence)
@@ -288,17 +267,6 @@ pub enum DomainError {
     /// The caller is signed in but not allowed to do this.
     #[error("forbidden")]
     Forbidden,
-
-    /// The caller is signed in, holds the right role, and still may not do this
-    /// yet: an admin wrote their password, and they have not replaced it.
-    ///
-    /// Separate from [`Self::Forbidden`] because the browser has to tell the
-    /// two apart. One means go and choose your own password, and the other
-    /// means you may not do that at all. Sharing a code would make the first
-    /// one indistinguishable from the second, and the screen that sends
-    /// somebody to the change form would have nothing to branch on.
-    #[error("a password change is required first")]
-    PasswordChangeRequired,
 
     /// The request itself is malformed or breaks a business rule.
     #[error("invalid request: {0}")]
@@ -344,7 +312,7 @@ mod tests {
     use super::*;
 
     /// Every kind, so the tests below run over all of them.
-    const ALL: [ConflictKind; 29] = [
+    const ALL: [ConflictKind; 25] = [
         ConflictKind::TableOccupied,
         ConflictKind::VisitNot(VisitStatus::Open),
         ConflictKind::VisitNot(VisitStatus::Closed),
@@ -370,10 +338,6 @@ mod tests {
         ConflictKind::CategoryArchived,
         ConflictKind::NameTaken,
         ConflictKind::DishNotOrderable,
-        ConflictKind::StaffChanged,
-        ConflictKind::LastAdmin,
-        ConflictKind::CannotActOnSelf,
-        ConflictKind::StaffInactive,
     ];
 
     /// covers: AC-12, AC-13

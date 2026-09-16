@@ -56,21 +56,6 @@ export const menuKey = ['dish', 'menu'] as const
 export const adminMenuKey = ['dish', 'admin'] as const
 
 /**
- * The admin's staff list.
- *
- * Deliberately absent from the map below, and that is a decision rather than an
- * omission. A staff change reaches everybody who needs it the only way that
- * matters: their session stops working, on their very next request. The one
- * screen that shows the list is the one the admin is looking at, and it
- * invalidates this key itself in `onSuccess`.
- *
- * The cost is that a second admin with this screen open sees a stale list until
- * they act, which is rare and harmless: their write is refused as stale, or
- * refused for a reason the screen then shows.
- */
-export const staffKey = ['staff', 'list'] as const
-
-/**
  * Which key prefixes each kind of event invalidates.
  *
  * Read it as "what does a screen have to go and ask again about". A dish going

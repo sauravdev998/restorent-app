@@ -1168,11 +1168,11 @@
           "accounts"
         ],
         "summary": "Who is signed in, and where they work.",
-        "description": "The same bundle sign in returns, so a browser that has reloaded gets back to\nexactly the state it had without a second endpoint or a second shape.\n\nOne of exactly two handlers that name `PasswordMayBeOwed`, and it has to be:\nthe bundle is where the browser reads that a password is owed, so gating\nthis one would leave a browser unable to find out why everything else was\nrefused.\n\n# Errors\n\nReturns `401` if nobody is signed in, and a `503` if the database is\nunavailable.",
+        "description": "The same bundle sign in returns, so a browser that has reloaded gets back to\nexactly the state it had without a second endpoint or a second shape.\n\n# Errors\n\nReturns `401` if nobody is signed in, and a `503` if the database is\nunavailable.",
         "operationId": "me",
         "responses": {
           "200": {
-            "description": "The signed in identity. Any signed in role, and reachable while a password change is owed.",
+            "description": "The signed in identity.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1250,7 +1250,7 @@
           "accounts"
         ],
         "summary": "Changes the caller's own password, and signs their other devices out.",
-        "description": "The session that made the request keeps working, so somebody changing their\npassword on the screen in front of them is not immediately signed out of it.\nEvery other session of theirs is revoked in the same transaction, which is\nwhat makes \"I think somebody has my password\" a thing they can act on alone.\n\nThe other of exactly two handlers that name `PasswordMayBeOwed`, and the\nonly way out of owing one. Somebody an admin created gives the password they\nwere handed as their current one, and this is what spends it: the flag is\ncleared by the write itself, in the repository, so no path can set a\npassword without settling what was owed on it.\n\n# Errors\n\nReturns a `400` with `fields.currentPassword=incorrect` for a wrong current\npassword, `401` if nobody is signed in, and a `503` if the database or the\npassword hash is unavailable.",
+        "description": "The session that made the request keeps working, so somebody changing their\npassword on the screen in front of them is not immediately signed out of it.\nEvery other session of theirs is revoked in the same transaction, which is\nwhat makes \"I think somebody has my password\" a thing they can act on alone.\n\n# Errors\n\nReturns a `400` with `fields.currentPassword=incorrect` for a wrong current\npassword, `401` if nobody is signed in, and a `503` if the database or the\npassword hash is unavailable.",
         "operationId": "change_password",
         "requestBody": {
           "content": {
@@ -1264,7 +1264,7 @@
         },
         "responses": {
           "204": {
-            "description": "Changed. Any signed in role, own row only, and reachable while a password change is owed."
+            "description": "Changed. Any signed in role, own row only."
           },
           "400": {
             "description": "The current password was wrong, or the new one broke a rule.",
@@ -1530,521 +1530,6 @@
           },
           "409": {
             "description": "That ticket is not waiting to be carried out.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/staff": {
-      "get": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Everybody who works here. Admins only.",
-        "description": "# Errors\n\nReturns `401` if nobody is signed in, `403` for a waiter or a chef, and\n`503` if the database is unavailable.",
-        "operationId": "list_staff",
-        "responses": {
-          "200": {
-            "description": "Everybody who works here, active first. Admins only.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Nobody is signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not an admin.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Adds somebody to the restaurant, with a password they must replace.",
-        "description": "The response carries the new row and never the password or its hash. What\nthe admin hands over is what they typed into their own form, which the\nbrowser still has; sending it back would be putting a plain password in a\nresponse body for no gain.\n\n# Errors\n\nReturns `400` naming each field that was not accepted, including\n`fields.email=already_taken`, `401` if nobody is signed in, `403` for a\nwaiter or a chef, and `503` if the database is unavailable.",
-        "operationId": "create_staff",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateStaffRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "The new staff member. Admins only.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffMemberDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A field was not accepted.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Nobody is signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not an admin.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/staff/{id}": {
-      "patch": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Changes somebody's display name. Their sessions are left alone.",
-        "description": "# Errors\n\nReturns `409 staff_changed` if the stored version is newer,\n`409 staff_inactive` if the account is switched off, `404` for an id this\nrestaurant does not have, `400` naming the field that was not accepted,\n`401` if nobody is signed in, and `403` for a waiter or a chef.",
-        "operationId": "edit_staff",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The staff member to rename.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditStaffRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The updated staff member. Admins only.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffMemberDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "A field was not accepted.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Nobody is signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not an admin.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such staff member here.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`staff_inactive`, or `staff_changed` if somebody changed them after the form loaded.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/staff/{id}/deactivate": {
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Switches an account off, and signs their devices out at once.",
-        "description": "Never refused because of the service. Open visits, unserved rounds, and open\nbills keep pointing at the row and this succeeds regardless.\n\n# Errors\n\nReturns `409 cannot_act_on_self`, `409 staff_inactive`, and `409 last_admin`\nin that order when more than one applies, `404` for an id this restaurant\ndoes not have, `401` if nobody is signed in, and `403` for a waiter or a\nchef.",
-        "operationId": "deactivate",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The staff member to switch off.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The switched off staff member. Admins only.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffMemberDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Nobody is signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not an admin.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such staff member here.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`cannot_act_on_self`, `staff_inactive`, or `last_admin`, reported in that order.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/staff/{id}/password": {
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Writes a new password onto somebody's row, and signs their devices out.",
-        "description": "Answers `204`, carrying nothing. The admin already has the password: they\ntyped it, and their own form is what shows it to them once.\n\n# Errors\n\nReturns `400` with `fields.password` naming the rule it broke,\n`409 cannot_act_on_self`, `409 staff_inactive`, `404` for an id this\nrestaurant does not have, `401` if nobody is signed in, and `403` for a\nwaiter or a chef.",
-        "operationId": "reset_password",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The staff member whose password is being reset.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResetPasswordRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Reset, and every session of theirs ended. Admins only."
-          },
-          "400": {
-            "description": "The password broke a rule.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Nobody is signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not an admin.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such staff member here.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`cannot_act_on_self` or `staff_inactive`.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/staff/{id}/reactivate": {
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Brings a switched off account back, exactly as it was.",
-        "description": "# Errors\n\nReturns `409 staff_inactive` if the account is already active, `404` for an\nid this restaurant does not have, `401` if nobody is signed in, and `403`\nfor a waiter or a chef.",
-        "operationId": "reactivate",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The staff member to bring back.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The staff member, active again. Admins only.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffMemberDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Nobody is signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not an admin.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such staff member here.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`staff_inactive`: the account is already active.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/staff/{id}/role": {
-      "put": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Changes what somebody is allowed to be, and signs their devices out.",
-        "description": "# Errors\n\nReturns `409 cannot_act_on_self`, `409 staff_inactive`, `409 last_admin`,\nand `409 staff_changed` in that order when more than one applies, `404` for\nan id this restaurant does not have, `401` if nobody is signed in, and `403`\nfor a waiter or a chef.",
-        "operationId": "change_role",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "The staff member whose role is changing.",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChangeRoleRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "The updated staff member. Admins only.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StaffMemberDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Nobody is signed in.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not an admin.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such staff member here.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorBody"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`cannot_act_on_self`, `staff_inactive`, `last_admin`, or `staff_changed`, reported in that order.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2680,25 +2165,6 @@
           }
         }
       },
-      "ChangeRoleRequest": {
-        "type": "object",
-        "description": "What changing somebody's role asks for.",
-        "required": [
-          "role",
-          "version"
-        ],
-        "properties": {
-          "role": {
-            "$ref": "#/components/schemas/RoleDto",
-            "description": "What they should be allowed to be."
-          },
-          "version": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The version the form loaded. An older one is refused as stale."
-          }
-        }
-      },
       "Component": {
         "type": "string",
         "description": "Whether one dependency is answering.",
@@ -2753,34 +2219,6 @@
           "price": {
             "type": "string",
             "description": "What it costs, as a decimal string such as `\"320.50\"`. Never a JSON\nnumber. Zero or more, below ten billion, and no more decimal places than\nthe restaurant's currency uses."
-          }
-        }
-      },
-      "CreateStaffRequest": {
-        "type": "object",
-        "description": "What creating a member of staff asks for.",
-        "required": [
-          "displayName",
-          "email",
-          "password",
-          "role"
-        ],
-        "properties": {
-          "displayName": {
-            "type": "string",
-            "description": "What to call them on screen. At most 80 characters once trimmed."
-          },
-          "email": {
-            "type": "string",
-            "description": "The address they will sign in with. Unique across the whole platform."
-          },
-          "password": {
-            "type": "string",
-            "description": "The password the admin is about to hand them. They must replace it\nbefore they can do anything else."
-          },
-          "role": {
-            "$ref": "#/components/schemas/RoleDto",
-            "description": "What they are allowed to be."
           }
         }
       },
@@ -2893,25 +2331,6 @@
             "type": "integer",
             "format": "int32",
             "description": "The version the edit form loaded."
-          }
-        }
-      },
-      "EditStaffRequest": {
-        "type": "object",
-        "description": "What renaming somebody asks for.",
-        "required": [
-          "displayName",
-          "version"
-        ],
-        "properties": {
-          "displayName": {
-            "type": "string",
-            "description": "What they should be called."
-          },
-          "version": {
-            "type": "integer",
-            "format": "int32",
-            "description": "The version the edit form loaded. An older one is refused as stale."
           }
         }
       },
@@ -3567,19 +2986,6 @@
           }
         }
       },
-      "ResetPasswordRequest": {
-        "type": "object",
-        "description": "What resetting somebody's password asks for.\n\nNo version. An admin resetting a password has decided this person needs a\nnew one, and whether somebody renamed them meanwhile does not change that.",
-        "required": [
-          "password"
-        ],
-        "properties": {
-          "password": {
-            "type": "string",
-            "description": "The password the admin is about to hand them."
-          }
-        }
-      },
       "RestaurantDto": {
         "type": "object",
         "description": "The restaurant the signed in person works at, as every screen reads it.\n\nCarries the five settings spec 0005's formatting layer needs and nothing\nabout money beyond the currency: figures on a bill come from the bill.",
@@ -3752,8 +3158,7 @@
           "id",
           "displayName",
           "email",
-          "role",
-          "mustChangePassword"
+          "role"
         ],
         "properties": {
           "displayName": {
@@ -3776,82 +3181,9 @@
             ],
             "description": "Their own interface language, or `null` for \"whatever the restaurant\nuses\", which is what a new account has."
           },
-          "mustChangePassword": {
-            "type": "boolean",
-            "description": "Whether an admin wrote the password they are signed in with, so they owe\ntheir own before they can do anything else.\n\nOn the bundle rather than on an endpoint of its own, because every\nscreen has to know it and the browser already holds exactly one copy of\nthis bundle. A second endpoint would be a second answer, and the two\nwould disagree the moment one of them was refetched."
-          },
           "role": {
             "$ref": "#/components/schemas/RoleDto",
             "description": "What they are allowed to be."
-          }
-        }
-      },
-      "StaffListResponse": {
-        "type": "object",
-        "description": "Everybody who works here, in one response.",
-        "required": [
-          "staff"
-        ],
-        "properties": {
-          "staff": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/StaffMemberDto"
-            },
-            "description": "Active people first, then by display name ignoring letter case, then by\nid. Deactivated people are included, in the section below."
-          }
-        }
-      },
-      "StaffMemberDto": {
-        "type": "object",
-        "description": "One member of staff, as the admin's staff screen reads them.\n\nA separate shape from [`StaffDto`], which is about the person signed in.\nThis one is about somebody else, so it carries what an admin needs to decide\nwhat to do next (are they switched on, have they ever managed to sign in, do\nthey still owe a password) and what an edit needs to be safe (the version).\nIt carries no language, because that is theirs to choose and not an admin's\nto see.",
-        "required": [
-          "id",
-          "displayName",
-          "email",
-          "role",
-          "active",
-          "mustChangePassword",
-          "version"
-        ],
-        "properties": {
-          "active": {
-            "type": "boolean",
-            "description": "Whether the account is switched on."
-          },
-          "displayName": {
-            "type": "string",
-            "description": "What to call them on screen."
-          },
-          "email": {
-            "type": "string",
-            "description": "The address they sign in with, exactly as it was typed."
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Which staff member this is."
-          },
-          "lastSignInAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time",
-            "description": "When they last signed in. `null` means never, which is how an admin\nspots a typed address that nobody could ever have used."
-          },
-          "mustChangePassword": {
-            "type": "boolean",
-            "description": "Whether they still owe their own password."
-          },
-          "role": {
-            "$ref": "#/components/schemas/RoleDto",
-            "description": "What they are allowed to be."
-          },
-          "version": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Which edit of the row this is. Send it back with an edit."
           }
         }
       },
@@ -4028,10 +3360,6 @@
     {
       "name": "menu",
       "description": "Building the menu, and switching a dish on or off."
-    },
-    {
-      "name": "staff",
-      "description": "Who works here, and the six things an admin does to an account."
     }
   ]
 }

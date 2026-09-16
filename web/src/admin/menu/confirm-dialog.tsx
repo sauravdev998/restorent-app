@@ -18,34 +18,19 @@ export interface ConfirmDialogProps {
   doneMessage: string
   /** The write. Rejects when the server refuses. */
   action: () => Promise<unknown>
-  /**
-   * The query key prefix to read again, whether the write worked or was
-   * refused.
-   *
-   * Both cases, deliberately. On success the screen behind the dialog has to
-   * show the new state; on a refusal it has to show the state that caused the
-   * refusal, which is usually not the one the admin was looking at.
-   */
-  invalidateKey: readonly string[]
 }
 
 /**
- * Asks before something that takes effect at once, and does it only on a yes.
+ * Asks before a removal, and does it only once the admin says yes.
  *
- * Used by both admin screens, for the same kind of moment: an action that is
- * recoverable but that changes what other people see immediately. A removed
- * dish lands in the Archived section and comes back in two taps; a switched off
- * account keeps its row and comes back from the section below the list. Both
- * are still asked, because both reach somebody else's screen the instant they
- * land, and one of them ends a shift.
+ * A removal is recoverable, which is why this is one plain question rather
+ * than typing a name to confirm: the removed dish or category lands in the
+ * Archived section and comes back in two taps. It is still asked, because a
+ * removal takes the item off every waiter's screen at once.
  *
- * That is also why this is one plain question rather than typing a name to
- * confirm: the weight of the action is in how quickly it takes effect, not in
- * how hard it is to undo.
- *
- * A refusal, such as a category that still holds a dish or the last admin who
- * cannot be switched off, is said inside the dialog where the admin is looking,
- * and the list behind it is read again so the screen is true.
+ * A refusal, such as a category that still holds a dish, is said inside the
+ * dialog where the admin is looking, and the menus are read again so the
+ * screen behind it is true.
  */
 export function ConfirmDialog({
   onOpenChange,
@@ -54,7 +39,6 @@ export function ConfirmDialog({
   confirmLabel,
   doneMessage,
   action,
-  invalidateKey,
 }: ConfirmDialogProps) {
   const { t } = useTranslation('admin')
   const { t: common } = useTranslation()
@@ -64,13 +48,13 @@ export function ConfirmDialog({
   const confirm = useMutation({
     mutationFn: action,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: invalidateKey })
+      await queryClient.invalidateQueries({ queryKey: ['dish'] })
       showToast({ title: doneMessage })
       onOpenChange(false)
     },
     onError: async (error: unknown) => {
       setProblem(apiErrorMessage(failureBody(error), common))
-      await queryClient.invalidateQueries({ queryKey: invalidateKey })
+      await queryClient.invalidateQueries({ queryKey: ['dish'] })
     },
   })
 

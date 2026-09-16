@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT session_id    AS \"session_id!\",\n                   staff_id      AS \"staff_id!\",\n                   restaurant_id AS \"restaurant_id!\",\n                   role          AS \"role!: StaffRole\",\n                   expires_at    AS \"expires_at!\",\n                   last_seen_at  AS \"last_seen_at!\",\n                   must_change_password AS \"must_change_password!\"\n            FROM resolve_session($1)\n            ",
+  "query": "\n            SELECT session_id    AS \"session_id!\",\n                   staff_id      AS \"staff_id!\",\n                   restaurant_id AS \"restaurant_id!\",\n                   role          AS \"role!: StaffRole\",\n                   expires_at    AS \"expires_at!\",\n                   last_seen_at  AS \"last_seen_at!\"\n            FROM resolve_session($1)\n            ",
   "describe": {
     "columns": [
       {
@@ -49,12 +49,6 @@
         "name": "last_seen_at!",
         "type_info": "Timestamptz",
         "origin": "Expression"
-      },
-      {
-        "ordinal": 6,
-        "name": "must_change_password!",
-        "type_info": "Bool",
-        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -68,9 +62,8 @@
       null,
       null,
       null,
-      null,
       null
     ]
   },
-  "hash": "c7a531b2fe4a0ac8735be482ae39e84e4164c64d8f53bee576a0d38d8160082c"
+  "hash": "1ccf28f827c6f44c496265f439119d8a488d59a4f7f702715081d0302d7a265d"
 }
