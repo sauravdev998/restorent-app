@@ -6,33 +6,28 @@
     "open": "Open table",
     "opening": "Opening",
     "view": "View",
-    "openedBy": "Opened by {{name}} at {{at}}",
     "unsectioned": "Other tables",
     "emptyTitle": "No tables yet",
     "emptyBody": "Ask your admin to add the tables. They appear here as soon as they are added.",
     "seats_one": "Seats {{count}}",
-    "seats_other": "Seats {{count}}"
+    "seats_other": "Seats {{count}}",
+    "openedAt": "Opened at {{at}}",
+    "emptyMineTitle": "Every occupied table is somebody else's",
+    "emptyMineBody": "Turn off Mine to see the whole floor."
   },
   "table": {
     "title": "Table {{label}}",
-    "openedBy": "Opened by {{name}}",
     "orderHeading": "Order",
     "roundsHeading": "Sent to the kitchen",
     "unavailable": "Off tonight",
     "addOne": "Add one {{dish}}",
-    "removeOne": "Remove one {{dish}}",
     "send_one": "Send {{count}} dish",
     "send_other": "Send {{count}} dishes",
     "sending": "Sending",
     "round": "Round {{number}}",
-    "serve": "Mark served",
     "serving": "Marking",
     "nothingSentTitle": "Nothing sent yet",
     "nothingSentBody": "Add dishes above and send them as one ticket."
-  },
-  "alert": {
-    "title": "Table {{label}}, round {{round}} is ready",
-    "body": "Collect it from the pass, then mark it served."
   },
   "bill": {
     "runningTitle": "Bill so far",
@@ -42,7 +37,9 @@
     "tax": "{{name}} ({{rate}}%)",
     "total": "Total",
     "close": "Close the bill",
-    "closing": "Closing"
+    "closing": "Closing",
+    "nothingTitle": "Nothing to charge",
+    "nothingBody": "Every dish on this table was cancelled or nothing was ordered, so no bill was made."
   },
   "basket": {
     "title": "Basket, not sent yet",
@@ -50,6 +47,89 @@
     "flagged_other": "{{count}} dishes in the basket have just gone off. Take them out to send the rest.",
     "lineOff": "Off now, cannot be sent",
     "takeOut": "Take out",
-    "takeOutNamed": "Take {{dish}} out of the basket"
+    "takeOutNamed": "Take {{dish}} out of the basket",
+    "noteLabel": "Note for {{dish}}",
+    "notePlaceholder": "No onions, less spicy",
+    "noteCount": "{{count}} of {{max}} characters",
+    "noteTooLong": "A note can be at most {{max}} characters.",
+    "split": "One separately",
+    "splitNamed": "Put one {{dish}} on its own line",
+    "discardedClosed": "This table has closed, so the unsent basket was cleared.",
+    "addOneNamed": "One more {{dish}} on this line",
+    "removeOneNamed": "One fewer {{dish}} on this line"
+  },
+  "views": {
+    "label": "Waiter views",
+    "floor": "Floor",
+    "orders": "Orders",
+    "mine": "Mine",
+    "mineLabel": "Show only my tables"
+  },
+  "orders": {
+    "title": "Orders",
+    "table": "Table {{label}}",
+    "nothingSent": "Nothing sent yet.",
+    "emptyTitle": "No open tables",
+    "emptyBody": "Tables appear here as soon as somebody opens one on the floor.",
+    "emptyMineTitle": "None of your tables are open",
+    "emptyMineBody": "Turn off Mine to see every open table."
+  },
+  "responsible": {
+    "you": "Your table",
+    "named": "{{name}}'s table"
+  },
+  "readyBadge_one": "{{count}} ready",
+  "readyBadge_other": "{{count}} ready",
+  "serve": {
+    "one": "Serve",
+    "oneNamed": "Serve {{dish}}",
+    "allReady": "Serve all ready"
+  },
+  "takeOver": {
+    "action": "Take over",
+    "taking": "Taking over",
+    "done": "This table is yours now. Its ready alerts come to you."
+  },
+  "move": {
+    "action": "Move table",
+    "title": "Move table {{label}}",
+    "description": "The party takes its rounds, its bill, and anything in the basket with it.",
+    "tableLabel": "Move to",
+    "choose": "Choose a free table",
+    "noneFree": "Every table is taken right now.",
+    "keep": "Stay here",
+    "confirm": "Move",
+    "moving": "Moving",
+    "done": "Moved. The kitchen sees the new table."
+  },
+  "void": {
+    "action": "Cancel",
+    "actionNamed": "Cancel {{dish}}",
+    "title": "Cancel this dish?",
+    "description": "{{quantity}} × {{dish}}. It comes off the bill and the kitchen stops cooking it.",
+    "reasonLabel": "Why",
+    "detailsLabel": "Details",
+    "detailsRequiredHint": "Say what happened. Needed for Other.",
+    "detailsOptionalHint": "Optional.",
+    "reasonRequired": "Say what happened, so a manager reading this later knows.",
+    "reasonTooLong": "Keep it to {{max}} characters.",
+    "keep": "Keep the dish",
+    "confirm": "Cancel the dish",
+    "cancelling": "Cancelling",
+    "done": "Dish cancelled. It is off the bill.",
+    "reason": {
+      "guest_changed_mind": "Guest changed their mind",
+      "entered_by_mistake": "Entered by mistake",
+      "kitchen_unavailable": "Kitchen can't make it",
+      "other": "Other"
+    }
+  },
+  "alert": {
+    "title_one": "{{count}} dish ready to collect",
+    "title_other": "{{count}} dishes ready to collect",
+    "table": "Table {{label}}",
+    "dish": "{{quantity}} × {{dish}}",
+    "announce": "Ready at table {{label}}: {{dishes}}.",
+    "acknowledge": "Acknowledge"
   }
 }

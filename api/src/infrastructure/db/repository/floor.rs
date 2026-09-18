@@ -8,7 +8,7 @@
 //!
 //! * **No open visit ever sits on an archived table.** Archiving a table locks
 //!   its row `FOR UPDATE` before looking for an open visit; opening or moving a
-//!   visit locks the table `FOR SHARE` (`service::require_live_table`). The two
+//!   visit locks the table `FOR SHARE` (`service::lock_live_table`). The two
 //!   lock modes conflict, so whichever runs second sees what the first did.
 //! * **No live table ever sits in an archived section.** Archiving a section
 //!   locks its row `FOR UPDATE` before counting live tables; creating, moving,

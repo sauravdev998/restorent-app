@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT v.id, v.table_id, t.label AS table_label, v.opened_at,\n               v.responsible_staff_id, s.display_name AS responsible_name\n        FROM visits AS v\n        JOIN dining_tables AS t ON t.id = v.table_id\n        JOIN staff AS s ON s.id = v.responsible_staff_id\n        WHERE v.status = 'open'\n        ORDER BY v.opened_at, v.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "table_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "table_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "table_label",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "opened_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "opened_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "responsible_staff_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "responsible_staff_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "responsible_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "staff",
+            "name": "display_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b51dcb44c12ce1102ca423db2a17310208fde31c47abd6e5ce238b965bd5e27c"
+}

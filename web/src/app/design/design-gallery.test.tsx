@@ -45,7 +45,7 @@ describe('DesignGallery', () => {
 
     // Four real states from the enums plus the one derived emphasis. Each
     // appears in both panels, hence the pair.
-    for (const word of ['Cooking', 'Ready', 'Served', 'Voided', 'Late']) {
+    for (const word of ['Cooking', 'Ready', 'Served', 'Cancelled', 'Late']) {
       expect(screen.getAllByText(word).length).toBeGreaterThanOrEqual(2)
     }
   }) // covers: AC-5, AC-15

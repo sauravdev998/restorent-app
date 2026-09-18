@@ -4,10 +4,13 @@ import { expect, test, type Browser, type Page } from '@playwright/test'
  * The one claim this whole product rests on, checked the only way it can be.
  *
  * Two browser contexts, open at the same time, signed in as two different
- * people. The waiter sends a dish; the chef's screen shows the ticket without
- * anybody touching it. The chef marks the dishes done; the waiter's screen
- * raises the alert without anybody touching it either. Then the food is carried
- * out, the bill closes with a number, and the table goes back to free.
+ * people. The waiter sends a round with a note; the chef's screen shows the
+ * ticket and the note, whole, without anybody touching it. The waiter walks to
+ * the Orders list. The chef marks one dish ready; the waiter's screen raises
+ * the alert there, without anybody touching it, and the waiter serves that one
+ * dish. A second round goes to the kitchen as a ticket of its own. Then the
+ * rest is carried out, the bill closes with a number, and the table goes back
+ * to free (spec 0011, AC-20).
  *
  * Nothing cheaper proves this. The API tests prove the rows are right, and the
  * unit tests prove the fan out map invalidates the correct keys, and both would
@@ -78,66 +81,110 @@ test('a dish sent by a waiter reaches the kitchen live, and back again', async (
   // together as `Table 1Round 1`, so there is no word boundary after the label
   // at all. The lookahead says what was actually meant, which is that table 1
   // must not match table 10.
-  const ticket = chef
+  const tickets = chef
     .getByRole('listitem')
     .filter({ hasText: new RegExp(`Table ${label}(?!\\d)`) })
-    .first()
 
-  await expect(ticket).toBeHidden()
+  await expect(tickets).toHaveCount(0)
 
-  // Two dishes, so "one dish done does not make the ticket ready" is exercised
+  // Two dishes, so "one dish ready does not make the ticket ready" is exercised
   // rather than assumed. Orderable ones only: the admin can put a dish the
   // kitchen has switched off anywhere in the menu (spec 0008), so the first
   // two buttons on screen are not necessarily two that can be pressed.
   const addButtons = waiter.getByRole('button', { name: /^add one /i, disabled: false })
+  const firstDish = ((await addButtons.nth(0).getAttribute('aria-label')) ?? '').replace(
+    /^add one /i,
+    '',
+  )
+  const secondDish = ((await addButtons.nth(1).getAttribute('aria-label')) ?? '').replace(
+    /^add one /i,
+    '',
+  )
+  expect(firstDish).not.toBe('')
+  expect(secondDish).not.toBe('')
+
   await addButtons.nth(0).click()
   await addButtons.nth(1).click()
+
+  // A note on the first dish, which has to reach the pass exactly as typed
+  // (spec 0011, AC-6).
+  const note = 'No onions, nut allergy at this table'
+  await waiter.getByRole('textbox', { name: `Note for ${firstDish}` }).fill(note)
 
   await waiter.getByRole('button', { name: /^send /i }).click()
 
   // The claim. No reload, no click, no navigation on the chef's page.
-  await expect(ticket).toBeVisible()
+  // By the round's own label as a whole element, not by a pattern over the
+  // card's text: the elapsed time follows it directly, so "Round 1" runs into
+  // "1 minute" and no lookahead can tell the two apart.
+  const firstTicket = tickets.filter({ has: chef.getByText('Round 1', { exact: true }) })
+  await expect(firstTicket).toBeVisible()
+  await expect(firstTicket.getByText(note, { exact: true })).toBeVisible()
 
   // Two dishes on it, each with its own button, because a chef marks one dish
   // at a time as it comes off the pass.
-  const done = ticket.getByRole('button', { name: /^done$/i })
+  const done = firstTicket.getByRole('button', { name: /^done$/i })
   await expect(done).toHaveCount(2)
 
+  // The waiter walks to the Orders list, away from the table, which is the
+  // point: the alert has to find them wherever they are (spec 0011, AC-9).
+  await waiter.getByRole('link', { name: /^orders$/i }).click()
+  await expect(waiter.getByRole('heading', { level: 1, name: /^orders$/i })).toBeVisible()
+
+  // One dish comes off the pass. The ticket stays cooking, but that dish is
+  // ready, and it is the dish that matters to the waiter now.
   await done.first().click()
-
-  // Wait for that request to land before tapping the next dish. The button's
-  // own label changes to "Marking" the instant it is tapped, so counting the
-  // "Done" buttons alone would let the second tap overlap the first, and this
-  // scenario would then be quietly testing two concurrent writes instead of
-  // the thread. That overlap is real and worth covering, and it is covered
-  // deterministically by `two_dishes_on_one_ticket_marked_at_once_still_leave_it_ready`
-  // in the API's concurrency suite rather than by timing here.
-  await expect(ticket.getByRole('button', { name: /^marking$/i })).toHaveCount(0)
-
-  // One dish done leaves the ticket queued: the waiter must not be sent to
-  // collect half an order.
+  await expect(firstTicket.getByRole('button', { name: /^marking$/i })).toHaveCount(0)
   await expect(done).toHaveCount(1)
 
-  await done.first().click()
-
-  // The last dish makes the whole ticket ready by itself, and the waiter's
-  // screen says so without being touched.
+  // The alert, on a screen that is not the table's, with no reload. Seen, and
+  // said through the one live region the shell mounts, because a waiter who
+  // is not looking at the phone depends on the second.
   //
-  // Two assertions, because the alert is meant to arrive on two channels and a
-  // waiter who is not looking at the phone depends on the second. A single
-  // loose text match would find either one and pass on a build that had lost
-  // the other.
-  const alerted = `Table ${label}, round 1 is ready`
+  // Scoped to this run's table: the shared development restaurant can hold
+  // other ready food this waiter is responsible for, which the alert rightly
+  // shows too.
+  const alert = waiter.getByRole('region', { name: /ready to collect$/i })
+  const alertedHere = alert
+    .getByRole('listitem')
+    .filter({ has: waiter.getByRole('link', { name: `Table ${label}`, exact: true }) })
+  await expect(alertedHere).toContainText(`1 × ${firstDish}`)
+  await expect(waiter.locator('[aria-live="assertive"]')).toContainText(
+    `Ready at table ${label}: 1 × ${firstDish}.`,
+  )
 
-  // The badge.
-  await expect(waiter.getByText(alerted, { exact: true })).toBeVisible()
+  // Carried out on its own, from this table's card on the Orders list, while
+  // the other dish cooks (spec 0011, AC-12).
+  const card = waiter
+    .getByRole('main')
+    .getByRole('listitem')
+    .filter({ has: waiter.getByRole('heading', { level: 2, name: `Table ${label}`, exact: true }) })
+  await card.getByRole('button', { name: `Serve ${firstDish}` }).click()
+  await expect(alertedHere).toHaveCount(0)
 
-  // And the announcement, through the one live region the shell mounts.
-  await expect(waiter.locator('[aria-live="assertive"]')).toContainText(alerted)
+  // Back to the table for a second round, which reaches the kitchen as a
+  // ticket of its own (spec 0011, AC-5).
+  await card.getByRole('link', { name: `Table ${label}`, exact: true }).click()
+  await expect(heading).toBeVisible()
+  await waiter.getByRole('button', { name: `Add one ${secondDish}` }).click()
+  await waiter.getByRole('button', { name: /^send /i }).click()
 
-  // Carried out. The ticket leaves the pass, again with no reload.
-  await waiter.getByRole('button', { name: /^mark served$/i }).click()
-  await expect(ticket).toBeHidden()
+  const secondTicket = tickets.filter({ has: chef.getByText('Round 2', { exact: true }) })
+  await expect(secondTicket).toBeVisible()
+  await expect(firstTicket).toBeVisible()
+
+  // The rest of the meal, so the table is free again for the next run.
+  await done.first().click()
+  await expect(done).toHaveCount(0)
+  await secondTicket.getByRole('button', { name: /^done$/i }).click()
+
+  const serveAll = waiter.getByRole('button', { name: /^serve all ready$/i })
+  await expect(serveAll).toHaveCount(2)
+  await serveAll.first().click()
+  await expect(serveAll).toHaveCount(1)
+  await serveAll.first().click()
+  await expect(serveAll).toHaveCount(0)
+  await expect(tickets).toHaveCount(0)
 
   // And the meal ends with a number and a total.
   await waiter.getByRole('button', { name: /^close the bill$/i }).click()

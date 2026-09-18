@@ -22,7 +22,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 9 | Menu management | Slice 2 | done |
 | 10 | Staff accounts | Slice 2 | done |
 | 11 | Tables and floor plan | Slice 2 | done |
-| 12 | Waiter service flow | Slice 3 | planned |
+| 12 | Waiter service flow | Slice 3 | in-progress |
 | 13 | Kitchen display | Slice 3 | planned |
 | 14 | Bill generation, currency, and tax | Slice 4 | planned |
 | 15 | Closing a bill and recording payment | Slice 4 | planned |
@@ -40,6 +40,8 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 27 | Dish names in a second language | Deferred | planned |
 | 28 | Erasing a person on request | Deferred | planned |
 | 29 | Drawn floor map | Deferred | planned |
+| 30 | Ready alerts on a locked phone | Deferred | planned |
+| 31 | Approval for voiding cooked food | Deferred | planned |
 
 ## Foundations
 
@@ -205,10 +207,21 @@ spec [0010](../specs/0010-tables-and-floor-plan/index.md) · verify [0010](../sp
 
 Thicken the two screens the restaurant actually lives in all evening. This is where the product stops being a demo and starts being usable on a busy night.
 
-### 12. Waiter service flow · needs a decision
+### 12. Waiter service flow · in-progress
 The waiter's real working screen: keep one bill open per table across the whole meal, send each round to the kitchen as its own ticket, watch every round's progress live, and get a sound and a badge the moment food is ready to pick up. Includes the free text note per line, such as no onions.
 **Done when:** a waiter can add a second and third round to an open bill and each goes to the kitchen as its own ticket; the waiter's list shows every open order's live status; when a round becomes ready the waiter gets a sound and a clear badge and can mark it served; and per line notes reach the kitchen ticket unchanged.
-- [ ] Design it (spec): `/architect waiter service flow`
+spec [0011](../specs/0011-waiter-service-flow/index.md) · code in `api/migrations/0009_waiter_service_flow.sql`, `api/src/infrastructure/db/repository/service.rs`, `api/src/presentation/handlers/service.rs`, `api/tests/waiter_service.rs`, `web/src/waiter/`, `web/e2e/order-thread.spec.ts`
+- [x] Design it (spec): `/architect waiter service flow`
+- [x] Build it: `/develop waiter service flow`
+  - [x] The thread, top to bottom: migration 0009, the send key with replay, notes to the pass, the Orders read, serving one dish, the Floor and Orders switch, the shell wide alert, and the extended two device Playwright run (AC-5, AC-6, AC-8, AC-9, AC-12, AC-20)
+  - [x] The alert made reliable, and ownership: grouping, vibration, the 2 minute reminder and Acknowledge, ready badges and the Orders sort, responsible waiter names, the Mine filter, and take over (AC-1, AC-2, AC-3, AC-4, AC-9, AC-10, AC-11, AC-17)
+  - [x] The basket that survives and serve all ready: per visit session storage with its key, and the new `nothing_ready` meaning (AC-7, AC-12)
+  - [x] Voids, moves, and the empty close: the reason dialog and bill recompute, Cancelled on the kitchen ticket, moving a party, voiding an empty bill, the visit lock first on close, and the race tests (AC-13, AC-14, AC-15, AC-16, AC-17)
+  - [x] Finish: role and isolation tests, English and Hindi keys, axe and density, and every check green (AC-18, AC-19)
+- [ ] Verify it: `/check verify waiter service flow`
+- [ ] Test it: `/test waiter service flow`
+- [ ] Review it (fresh model): `/check review waiter service flow`
+- [ ] Document it: `/document waiter service flow`
 
 ### 13. Kitchen display · needs a decision
 The chef's real working screen, readable across a kitchen: incoming tickets appear live in the order they arrived, each shows how long it has been waiting, and the chef taps each dish done as it comes off the pass. The ticket flips to ready by itself when the last dish lands.
@@ -278,6 +291,8 @@ Out of scope for the current build pass, kept so the plan stays honest. Both are
 - **26. Dish sizes and add ons** `from spec 0008`: half or full portions, extra cheese. Changes how a line's price is worked out and what a kitchen ticket shows, so it touches the order thread as much as the menu · needs a decision
 - **28. Erasing a person on request** `from spec 0009`: blanking a `staff` row's name, email address, and password hash while keeping the row, so every past order and audit entry still resolves. Spec [0003](../specs/0003-core-data-model/index.md) designed the path, spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) handed it to feature 10, and feature 10 scoped it out in favour of deactivate and reactivate. Until it exists, a GDPR style erasure request is a manual database operation · needs a decision
 - **29. Drawn floor map** `from spec 0010`: a grid or free placement picture of the room for the admin and waiter floors, instead of the ordered list. Spec [0010](../specs/0010-tables-and-floor-plan/index.md) deferred it; it would add layout columns on top of the existing ordered tables rather than replace them · needs a decision
+- **30. Ready alerts on a locked phone** `from spec 0011`: Web Push, so a waiter whose screen is off still hears that food is ready. Needs a service worker, push keys in config, and a subscriptions table, and on iOS it only works for a site installed to the home screen. Revisit if waiters report missing food · needs a decision
+- **31. Approval for voiding cooked food** `from spec 0011`: any waiter may void any dish, cooked or not, with only the audit log behind it. A restaurant that sees write offs may want an admin to approve voids of ready dishes · needs a decision
 - **27. Dish names in a second language** `from spec 0008`: an English name beside a Hindi one, say. Needs a translations shape for restaurant typed text and a rule for which name each screen shows · needs a decision
 
 ## Legend

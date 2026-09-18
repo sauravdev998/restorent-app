@@ -313,7 +313,7 @@ async fn a_busy_table_stays_and_can_still_be_renamed() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("seating a party");
-    service::send_round(
+    common::send_round(
         &mut tx,
         visit.id,
         f.waiter,

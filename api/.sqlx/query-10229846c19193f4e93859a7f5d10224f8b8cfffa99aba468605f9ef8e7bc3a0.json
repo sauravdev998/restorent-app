@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE visits\n        SET table_id = $2, updated_at = now()\n        WHERE id = $1 AND status = 'open'\n        RETURNING id\n        ",
+  "query": "SELECT id FROM bills WHERE id = $1 FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -9,7 +9,7 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "visits",
+            "table": "bills",
             "name": "id"
           }
         }
@@ -17,7 +17,6 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Uuid"
       ]
     },
@@ -25,5 +24,5 @@
       false
     ]
   },
-  "hash": "c1186ee53b3d397710b6c2051252fa511594f85c56e923f08b5303bfda6eb132"
+  "hash": "10229846c19193f4e93859a7f5d10224f8b8cfffa99aba468605f9ef8e7bc3a0"
 }

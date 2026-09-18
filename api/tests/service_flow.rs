@@ -4,7 +4,7 @@
 
 mod common;
 
-use api::domain::enums::{LineStatus, RoundStatus, VisitStatus};
+use api::domain::enums::{LineStatus, RoundStatus, VisitStatus, VoidReason};
 use api::domain::error::{ConflictKind, DomainError};
 use api::domain::ids::RestaurantId;
 use api::domain::service::NewOrderLine;
@@ -102,7 +102,7 @@ async fn status_is_per_dish_and_the_ticket_follows_its_dishes() {
         .await
         .expect("the party sits down");
 
-    let (round, lines) = service::send_round(
+    let (round, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -197,7 +197,7 @@ async fn a_ticket_whose_dishes_are_all_cancelled_never_reads_as_ready() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (round, lines) = service::send_round(
+    let (round, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -217,15 +217,31 @@ async fn a_ticket_whose_dishes_are_all_cancelled_never_reads_as_ready() {
     .await
     .expect("sending the ticket");
 
-    service::void_line(&mut tx, lines[0].id, f.waiter, "guest changed their mind")
-        .await
-        .expect("cancelling the first dish");
-    let (voided, round_status) =
-        service::void_line(&mut tx, lines[1].id, f.waiter, "kitchen ran out")
-            .await
-            .expect("cancelling the second dish");
+    service::void_line(
+        &mut tx,
+        lines[0].id,
+        f.waiter,
+        VoidReason::GuestChangedMind,
+        None,
+    )
+    .await
+    .expect("cancelling the first dish");
+    let cancelled = service::void_line(
+        &mut tx,
+        lines[1].id,
+        f.waiter,
+        VoidReason::KitchenUnavailable,
+        Some("kitchen ran out"),
+    )
+    .await
+    .expect("cancelling the second dish");
+    let (voided, round_status) = (cancelled.line, cancelled.round_status);
 
     assert_eq!(voided.status, LineStatus::Voided);
+    assert_eq!(
+        voided.void_reason_code,
+        Some(VoidReason::KitchenUnavailable)
+    );
     assert_eq!(voided.void_reason.as_deref(), Some("kitchen ran out"));
     assert_eq!(voided.voided_by_staff_id, Some(f.waiter));
     assert_eq!(
@@ -254,7 +270,7 @@ async fn a_cancelled_dish_does_not_hold_the_rest_of_the_ticket_back() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -274,9 +290,15 @@ async fn a_cancelled_dish_does_not_hold_the_rest_of_the_ticket_back() {
     .await
     .expect("sending the ticket");
 
-    service::void_line(&mut tx, lines[1].id, f.waiter, "kitchen ran out")
-        .await
-        .expect("cancelling the steak");
+    service::void_line(
+        &mut tx,
+        lines[1].id,
+        f.waiter,
+        VoidReason::KitchenUnavailable,
+        None,
+    )
+    .await
+    .expect("cancelling the steak");
 
     service::mark_line_ready(&mut tx, lines[0].id, f.chef)
         .await
@@ -306,7 +328,7 @@ async fn a_state_change_from_an_unexpected_state_is_refused() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
+    let (_, lines) = common::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
         .await
         .expect("sending the ticket");
     let line = lines[0].clone();
@@ -335,20 +357,32 @@ async fn a_state_change_from_an_unexpected_state_is_refused() {
         .expect("carrying it out");
 
     // Cancelling a dish that is already on the table.
-    let too_late = service::void_line(&mut tx, line.id, f.waiter, "changed mind").await;
+    let too_late = service::void_line(
+        &mut tx,
+        line.id,
+        f.waiter,
+        VoidReason::GuestChangedMind,
+        None,
+    )
+    .await;
     assert!(
-        matches!(too_late, Err(DomainError::Conflict(_))),
+        matches!(
+            too_late,
+            Err(DomainError::Conflict(ConflictKind::LineNotVoidable))
+        ),
         "a served dish was cancelled: {too_late:?}"
     );
 
-    // And a cancellation with no reason is refused before anything is written.
-    let (_, more) = service::send_round(&mut tx, visit.id, f.waiter, &one(f.steak))
+    // And "other" with no words is refused by the database itself, whatever
+    // the caller forgot to check.
+    let (_, more) = common::send_round(&mut tx, visit.id, f.waiter, &one(f.steak))
         .await
         .expect("sending another ticket");
-    let unexplained = service::void_line(&mut tx, more[0].id, f.waiter, "   ").await;
+    let unexplained =
+        service::void_line(&mut tx, more[0].id, f.waiter, VoidReason::Other, None).await;
     assert!(
-        matches!(unexplained, Err(DomainError::Invalid(_))),
-        "a dish was cancelled without a reason: {unexplained:?}"
+        unexplained.is_err(),
+        "a dish was cancelled as other without a reason: {unexplained:?}"
     );
 }
 
@@ -367,7 +401,7 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
+    let (_, lines) = common::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
         .await
         .expect("sending the ticket");
     let line = lines[0].clone();
@@ -454,7 +488,7 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     assert_eq!(reread.unit_price, common::money("9.5000"));
 
     // An archived dish cannot be ordered again, and says why (spec 0008).
-    let refused = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
+    let refused = common::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
     assert!(
         matches!(
             refused,
@@ -486,7 +520,7 @@ async fn an_unavailable_dish_cannot_be_ordered_but_one_already_sent_is_untouched
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
+    let (_, lines) = common::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
         .await
         .expect("sending the ticket");
 
@@ -494,7 +528,7 @@ async fn an_unavailable_dish_cannot_be_ordered_but_one_already_sent_is_untouched
         .await
         .expect("the kitchen runs out of soup");
 
-    let refused = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
+    let refused = common::send_round(&mut tx, visit.id, f.waiter, &one(f.soup)).await;
     assert!(
         matches!(
             refused,
@@ -527,7 +561,7 @@ async fn a_party_cannot_leave_while_money_is_still_owed() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
+    let (_, lines) = common::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
         .await
         .expect("sending the ticket");
 
@@ -582,7 +616,7 @@ async fn a_party_can_move_tables_but_not_onto_an_occupied_one() {
         .await
         .expect("the first party sits down");
 
-    let moved = service::move_visit(&mut tx, first.id, f.table_two)
+    let moved = service::move_visit(&mut tx, first.id, f.table_two, f.waiter)
         .await
         .expect("moving the party");
     assert_eq!(moved.table_id, f.table_two);
@@ -593,7 +627,7 @@ async fn a_party_can_move_tables_but_not_onto_an_occupied_one() {
         .expect("a second party takes the freed table");
 
     // And now neither can move onto the other.
-    let blocked = service::move_visit(&mut tx, second.id, f.table_two).await;
+    let blocked = service::move_visit(&mut tx, second.id, f.table_two, f.waiter).await;
     assert!(
         matches!(blocked, Err(DomainError::Conflict(_))),
         "a party moved onto an occupied table: {blocked:?}"
@@ -615,17 +649,17 @@ async fn tickets_are_numbered_in_order_within_a_visit() {
         .await
         .expect("the party sits down");
 
-    let (starters, _) = service::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
+    let (starters, _) = common::send_round(&mut tx, visit.id, f.waiter, &one(f.soup))
         .await
         .expect("sending the starters");
-    let (mains, _) = service::send_round(&mut tx, visit.id, f.waiter, &one(f.steak))
+    let (mains, _) = common::send_round(&mut tx, visit.id, f.waiter, &one(f.steak))
         .await
         .expect("sending the mains");
 
     assert_eq!(starters.sequence_no, 1);
     assert_eq!(mains.sequence_no, 2);
 
-    let empty = service::send_round(&mut tx, visit.id, f.waiter, &[]).await;
+    let empty = common::send_round(&mut tx, visit.id, f.waiter, &[]).await;
     assert!(
         matches!(empty, Err(DomainError::Invalid(_))),
         "an empty ticket reached the kitchen: {empty:?}"

@@ -6,33 +6,28 @@
     "open": "मेज़ खोलें",
     "opening": "खोल रहे हैं",
     "view": "देखें",
-    "openedBy": "{{name}} ने {{at}} पर खोली",
     "unsectioned": "अन्य मेज़ें",
     "emptyTitle": "अभी कोई मेज़ नहीं",
     "emptyBody": "अपने एडमिन से रेस्तराँ की मेज़ें जोड़ने को कहें। जुड़ते ही वे यहाँ दिखेंगी।",
     "seats_one": "{{count}} सीट",
-    "seats_other": "{{count}} सीटें"
+    "seats_other": "{{count}} सीटें",
+    "openedAt": "{{at}} पर खुली",
+    "emptyMineTitle": "हर भरी टेबल किसी और की है",
+    "emptyMineBody": "पूरा फ़्लोर देखने के लिए मेरी बंद करें।"
   },
   "table": {
     "title": "मेज़ {{label}}",
-    "openedBy": "{{name}} ने खोली",
     "orderHeading": "ऑर्डर",
     "roundsHeading": "रसोई को भेजा गया",
     "unavailable": "आज उपलब्ध नहीं",
     "addOne": "एक {{dish}} जोड़ें",
-    "removeOne": "एक {{dish}} हटाएँ",
     "send_one": "{{count}} व्यंजन भेजें",
     "send_other": "{{count}} व्यंजन भेजें",
     "sending": "भेज रहे हैं",
     "round": "राउंड {{number}}",
-    "serve": "परोसा हुआ चिह्नित करें",
     "serving": "चिह्नित कर रहे हैं",
     "nothingSentTitle": "अभी कुछ नहीं भेजा",
     "nothingSentBody": "ऊपर से व्यंजन जोड़ें और एक टिकट के रूप में भेजें।"
-  },
-  "alert": {
-    "title": "मेज़ {{label}}, राउंड {{round}} तैयार है",
-    "body": "पास से लें, फिर परोसा हुआ चिह्नित करें।"
   },
   "bill": {
     "runningTitle": "अब तक का बिल",
@@ -42,7 +37,9 @@
     "tax": "{{name}} ({{rate}}%)",
     "total": "कुल",
     "close": "बिल बंद करें",
-    "closing": "बंद कर रहे हैं"
+    "closing": "बंद कर रहे हैं",
+    "nothingTitle": "कोई शुल्क नहीं",
+    "nothingBody": "इस टेबल की हर डिश रद्द हुई या कुछ ऑर्डर नहीं हुआ, इसलिए कोई बिल नहीं बना।"
   },
   "basket": {
     "title": "टोकरी, अभी भेजी नहीं गई",
@@ -50,6 +47,89 @@
     "flagged_other": "टोकरी के {{count}} व्यंजन अभी अभी बंद हुए हैं। बाकी भेजने के लिए उन्हें हटाएँ।",
     "lineOff": "अभी बंद, भेजा नहीं जा सकता",
     "takeOut": "हटाएँ",
-    "takeOutNamed": "{{dish}} को टोकरी से हटाएँ"
+    "takeOutNamed": "{{dish}} को टोकरी से हटाएँ",
+    "noteLabel": "{{dish}} के लिए नोट",
+    "notePlaceholder": "प्याज़ नहीं, कम तीखा",
+    "noteCount": "{{max}} में से {{count}} अक्षर",
+    "noteTooLong": "नोट ज़्यादा से ज़्यादा {{max}} अक्षरों का हो सकता है।",
+    "split": "एक अलग से",
+    "splitNamed": "एक {{dish}} अलग लाइन में रखें",
+    "discardedClosed": "यह टेबल बंद हो चुकी है, इसलिए न भेजी गई बास्केट हटा दी गई।",
+    "addOneNamed": "इस लाइन में एक और {{dish}}",
+    "removeOneNamed": "इस लाइन में एक {{dish}} कम"
+  },
+  "views": {
+    "label": "वेटर के दृश्य",
+    "floor": "फ़्लोर",
+    "orders": "ऑर्डर",
+    "mine": "मेरी",
+    "mineLabel": "सिर्फ़ मेरी टेबल दिखाएँ"
+  },
+  "orders": {
+    "title": "ऑर्डर",
+    "table": "टेबल {{label}}",
+    "nothingSent": "अभी कुछ नहीं भेजा गया।",
+    "emptyTitle": "कोई टेबल खुली नहीं है",
+    "emptyBody": "फ़्लोर पर कोई टेबल खुलते ही वह यहाँ दिखेगी।",
+    "emptyMineTitle": "आपकी कोई टेबल खुली नहीं है",
+    "emptyMineBody": "हर खुली टेबल देखने के लिए मेरी बंद करें।"
+  },
+  "responsible": {
+    "you": "आपकी टेबल",
+    "named": "{{name}} की टेबल"
+  },
+  "readyBadge_one": "{{count}} तैयार",
+  "readyBadge_other": "{{count}} तैयार",
+  "serve": {
+    "one": "परोसें",
+    "oneNamed": "{{dish}} परोसें",
+    "allReady": "सब तैयार परोसें"
+  },
+  "takeOver": {
+    "action": "टेबल लें",
+    "taking": "ले रहे हैं",
+    "done": "यह टेबल अब आपकी है। इसके तैयार होने की सूचना आपको मिलेगी।"
+  },
+  "move": {
+    "action": "टेबल बदलें",
+    "title": "टेबल {{label}} बदलें",
+    "description": "मेहमान अपने राउंड, बिल और बास्केट के साथ जाएँगे।",
+    "tableLabel": "कहाँ ले जाएँ",
+    "choose": "कोई खाली टेबल चुनें",
+    "noneFree": "अभी हर टेबल भरी है।",
+    "keep": "यहीं रहें",
+    "confirm": "बदलें",
+    "moving": "बदल रहे हैं",
+    "done": "बदल दिया। रसोई को नई टेबल दिख रही है।"
+  },
+  "void": {
+    "action": "रद्द करें",
+    "actionNamed": "{{dish}} रद्द करें",
+    "title": "यह डिश रद्द करें?",
+    "description": "{{quantity}} × {{dish}}। यह बिल से हट जाएगी और रसोई इसे बनाना बंद कर देगी।",
+    "reasonLabel": "क्यों",
+    "detailsLabel": "विवरण",
+    "detailsRequiredHint": "बताएँ क्या हुआ। अन्य के लिए ज़रूरी है।",
+    "detailsOptionalHint": "वैकल्पिक।",
+    "reasonRequired": "बताएँ क्या हुआ, ताकि बाद में मैनेजर समझ सके।",
+    "reasonTooLong": "{{max}} अक्षरों के अंदर रखें।",
+    "keep": "डिश रखें",
+    "confirm": "डिश रद्द करें",
+    "cancelling": "रद्द कर रहे हैं",
+    "done": "डिश रद्द हो गई। यह बिल से हट गई है।",
+    "reason": {
+      "guest_changed_mind": "मेहमान ने मन बदल लिया",
+      "entered_by_mistake": "गलती से डाली गई",
+      "kitchen_unavailable": "रसोई नहीं बना सकती",
+      "other": "अन्य"
+    }
+  },
+  "alert": {
+    "title_one": "{{count}} डिश लेने के लिए तैयार",
+    "title_other": "{{count}} डिश लेने के लिए तैयार",
+    "table": "टेबल {{label}}",
+    "dish": "{{quantity}} × {{dish}}",
+    "announce": "टेबल {{label}} के लिए तैयार: {{dishes}}।",
+    "acknowledge": "देख लिया"
   }
 }

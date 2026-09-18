@@ -46,6 +46,15 @@ export const floorKey = ['visit', 'floor'] as const
  */
 export const adminFloorKey = ['visit', 'floor', 'admin'] as const
 
+/**
+ * The waiter's Orders list: every open table with every round on it.
+ *
+ * Under `visit`, so every event that reaches the floor or a table screen
+ * (`visit`, `order_round`, `order_line`, `bill`, `dish`, `staff`) reaches this
+ * too, with no row of its own in the map below.
+ */
+export const openOrdersKey = ['visit', 'open'] as const
+
 /** One table's whole meal. */
 export function visitKey(visitId: string) {
   return ['visit', visitId] as const
@@ -102,6 +111,10 @@ export const staffKey = ['staff', 'list'] as const
  * and read it live. A section changing reaches the two floors only, which
  * `visit` covers; nothing else shows a section's name.
  *
+ * A staff change reaches everything under `visit`, because the floor, the
+ * Orders list, and every table screen name the waiter responsible for a table,
+ * and a renamed waiter has to read as their new name on all three.
+ *
  * `probe` invalidates nothing. It carries no product meaning: it exists so the
  * development endpoint can prove the whole path with no data behind it.
  */
@@ -114,7 +127,7 @@ export const FAN_OUT: Readonly<Record<EntityKind, readonly (readonly string[])[]
   menu_category: [['dish']],
   dining_table: [['visit'], kitchenKey],
   table_section: [['visit']],
-  staff: [floorKey],
+  staff: [['visit']],
   probe: [],
 }
 

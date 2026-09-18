@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE bills\n        SET status = 'voided', subtotal = 0, updated_at = now()\n        WHERE id = $1\n          AND status = 'open'\n          AND NOT EXISTS (\n              SELECT 1 FROM order_lines\n              WHERE bill_id = $1 AND status <> 'voided'\n          )\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bills",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8530a81fe90d5f256dac668e0052eef893a6228b92932767b5d7bcbfacafd98c"
+}

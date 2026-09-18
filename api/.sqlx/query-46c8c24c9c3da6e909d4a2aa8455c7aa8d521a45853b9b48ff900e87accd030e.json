@@ -1,0 +1,352 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT r.id AS round_id, r.visit_id, r.sequence_no,\n               r.status AS \"round_status: RoundStatus\",\n               r.sent_by_staff_id, r.sent_at, r.ready_at AS round_ready_at,\n               r.served_at AS round_served_at, r.client_key,\n               l.id AS line_id, l.dish_id, l.bill_id, l.quantity, l.unit_price, l.dish_name,\n               l.line_total, l.note, l.status AS \"line_status: LineStatus\",\n               l.ready_by_staff_id, l.ready_at, l.served_at, l.voided_by_staff_id,\n               l.voided_at, l.void_reason_code AS \"void_reason_code: VoidReason\",\n               l.void_reason\n        FROM order_rounds AS r\n        JOIN order_lines AS l ON l.round_id = r.id\n        WHERE r.visit_id = ANY($1)\n        ORDER BY r.visit_id, r.sequence_no, l.created_at, l.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "round_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "visit_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "visit_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "sequence_no",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "sequence_no"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "round_status: RoundStatus",
+        "type_info": {
+          "Custom": {
+            "name": "round_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "ready",
+                "served",
+                "voided"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "sent_by_staff_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "sent_by_staff_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "sent_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "sent_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "round_ready_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "ready_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "round_served_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "served_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "client_key",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "client_key"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "line_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "dish_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "dish_id"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "bill_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "bill_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "quantity",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "quantity"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "unit_price",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "unit_price"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "dish_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "dish_name"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "line_total",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "line_total"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "note",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "note"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "line_status: LineStatus",
+        "type_info": {
+          "Custom": {
+            "name": "line_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "ready",
+                "served",
+                "voided"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "ready_by_staff_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "ready_by_staff_id"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "ready_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "ready_at"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "served_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "served_at"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "voided_by_staff_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "voided_by_staff_id"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "voided_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "voided_at"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "void_reason_code: VoidReason",
+        "type_info": {
+          "Custom": {
+            "name": "void_reason",
+            "kind": {
+              "Enum": [
+                "guest_changed_mind",
+                "entered_by_mistake",
+                "kitchen_unavailable",
+                "other"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "void_reason_code"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "void_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "void_reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "46c8c24c9c3da6e909d4a2aa8455c7aa8d521a45853b9b48ff900e87accd030e"
+}

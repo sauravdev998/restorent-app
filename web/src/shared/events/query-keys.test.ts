@@ -9,6 +9,7 @@ import {
   isEntityKind,
   kitchenKey,
   menuKey,
+  openOrdersKey,
   visitKey,
 } from './query-keys'
 
@@ -53,9 +54,23 @@ describe('the fan out map', () => {
     expect(adminMenuKey).not.toEqual(menuKey)
   }) // covers: AC-18 (spec 0008)
 
-  it('sends a staff change only to the floor', () => {
-    expect(FAN_OUT.staff).toEqual([floorKey])
-  }) // covers: AC-15
+  it('sends a staff change to everything that names a responsible waiter', () => {
+    // The floor, the Orders list, and every table screen all show the waiter
+    // responsible for a table, so a rename has to reach all three.
+    expect(FAN_OUT.staff).toEqual([['visit']])
+  }) // covers: AC-19 (spec 0011)
+
+  it('keeps the Orders list under the prefix every order event already reaches', () => {
+    expect(openOrdersKey[0]).toBe('visit')
+    for (const kind of ['visit', 'order_round', 'order_line', 'bill', 'dish', 'staff'] as const) {
+      expect(
+        FAN_OUT[kind].some((prefix) =>
+          prefix.every((part, index) => openOrdersKey[index] === part),
+        ),
+        `${kind} does not reach the Orders list`,
+      ).toBe(true)
+    }
+  }) // covers: AC-2 (spec 0011)
 
   it('sends a table change to both floors, every open table, and the kitchen', () => {
     // A renamed table is shown on the waiter's table screen and on every
