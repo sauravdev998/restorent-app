@@ -1,7 +1,7 @@
 # 0010. Tables and floor plan
 
 **Date**: 2026-09-16
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

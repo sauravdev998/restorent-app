@@ -22,6 +22,7 @@ project wide rules; this file holds what is true only here.
 | `src/shared/events/use-live-events.ts` | The stream, and the two rules that keep the cache honest |
 | `src/shared/events/query-keys.ts` | The written map from event kind to the query key prefixes it feeds |
 | `src/shared/events/server-clock.ts` | The offset between the server's clock and this device's, so an age is true on a tablet set wrong |
+| `src/admin/shared/reorderable.tsx` | The drag and drop list the menu and the floor both use: mouse, touch, keyboard, and translated announcements. Admin pieces used by more than one admin feature live in `src/admin/shared/` |
 | `src/shared/session/identity.ts` | Who is signed in, their role, and their restaurant's settings, as one cached bundle |
 | `src/shared/session/signed-out.ts` | The one path a `401` takes: clear the identity, go to sign in, keep the path for after |
 | `src/shared/i18n/index.ts` | Translations, set up before the first screen renders |

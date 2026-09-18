@@ -21,7 +21,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 8 | The thin order thread | Slice 1 | done |
 | 9 | Menu management | Slice 2 | done |
 | 10 | Staff accounts | Slice 2 | done |
-| 11 | Tables and floor plan | Slice 2 | in-progress |
+| 11 | Tables and floor plan | Slice 2 | done |
 | 12 | Waiter service flow | Slice 3 | planned |
 | 13 | Kitchen display | Slice 3 | planned |
 | 14 | Bill generation, currency, and tax | Slice 4 | planned |
@@ -186,7 +186,7 @@ spec [0009](../specs/0009-staff-accounts/index.md) · verify [0009](../specs/000
 - [x] Review it (fresh model): `/check review staff accounts`
 - [x] Document it: `/document staff accounts`
 
-### 11. Tables and floor plan · in-progress
+### 11. Tables and floor plan · done
 The admin defines the restaurant's tables, optionally grouped into sections, and the waiter picks a real table when opening a bill. Occupied tables are visible at a glance.
 **Done when:** an admin can define tables and sections; a waiter opening a bill picks from the real tables; a table with an open bill shows as occupied to every waiter; and a table cannot hold two open bills at once.
 spec [0010](../specs/0010-tables-and-floor-plan/index.md) · verify [0010](../specs/0010-tables-and-floor-plan/verify.md) · code in `api/migrations/0008_tables_and_floor_plan.sql`, `api/src/domain/floor.rs`, `api/src/infrastructure/db/repository/floor.rs`, `api/src/presentation/handlers/admin_floor.rs`, `api/tests/floor.rs`, `web/src/admin/floor/`, `web/src/admin/routes/admin-floor.tsx`, `web/e2e/floor.spec.ts`
