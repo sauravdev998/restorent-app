@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE table_sections AS s\n        SET name = $2, version = s.version + 1, updated_at = now()\n        FROM (SELECT id, name FROM table_sections WHERE id = $1) AS old\n        WHERE s.id = old.id AND s.version = $3 AND s.archived_at IS NULL\n        RETURNING old.name AS \"old_name!\", s.position AS \"position!\", s.version AS \"version!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "old_name!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "table_sections",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "position!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "table_sections",
+            "name": "position"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "version!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "table_sections",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "50b13da6b67a47f39df21cbeef3727a724ae5abf3e61e3a61b0b6ed5ca6fce20"
+}

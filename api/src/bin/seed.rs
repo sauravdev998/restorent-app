@@ -31,7 +31,7 @@ use api::domain::ids::{
 use api::domain::session::SessionToken;
 use api::infrastructure::config::{Config, Environment};
 use api::infrastructure::db::repository::catalog::{DishEdit, NewDish};
-use api::infrastructure::db::repository::{accounts, catalog, sessions, staff};
+use api::infrastructure::db::repository::{accounts, catalog, floor, sessions, staff};
 use api::infrastructure::db::{Database, ScopedTx};
 use api::infrastructure::passwords::Argon2Passwords;
 
@@ -186,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
         .context("opening the seed transaction")?;
 
     ensure_staff(&mut tx, admin).await?;
-    let tables = ensure_floor(&mut tx).await?;
+    let tables = ensure_floor(&mut tx, admin).await?;
     let dishes = ensure_menu(&mut tx, admin).await?;
 
     tx.commit().await.context("committing the seed")?;
@@ -330,33 +330,38 @@ async fn clear_password_owed(tx: &mut ScopedTx<'_>, staff_id: StaffId) -> anyhow
 }
 
 /// The section and its four tables, created if they are not there yet.
-async fn ensure_floor(tx: &mut ScopedTx<'_>) -> anyhow::Result<Vec<DiningTableId>> {
-    let section = match catalog::live_table_sections(tx)
+///
+/// Through the same repository calls the admin's floor screen uses, audited as
+/// the seeded admin. Each new table lands at the end of the section, so four
+/// created in order read 1 to 4.
+async fn ensure_floor(tx: &mut ScopedTx<'_>, admin: StaffId) -> anyhow::Result<Vec<DiningTableId>> {
+    let section = match floor::live_table_sections(tx)
         .await
         .context("reading the floor's sections")?
         .into_iter()
         .find(|section| section.name == SECTION_NAME)
     {
         Some(found) => found.id,
-        None => catalog::create_table_section(tx, SECTION_NAME, 1)
-            .await
-            .context("creating the seeded section")?,
+        None => {
+            floor::create_table_section(tx, SECTION_NAME, admin)
+                .await
+                .context("creating the seeded section")?
+                .id
+        }
     };
 
     let mut tables = Vec::with_capacity(TABLE_LABELS.len());
 
-    for (index, label) in TABLE_LABELS.iter().enumerate() {
-        let position = position_of(index);
-
-        let existing = catalog::live_dining_tables(tx)
+    for label in TABLE_LABELS {
+        let existing = floor::live_dining_tables(tx)
             .await
             .context("reading the floor's tables")?
             .into_iter()
-            .find(|table| table.label == *label);
+            .find(|table| table.label == label);
 
         let id = match existing {
             Some(found) => found.id,
-            None => create_table(tx, section, label, position).await?,
+            None => create_table(tx, section, label, admin).await?,
         };
 
         tables.push(id);
@@ -370,11 +375,21 @@ async fn create_table(
     tx: &mut ScopedTx<'_>,
     section: TableSectionId,
     label: &str,
-    position: i32,
+    admin: StaffId,
 ) -> anyhow::Result<DiningTableId> {
-    catalog::create_dining_table(tx, Some(section), label, Some(4), position)
-        .await
-        .with_context(|| format!("creating the seeded table {label}"))
+    let table = floor::create_dining_table(
+        tx,
+        &floor::NewTable {
+            section_id: Some(section),
+            label,
+            seats: Some(4),
+        },
+        admin,
+    )
+    .await
+    .with_context(|| format!("creating the seeded table {label}"))?;
+
+    Ok(table.id)
 }
 
 /// The two categories and their six dishes, created if they are not there yet.
@@ -485,15 +500,6 @@ async fn ensure_dish(
     }
 
     Ok(created.id)
-}
-
-/// Where the nth thing in a seeded list sits, counting from one.
-///
-/// A fallible conversion rather than an `as`, because `position` is a signed
-/// integer in the schema and a list long enough to overflow it would wrap
-/// silently into a negative order.
-fn position_of(index: usize) -> i32 {
-    i32::try_from(index + 1).unwrap_or(i32::MAX)
 }
 
 /// Hashes a seeded password the way registration hashes a real one.

@@ -408,9 +408,10 @@ async fn a_table_archived_underneath_a_waiter_stops_taking_parties() {
         .begin_scoped(restaurant_id)
         .await
         .expect("opening the admin's transaction");
-    api::infrastructure::db::repository::catalog::archive_dining_table(
+    api::infrastructure::db::repository::floor::archive_dining_table(
         &mut admin_side,
         f.table_one,
+        f.admin,
     )
     .await
     .expect("the admin archives the table");

@@ -11,7 +11,9 @@ use tower_http::trace::TraceLayer;
 
 use crate::infrastructure::config::Config;
 
-use super::handlers::{admin_menu, auth, billing, dev, events, health, me, menu, service, staff};
+use super::handlers::{
+    admin_floor, admin_menu, auth, billing, dev, events, health, me, menu, service, staff,
+};
 use super::origin;
 use super::state::AppState;
 
@@ -100,6 +102,7 @@ pub fn build(state: AppState, config: &Config) -> Router {
         .route("/api/staff/{id}/password", post(staff::reset_password))
         .route("/api/staff/{id}/deactivate", post(staff::deactivate))
         .route("/api/staff/{id}/reactivate", post(staff::reactivate))
+        .merge(floor_routes())
         .layer(CompressionLayer::new())
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
@@ -119,4 +122,50 @@ pub fn build(state: AppState, config: &Config) -> Router {
         .layer(axum::middleware::from_fn(origin::same_origin))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// The floor, spec 0010. Admin only, every one of them, and the restriction
+/// lives in each handler's own signature; the waiter reads the floor at
+/// `/api/floor`. Its own function so the table above stays readable.
+fn floor_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/admin/floor", get(admin_floor::admin_floor))
+        .route(
+            "/api/admin/floor/sections",
+            post(admin_floor::create_section),
+        )
+        .route(
+            "/api/admin/floor/sections/order",
+            put(admin_floor::reorder_sections),
+        )
+        .route(
+            "/api/admin/floor/sections/{id}",
+            put(admin_floor::rename_section),
+        )
+        .route(
+            "/api/admin/floor/sections/{id}/archive",
+            post(admin_floor::archive_section),
+        )
+        .route(
+            "/api/admin/floor/sections/{id}/restore",
+            post(admin_floor::restore_section),
+        )
+        .route("/api/admin/floor/tables", post(admin_floor::create_table))
+        .route(
+            "/api/admin/floor/tables/range",
+            post(admin_floor::create_table_range),
+        )
+        .route(
+            "/api/admin/floor/table-order",
+            put(admin_floor::reorder_tables),
+        )
+        .route("/api/admin/floor/tables/{id}", put(admin_floor::edit_table))
+        .route(
+            "/api/admin/floor/tables/{id}/archive",
+            post(admin_floor::archive_table),
+        )
+        .route(
+            "/api/admin/floor/tables/{id}/restore",
+            post(admin_floor::restore_table),
+        )
 }

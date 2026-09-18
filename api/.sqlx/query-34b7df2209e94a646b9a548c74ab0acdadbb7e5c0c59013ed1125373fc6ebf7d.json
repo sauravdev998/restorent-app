@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT t.id\n        FROM dining_tables AS t\n        LEFT JOIN table_sections AS s ON s.id = t.section_id\n        WHERE t.archived_at IS NULL\n          AND CASE WHEN $1::uuid IS NULL\n                   THEN t.section_id IS NULL OR s.archived_at IS NOT NULL\n                   ELSE t.section_id = $1\n              END\n        ORDER BY t.id\n        FOR UPDATE OF t\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "34b7df2209e94a646b9a548c74ab0acdadbb7e5c0c59013ed1125373fc6ebf7d"
+}

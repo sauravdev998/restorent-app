@@ -21,7 +21,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 8 | The thin order thread | Slice 1 | done |
 | 9 | Menu management | Slice 2 | done |
 | 10 | Staff accounts | Slice 2 | done |
-| 11 | Tables and floor plan | Slice 2 | planned |
+| 11 | Tables and floor plan | Slice 2 | in-progress |
 | 12 | Waiter service flow | Slice 3 | planned |
 | 13 | Kitchen display | Slice 3 | planned |
 | 14 | Bill generation, currency, and tax | Slice 4 | planned |
@@ -39,6 +39,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 26 | Dish sizes and add ons | Deferred | planned |
 | 27 | Dish names in a second language | Deferred | planned |
 | 28 | Erasing a person on request | Deferred | planned |
+| 29 | Drawn floor map | Deferred | planned |
 
 ## Foundations
 
@@ -185,10 +186,20 @@ spec [0009](../specs/0009-staff-accounts/index.md) · verify [0009](../specs/000
 - [x] Review it (fresh model): `/check review staff accounts`
 - [x] Document it: `/document staff accounts`
 
-### 11. Tables and floor plan · needs a decision
+### 11. Tables and floor plan · in-progress
 The admin defines the restaurant's tables, optionally grouped into sections, and the waiter picks a real table when opening a bill. Occupied tables are visible at a glance.
 **Done when:** an admin can define tables and sections; a waiter opening a bill picks from the real tables; a table with an open bill shows as occupied to every waiter; and a table cannot hold two open bills at once.
-- [ ] Design it (spec): `/architect tables and floor plan`
+spec [0010](../specs/0010-tables-and-floor-plan/index.md) · verify [0010](../specs/0010-tables-and-floor-plan/verify.md) · code in `api/migrations/0008_tables_and_floor_plan.sql`, `api/src/domain/floor.rs`, `api/src/infrastructure/db/repository/floor.rs`, `api/src/presentation/handlers/admin_floor.rs`, `api/tests/floor.rs`, `web/src/admin/floor/`, `web/src/admin/routes/admin-floor.tsx`, `web/e2e/floor.spec.ts`
+- [x] Design it (spec): `/architect tables and floor plan`
+- [x] Build it: `/develop tables and floor plan`
+  - [x] The thread, top to bottom: migration 0008, the `table_section` event kind and fan out, the occupancy lock, the admin floor read, adding and removing a table, the plainest `/admin/floor` screen, seats and the empty state on the waiter's floor, and the two browser Playwright run (AC-1, AC-3, AC-8, AC-12, AC-13, AC-14, AC-15, AC-16, AC-17, AC-18, AC-20)
+  - [x] Sections and the edit surface: section create, rename, and remove, table edit and move, version checks, field errors, and the audit rows (AC-2, AC-5, AC-9, AC-12, AC-13, AC-17, AC-18)
+  - [x] Order and the range: both reorder endpoints with drag and drop, and adding a numbered range with the clash list (AC-4, AC-6, AC-7, AC-12, AC-17)
+  - [x] Archive, restore, and finish: the Archived section, restoring a table and a section with its tables, the race tests, Hindi parity, and axe (AC-1, AC-8, AC-9, AC-10, AC-11, AC-17, AC-19)
+- [x] Verify it: `/check verify tables and floor plan`
+- [x] Test it: `/test tables and floor plan`
+- [x] Review it (fresh model): `/check review tables and floor plan`
+- [x] Document it: `/document tables and floor plan`
 
 ## Slice 3: the service loop, thickened
 
@@ -266,6 +277,7 @@ Out of scope for the current build pass, kept so the plan stays honest. Both are
 - **25. Dish photos** `from spec 0008`: an image per dish on the admin and waiter screens. Needs upload, S3 storage, and resizing, new infrastructure the menu feature deliberately left out · needs a decision
 - **26. Dish sizes and add ons** `from spec 0008`: half or full portions, extra cheese. Changes how a line's price is worked out and what a kitchen ticket shows, so it touches the order thread as much as the menu · needs a decision
 - **28. Erasing a person on request** `from spec 0009`: blanking a `staff` row's name, email address, and password hash while keeping the row, so every past order and audit entry still resolves. Spec [0003](../specs/0003-core-data-model/index.md) designed the path, spec [0006](../specs/0006-accounts-restaurants-and-roles/index.md) handed it to feature 10, and feature 10 scoped it out in favour of deactivate and reactivate. Until it exists, a GDPR style erasure request is a manual database operation · needs a decision
+- **29. Drawn floor map** `from spec 0010`: a grid or free placement picture of the room for the admin and waiter floors, instead of the ordered list. Spec [0010](../specs/0010-tables-and-floor-plan/index.md) deferred it; it would add layout columns on top of the existing ordered tables rather than replace them · needs a decision
 - **27. Dish names in a second language** `from spec 0008`: an English name beside a Hindi one, say. Needs a translations shape for restaurant typed text and a rule for which name each screen shows · needs a decision
 
 ## Legend

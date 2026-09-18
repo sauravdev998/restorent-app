@@ -11,6 +11,7 @@ import { formatTimestamp } from '@/shared/format'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { RestaurantText } from '@/shared/ui/restaurant-text'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
@@ -134,16 +135,30 @@ export function WaiterFloor() {
               {/* A table can belong to no section, or to one that has since been
                   archived. Either way it is still a table, and the heading it
                   goes under is this screen's word rather than a database row. */}
-              {section.name ?? t('floor.unsectioned')}
+              {section.name === null ? (
+                t('floor.unsectioned')
+              ) : (
+                <RestaurantText>{section.name}</RestaurantText>
+              )}
             </h2>
 
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {section.tables.map((table) => (
                 <Card as="li" key={table.id} className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-lg font-semibold text-card-foreground">
-                      {table.label}
-                    </span>
+                    <div className="min-w-0">
+                      <RestaurantText
+                        as="p"
+                        className="truncate text-lg font-semibold text-card-foreground"
+                      >
+                        {table.label}
+                      </RestaurantText>
+                      {table.seats !== null && (
+                        <p className="text-xs text-muted-foreground">
+                          {t('floor.seats', { count: table.seats })}
+                        </p>
+                      )}
+                    </div>
                     {table.occupancy?.foodReady === true && <StatusPill status="ready" compact />}
                   </div>
 

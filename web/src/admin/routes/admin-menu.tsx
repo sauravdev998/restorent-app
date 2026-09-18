@@ -17,8 +17,8 @@ import { ArchivedSection } from '@/admin/menu/archived-section'
 import { CategoryDialog } from '@/admin/menu/category-dialog'
 import { ConfirmDialog } from '@/admin/confirm-dialog'
 import { DishDialog } from '@/admin/menu/dish-dialog'
-import { ReorderableList } from '@/admin/menu/reorderable'
 import { RestoreDishDialog } from '@/admin/menu/restore-dish-dialog'
+import { ReorderableList } from '@/admin/shared/reorderable'
 import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import type { Dish } from '@/shared/api/menu'
@@ -171,6 +171,7 @@ export function AdminMenuScreen() {
           nameOf={(category) => category.name}
           kind="category"
           save={reorderCategories}
+          invalidateKey={['dish']}
           className="space-y-6"
         >
           {(category, handle) => (
@@ -355,6 +356,7 @@ function CategorySection({
           nameOf={(dish) => dish.name}
           kind="dish"
           save={(ids) => reorderDishes(category.id, ids)}
+          invalidateKey={['dish']}
           className="divide-y divide-border"
           itemClassName="bg-card"
         >

@@ -4,6 +4,324 @@
  */
 
 export interface paths {
+  '/api/admin/floor': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * The admin's whole floor, live and archived, with each table's occupancy.
+     * @description # Errors
+     *
+     *     Returns `401` if nobody is signed in, `403` for a waiter or a chef, and
+     *     `503` if the database is unavailable.
+     */
+    get: operations['admin_floor']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/sections': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Adds a section to the end of the section list.
+     * @description It appears on the admin's screen at once, and on waiters' floors once it
+     *     holds a live table.
+     *
+     *     # Errors
+     *
+     *     Returns `400` naming the field that was not accepted, including
+     *     `fields.name=already_taken`, `401` if nobody is signed in, and `403` for a
+     *     waiter or a chef.
+     */
+    post: operations['create_section']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/sections/order': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Puts the sections in a new order, the order waiters then see.
+     * @description No audit row: a reorder changes no version, so it makes no open form stale.
+     *
+     *     # Errors
+     *
+     *     Returns `409 floor_changed` if the list is not exactly the live sections,
+     *     `401` if nobody is signed in, and `403` for a waiter or a chef.
+     */
+    put: operations['reorder_sections']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/sections/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Renames a section, provided nobody changed it since the form loaded.
+     * @description # Errors
+     *
+     *     Returns `409 section_changed` if the stored version is newer, `404` if
+     *     there is no such live section, `400` naming the field that was not
+     *     accepted, `401` if nobody is signed in, and `403` for a waiter or a chef.
+     */
+    put: operations['rename_section']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/sections/{id}/archive': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Takes a section off the floor. It moves to the Archived section.
+     * @description Refused while it still holds a live table, including one being created in,
+     *     moved into, or restored into it at the same instant.
+     *
+     *     # Errors
+     *
+     *     Returns `409 section_not_empty` if it holds a live table, `404` if there is
+     *     no such live section, `401` if nobody is signed in, and `403` for a waiter
+     *     or a chef.
+     */
+    post: operations['archive_section']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/sections/{id}/restore': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Puts an archived section back at the end of the list, with the chosen
+     *     archived tables that were in it, in one transaction.
+     * @description # Errors
+     *
+     *     Returns `409 name_taken` if a live section now has its name, `409
+     *     labels_taken` with `labels` if a chosen table's label is taken (either
+     *     refusal restores nothing), `400` if an id is not an archived table of this
+     *     section, `404` if there is no such archived section, `401` if nobody is
+     *     signed in, and `403` for a waiter or a chef.
+     */
+    post: operations['restore_section']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/table-order': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Puts one group's tables in a new order, the order waiters then see.
+     * @description A table cannot be dragged into another group here: moving it is an edit.
+     *
+     *     # Errors
+     *
+     *     Returns `409 floor_changed` if the list is not exactly that group's live
+     *     tables, `404` if the section is not a live one, `401` if nobody is signed
+     *     in, and `403` for a waiter or a chef.
+     */
+    put: operations['reorder_tables']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/tables': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Adds one table to the end of its group.
+     * @description It appears on the admin's screen at once, and on every waiter's floor within
+     *     about two seconds.
+     *
+     *     # Errors
+     *
+     *     Returns `400` naming each field that was not accepted, including
+     *     `fields.label=already_taken`, `409 section_archived` if the section has been
+     *     archived, `404` for a section this restaurant does not have, `401` if nobody
+     *     is signed in, and `403` for a waiter or a chef.
+     */
+    post: operations['create_table']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/tables/range': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Adds a numbered range of tables to the end of their group, every one or
+     *     none.
+     * @description # Errors
+     *
+     *     Returns `400` naming each field that was not accepted, `409 labels_taken`
+     *     with `labels` listing every generated label a live table already has (and
+     *     nothing created), `409 section_archived` if the section has been archived,
+     *     `404` for a section this restaurant does not have, `401` if nobody is
+     *     signed in, and `403` for a waiter or a chef.
+     */
+    post: operations['create_table_range']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/tables/{id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    /**
+     * Edits a table's label, seats, or section, provided nobody changed it since
+     *     the form loaded.
+     * @description Allowed while a party sits at it. A changed label reaches every waiter's
+     *     floor, the waiter's table screen, and the kitchen's tickets within about two
+     *     seconds.
+     *
+     *     # Errors
+     *
+     *     Returns `400` naming each field that was not accepted, `409
+     *     section_archived` if the target section has been archived, `409
+     *     table_changed` if the stored version is newer, `404` if there is no such
+     *     live table or section, `401` if nobody is signed in, and `403` for a waiter
+     *     or a chef.
+     */
+    put: operations['edit_table']
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/tables/{id}/archive': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Takes a table off the floor. It moves to the Archived section.
+     * @description Refused while a party sits at it, including one being seated at the same
+     *     instant. Every visit, round, ticket, and bill that named it still resolves.
+     *
+     *     # Errors
+     *
+     *     Returns `409 table_in_use` if it has an open visit, `404` if there is no
+     *     such live table, `401` if nobody is signed in, and `403` for a waiter or a
+     *     chef.
+     */
+    post: operations['archive_table']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/admin/floor/tables/{id}/restore': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Puts an archived table back, at the end of a live section or of the no
+     *     section group. It keeps its label and seats.
+     * @description # Errors
+     *
+     *     Returns `409 name_taken` if a live table now has its label, `409
+     *     section_archived` if the chosen section has been archived, `404` if there
+     *     is no such archived table or section, `401` if nobody is signed in, and
+     *     `403` for a waiter or a chef.
+     */
+    post: operations['restore_table']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/admin/menu': {
     parameters: {
       query?: never
@@ -991,6 +1309,35 @@ export interface components {
        */
       version: number
     }
+    /** @description One group of live tables. */
+    AdminFloorGroupDto: {
+      /**
+       * Format: uuid
+       * @description Which section this is, or `null` for the no section group.
+       */
+      id?: string | null
+      /** @description What it is called, or `null` for the no section group. */
+      name?: string | null
+      /** @description Its live tables, in displayed order. */
+      tables: components['schemas']['AdminTableDto'][]
+      /**
+       * Format: int32
+       * @description Which edit of the section this is, or `null` for the no section group.
+       *     Send it back with a rename.
+       */
+      version?: number | null
+    }
+    /** @description The whole floor as the admin works on it, live and archived. */
+    AdminFloorResponse: {
+      /** @description What has been taken off the floor and can be put back. */
+      archived: components['schemas']['ArchivedFloorDto']
+      /**
+       * @description The live groups in displayed order. The first is always the no section
+       *     group (`id`, `name`, and `version` all `null`), even when it is empty;
+       *     then every live section, empty or not.
+       */
+      groups: components['schemas']['AdminFloorGroupDto'][]
+    }
     /** @description The whole menu as the admin works on it, live and archived. */
     AdminMenuResponse: {
       /** @description What has been taken off the menu and can be put back. */
@@ -1009,6 +1356,31 @@ export interface components {
        *     price may carry.
        */
       currencyDecimals: number
+    }
+    /** @description One live table on the admin's floor. */
+    AdminTableDto: {
+      /**
+       * Format: uuid
+       * @description Which table this is.
+       */
+      id: string
+      /** @description What the staff call it. */
+      label: string
+      /**
+       * @description Whether a party is at it right now. A table with a party at it cannot
+       *     be removed.
+       */
+      occupied: boolean
+      /**
+       * Format: int32
+       * @description How many it seats, when recorded.
+       */
+      seats?: number | null
+      /**
+       * Format: int32
+       * @description Which edit of the table this is. Send it back with an edit.
+       */
+      version: number
     }
     /** @description One archived category. */
     ArchivedCategoryDto: {
@@ -1058,11 +1430,88 @@ export interface components {
       name: string
     }
     /** @description Everything in the Archived section. */
+    ArchivedFloorDto: {
+      /** @description Archived sections, most recently removed first. */
+      sections: components['schemas']['ArchivedSectionDto'][]
+      /** @description Every archived table, in the order they stood before removal. */
+      tables: components['schemas']['ArchivedTableDto'][]
+    }
+    /** @description Everything in the Archived section. */
     ArchivedMenuDto: {
       /** @description Archived categories, most recently removed first. */
       categories: components['schemas']['ArchivedCategoryDto'][]
       /** @description Archived dishes, most recently removed first. */
       dishes: components['schemas']['ArchivedDishDto'][]
+    }
+    /**
+     * @description One archived section, with the archived tables a restore can bring back
+     *     with it.
+     */
+    ArchivedSectionDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the floor.
+       */
+      archivedAt: string
+      /**
+       * Format: uuid
+       * @description Which section this is.
+       */
+      id: string
+      /** @description What it was called. */
+      name: string
+      /** @description The archived tables whose section is this one, in their old order. */
+      tables: components['schemas']['ArchivedSectionTableDto'][]
+    }
+    /** @description One table a section restore can bring back. */
+    ArchivedSectionTableDto: {
+      /**
+       * Format: uuid
+       * @description Which table this is.
+       */
+      id: string
+      /** @description What the staff called it. */
+      label: string
+      /**
+       * Format: int32
+       * @description How many it seated, when recorded.
+       */
+      seats?: number | null
+    }
+    /** @description One archived table, with what the restore dialog needs. */
+    ArchivedTableDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the floor.
+       */
+      archivedAt: string
+      /**
+       * Format: uuid
+       * @description Which table this is.
+       */
+      id: string
+      /** @description What the staff called it. */
+      label: string
+      /**
+       * Format: int32
+       * @description How many it seated, when recorded.
+       */
+      seats?: number | null
+      /**
+       * Format: uuid
+       * @description The section it was in when it was removed, if any.
+       */
+      sectionId?: string | null
+      /**
+       * @description Whether that section is still live. The restore dialog offers it as the
+       *     default only when it is.
+       */
+      sectionLive: boolean
+      /**
+       * @description What that section is called, carried here because it may be archived
+       *     too and so appear nowhere else on the screen.
+       */
+      sectionName?: string | null
     }
     /**
      * @description A bill, open or closed, with every figure it currently carries.
@@ -1200,6 +1649,14 @@ export interface components {
        */
       price: string
     }
+    /** @description What adding a section asks for. */
+    CreateSectionRequest: {
+      /**
+       * @description What it is called. At most 40 characters, unique among live sections
+       *     ignoring letter case.
+       */
+      name: string
+    }
     /** @description What creating a member of staff asks for. */
     CreateStaffRequest: {
       /** @description What to call them on screen. At most 80 characters once trimmed. */
@@ -1213,6 +1670,54 @@ export interface components {
       password: string
       /** @description What they are allowed to be. */
       role: components['schemas']['RoleDto']
+    }
+    /** @description What adding a numbered range of tables asks for. */
+    CreateTableRangeRequest: {
+      /**
+       * Format: int64
+       * @description The first number, 1 to 999.
+       */
+      from: number
+      /**
+       * @description Written before each number. Leading spaces are removed and trailing
+       *     ones kept, so `"Bar "` gives `Bar 1`. Absent or blank means bare
+       *     numbers.
+       */
+      prefix?: string | null
+      /**
+       * Format: int64
+       * @description How many each table seats, a whole number from 1 to 50, or `null`.
+       */
+      seats?: number | null
+      /**
+       * Format: uuid
+       * @description Which live section every table goes in, or `null` for none.
+       */
+      sectionId?: string | null
+      /**
+       * Format: int64
+       * @description The last number, 1 to 999, not below `from`, and at most 50 tables in
+       *     all.
+       */
+      to: number
+    }
+    /** @description What adding one table asks for. */
+    CreateTableRequest: {
+      /**
+       * @description What the staff call it. At most 12 characters, unique among the
+       *     restaurant's live tables ignoring letter case.
+       */
+      label: string
+      /**
+       * Format: int64
+       * @description How many it seats, a whole number from 1 to 50, or `null`.
+       */
+      seats?: number | null
+      /**
+       * Format: uuid
+       * @description Which live section it goes in, or `null` for none.
+       */
+      sectionId?: string | null
     }
     /**
      * @description Whether a dish is veg, non veg, or egg, on the wire.
@@ -1303,6 +1808,30 @@ export interface components {
        */
       version: number
     }
+    /**
+     * @description What editing a table asks for: everything the table should be, and which
+     *     version of it the form loaded.
+     */
+    EditTableRequest: {
+      /** @description What the staff should call it. */
+      label: string
+      /**
+       * Format: int64
+       * @description How many it seats, or `null`.
+       */
+      seats?: number | null
+      /**
+       * Format: uuid
+       * @description Which live section it should be in, or `null` for none. A different
+       *     group moves it to the end of that group.
+       */
+      sectionId?: string | null
+      /**
+       * Format: int32
+       * @description The version the edit form loaded.
+       */
+      version: number
+    }
     /** @description The body every failed request returns. */
     ErrorBody: {
       /**
@@ -1324,7 +1853,8 @@ export interface components {
        *     Each value is one of a closed set of codes: `already_taken`,
        *     `too_short`, `too_long`, `invalid_format`, `unknown_country`,
        *     `not_in_catalogue`, `incorrect`, `required`, `not_a_number`,
-       *     `negative`, `too_large`, `too_many_decimals`.
+       *     `negative`, `too_large`, `too_many_decimals`, `too_small`,
+       *     `before_start`, `too_many`.
        * @example {
        *       "email": "already_taken"
        *     }
@@ -1332,6 +1862,18 @@ export interface components {
       fields?: {
         [key: string]: string
       } | null
+      /**
+       * @description The labels that clashed, present only on `409 labels_taken` and absent
+       *     from every other response.
+       *
+       *     Spelled and ordered as the request would have created them. Empty when
+       *     a label was taken between the check and the write and nothing clashes
+       *     any more, which a screen reads as "try again".
+       * @example [
+       *       "T3"
+       *     ]
+       */
+      labels?: string[] | null
       /**
        * @description A human readable sentence. Never contains internal detail.
        *
@@ -1689,6 +2231,16 @@ export interface components {
        */
       version: number
     }
+    /** @description What renaming a section asks for. */
+    RenameSectionRequest: {
+      /** @description What it should be called. */
+      name: string
+      /**
+       * Format: int32
+       * @description The version the rename form loaded. An older one is refused as stale.
+       */
+      version: number
+    }
     /**
      * @description What a reorder asks for: the complete list, in its new order.
      *
@@ -1760,6 +2312,30 @@ export interface components {
        */
       categoryId: string
     }
+    /** @description What restoring a section asks for. */
+    RestoreSectionRequest: {
+      /**
+       * @description The archived tables of this section to bring back with it. May be
+       *     empty. Each must be an archived table whose section is this one.
+       */
+      tableIds: string[]
+    }
+    /** @description What restoring a table asks for. */
+    RestoreTableRequest: {
+      /**
+       * Format: uuid
+       * @description Which live section to put it in, or `null` for none. The dialog offers
+       *     the table's old section when that is still live.
+       */
+      sectionId?: string | null
+    }
+    /** @description A restored section and the tables that came back with it. */
+    RestoredSectionDto: {
+      /** @description The section, live again at the end of the list. */
+      section: components['schemas']['SectionDto']
+      /** @description The tables restored into it, in their order. */
+      tables: components['schemas']['TableDto'][]
+    }
     /**
      * @description What a member of staff is allowed to be, on the wire.
      *
@@ -1774,6 +2350,31 @@ export interface components {
      * @enum {string}
      */
     RoundStatusDto: 'queued' | 'ready' | 'served' | 'voided'
+    /** @description One section, as a write on it answers. */
+    SectionDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the floor, or `null` while it is on it.
+       */
+      archivedAt?: string | null
+      /**
+       * Format: uuid
+       * @description Which section this is.
+       */
+      id: string
+      /** @description What it is called. */
+      name: string
+      /**
+       * Format: int32
+       * @description Which edit of the section this is.
+       */
+      version: number
+    }
+    /** @description What reordering the sections asks for: the complete list, in its new order. */
+    SectionOrderRequest: {
+      /** @description Every live section id, each exactly once, in the new order. */
+      ids: string[]
+    }
     /** @description One dish in the basket. */
     SendRoundLine: {
       /**
@@ -1918,6 +2519,46 @@ export interface components {
        */
       entity_id: string
     }
+    /** @description One table, as a write on it answers. */
+    TableDto: {
+      /**
+       * Format: date-time
+       * @description When it was taken off the floor, or `null` while it is on it.
+       */
+      archivedAt?: string | null
+      /**
+       * Format: uuid
+       * @description Which table this is.
+       */
+      id: string
+      /** @description What the staff call it. */
+      label: string
+      /**
+       * Format: int32
+       * @description How many it seats, when recorded.
+       */
+      seats?: number | null
+      /**
+       * Format: uuid
+       * @description Which section it is in, or `null`.
+       */
+      sectionId?: string | null
+      /**
+       * Format: int32
+       * @description Which edit of the table this is.
+       */
+      version: number
+    }
+    /** @description What reordering one group of tables asks for. */
+    TableOrderRequest: {
+      /** @description Every live table of that group, each exactly once, in the new order. */
+      ids: string[]
+      /**
+       * Format: uuid
+       * @description Which group: a live section, or `null` for the no section group.
+       */
+      sectionId?: string | null
+    }
     /**
      * @description What somebody may change about their own account.
      *
@@ -2007,6 +2648,741 @@ export interface components {
 }
 export type $defs = Record<string, never>
 export interface operations {
+  admin_floor: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The whole floor, live and archived. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AdminFloorResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  create_section: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateSectionRequest']
+      }
+    }
+    responses: {
+      /** @description The section, at the end of the list. Admins only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SectionDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  reorder_sections: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SectionOrderRequest']
+      }
+    }
+    responses: {
+      /** @description The live sections in their new order. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SectionDto'][]
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `floor_changed`: the list is not the live set any more. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  rename_section: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The section to rename. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RenameSectionRequest']
+      }
+    }
+    responses: {
+      /** @description The renamed section. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SectionDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `section_changed`: somebody changed it after the form loaded. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  archive_section: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The section to remove. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The archived section. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SectionDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `section_not_empty`: it still holds a live table. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  restore_section: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The archived section to put back. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RestoreSectionRequest']
+      }
+    }
+    responses: {
+      /** @description The section, live again, and its restored tables. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RestoredSectionDto']
+        }
+      }
+      /** @description An id is not an archived table of this section. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such archived section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `name_taken`, or `labels_taken` with the clashing `labels`. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  reorder_tables: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['TableOrderRequest']
+      }
+    }
+    responses: {
+      /** @description The group's live tables in their new order. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TableDto'][]
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `floor_changed`: the list is not the live set any more. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  create_table: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateTableRequest']
+      }
+    }
+    responses: {
+      /** @description The table, at the end of its group. Admins only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TableDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `section_archived`: that section is no longer on the floor. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  create_table_range: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateTableRangeRequest']
+      }
+    }
+    responses: {
+      /** @description The created tables, in number order. Admins only. */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TableDto'][]
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `labels_taken` with the clashing `labels`, or `section_archived`. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  edit_table: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The table to edit. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EditTableRequest']
+      }
+    }
+    responses: {
+      /** @description The table after the edit. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TableDto']
+        }
+      }
+      /** @description A field was not accepted. */
+      400: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live table or section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `section_archived` or `table_changed`. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  archive_table: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The table to remove. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The archived table. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TableDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such live table. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `table_in_use`: a party is at it. Close the table first. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  restore_table: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The archived table to put back. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RestoreTableRequest']
+      }
+    }
+    responses: {
+      /** @description The table, live again. Admins only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['TableDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not an admin. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such archived table or section. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `name_taken` or `section_archived`. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   admin_menu: {
     parameters: {
       query?: never

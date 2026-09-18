@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE table_sections AS s\n        SET position = o.n::int, updated_at = now()\n        FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id, n)\n        WHERE s.id = o.id\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c4687b22dc379a130228dbe3a9bb8911dcd3b6e24aa30ac98d012847d4da1c73"
+}

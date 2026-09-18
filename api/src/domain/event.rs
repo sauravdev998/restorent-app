@@ -30,8 +30,10 @@ pub enum EntityKind {
     Dish,
     /// A menu category was added, renamed, reordered, archived, or restored.
     MenuCategory,
-    /// A table was added, renamed, or archived.
+    /// A table was added, edited, moved, reordered, archived, or restored.
     DiningTable,
+    /// A table section was added, renamed, reordered, archived, or restored.
+    TableSection,
     /// A staff account changed.
     Staff,
 
@@ -58,6 +60,7 @@ impl EntityKind {
             Self::Dish => "dish",
             Self::MenuCategory => "menu_category",
             Self::DiningTable => "dining_table",
+            Self::TableSection => "table_section",
             Self::Staff => "staff",
             Self::Probe => "probe",
         }
@@ -88,7 +91,7 @@ mod tests {
     /// Every kind, in one place, so the tests below cover all of them.
     ///
     /// Kept honest by [`position`], the same way `domain::audit` does it.
-    const ALL: [EntityKind; 9] = [
+    const ALL: [EntityKind; 10] = [
         EntityKind::Visit,
         EntityKind::OrderRound,
         EntityKind::OrderLine,
@@ -96,6 +99,7 @@ mod tests {
         EntityKind::Dish,
         EntityKind::MenuCategory,
         EntityKind::DiningTable,
+        EntityKind::TableSection,
         EntityKind::Staff,
         EntityKind::Probe,
     ];
@@ -114,8 +118,9 @@ mod tests {
             EntityKind::Dish => 4,
             EntityKind::MenuCategory => 5,
             EntityKind::DiningTable => 6,
-            EntityKind::Staff => 7,
-            EntityKind::Probe => 8,
+            EntityKind::TableSection => 7,
+            EntityKind::Staff => 8,
+            EntityKind::Probe => 9,
         }
     }
 
@@ -197,7 +202,7 @@ mod tests {
     #[test]
     fn an_entity_string_this_process_does_not_know_is_refused_rather_than_guessed() {
         assert!(
-            serde_json::from_str::<EntityKind>("\"table_section\"").is_err(),
+            serde_json::from_str::<EntityKind>("\"floor_plan\"").is_err(),
             "an unknown entity string decoded to something"
         );
         assert!(

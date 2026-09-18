@@ -140,6 +140,9 @@ pub struct TableSection {
     pub name: String,
     /// Where it sits in the displayed order.
     pub position: i32,
+    /// Which edit of the row this is. A rename naming an older one is refused
+    /// as stale rather than written over somebody else's change.
+    pub version: i32,
     /// When it was archived, if it was.
     pub archived_at: Option<DateTime<Utc>>,
 }
@@ -157,6 +160,39 @@ pub struct DiningTable {
     pub seats: Option<i16>,
     /// Where it sits in the displayed order.
     pub position: i32,
+    /// Which edit of the row this is. An edit naming an older one is refused
+    /// as stale. A reorder does not change it.
+    pub version: i32,
     /// When it was archived, if it was.
     pub archived_at: Option<DateTime<Utc>>,
+}
+
+/// A live table as the admin's floor shows it: the table, and whether a party
+/// is at it.
+///
+/// Occupancy is not a table state. It is whether an open visit exists, read in
+/// the same snapshot as the table, so the admin can see why a table cannot be
+/// removed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdminFloorTable {
+    /// The table itself.
+    pub table: DiningTable,
+    /// Whether it has an open visit right now.
+    pub occupied: bool,
+}
+
+/// A table taken off the floor, with what the admin needs to put it back.
+///
+/// Its section is carried by name as well as by id, because the section may
+/// have been archived too, and then appears nowhere else the screen could look
+/// its name up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchivedTable {
+    /// The table itself, with `archived_at` set.
+    pub table: DiningTable,
+    /// What its old section is called, when it had one.
+    pub section_name: Option<String>,
+    /// Whether that section is still live, and so can take the table back.
+    /// False when it had no section.
+    pub section_live: bool,
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, position, archived_at\n        FROM table_sections\n        WHERE archived_at IS NULL\n        ORDER BY position, name\n        ",
+  "query": "\n        SELECT id, name, position, version, archived_at\n        FROM table_sections\n        WHERE archived_at IS NOT NULL\n        ORDER BY archived_at DESC, name, id\n        ",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "table_sections",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "archived_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -55,8 +66,9 @@
       false,
       false,
       false,
+      false,
       true
     ]
   },
-  "hash": "0e63e147f6433d82bde2f600858f74d94aabdc9cfb23fec60468ec26e3336c17"
+  "hash": "ec012b6e7696af0812de80c73827cc3a47efcdfa9d2d6f5860488295614f3203"
 }

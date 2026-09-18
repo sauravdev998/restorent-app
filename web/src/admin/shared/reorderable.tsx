@@ -30,7 +30,46 @@ import { Icon } from '@/shared/ui/icon'
 import { showToast } from '@/shared/ui/toast-store'
 
 /** What is being ordered, which decides the words a screen reader hears. */
-export type ReorderKind = 'dish' | 'category'
+export type ReorderKind = 'dish' | 'category' | 'table' | 'section'
+
+/** The keys, in the `admin` namespace, of what a screen reader hears per kind. */
+interface ReorderWords {
+  /** The handle's name, given `name`. */
+  move: string
+  /** What the handle is called instead of dnd-kit's English word. */
+  role: string
+  /** How to move one with the keyboard. */
+  instructions: string
+  /** The sentences for each step, sharing one set of interpolations. */
+  steps: string
+}
+
+const WORDS: Readonly<Record<ReorderKind, ReorderWords>> = {
+  dish: {
+    move: 'menu.order.moveDish',
+    role: 'menu.order.dishRole',
+    instructions: 'menu.order.dishInstructions',
+    steps: 'menu.order',
+  },
+  category: {
+    move: 'menu.order.moveCategory',
+    role: 'menu.order.categoryRole',
+    instructions: 'menu.order.categoryInstructions',
+    steps: 'menu.order',
+  },
+  table: {
+    move: 'floor.order.moveTable',
+    role: 'floor.order.tableRole',
+    instructions: 'floor.order.tableInstructions',
+    steps: 'floor.order',
+  },
+  section: {
+    move: 'floor.order.moveSection',
+    role: 'floor.order.sectionRole',
+    instructions: 'floor.order.sectionInstructions',
+    steps: 'floor.order',
+  },
+}
 
 export interface ReorderableListProps<T extends { id: string }> {
   /** The items in the server's order. */
@@ -40,6 +79,11 @@ export interface ReorderableListProps<T extends { id: string }> {
   kind: ReorderKind
   /** Saves the complete new order. Rejects when the server refuses it. */
   save: (ids: string[]) => Promise<unknown>
+  /**
+   * The query key prefix to read again once the save is settled, whether it
+   * was taken or refused.
+   */
+  invalidateKey: readonly string[]
   /** Renders one item's content, given the drag handle to put in it. */
   children: (item: T, handle: ReactNode) => ReactNode
   /** Classes for the list element itself. */
@@ -50,7 +94,7 @@ export interface ReorderableListProps<T extends { id: string }> {
 
 /**
  * A list an admin reorders by dragging, with a mouse, a finger, or the keyboard
- * alone, on dnd-kit underneath.
+ * alone, on dnd-kit underneath. Used by the menu screen and the floor screen.
  *
  * **Only the handle drags.** The rest of each row stays clickable, so an edit
  * button or a switch inside a row is never the start of an accidental drag.
@@ -59,25 +103,27 @@ export interface ReorderableListProps<T extends { id: string }> {
  *
  * **Every word a screen reader hears is translated.** dnd-kit's own
  * announcements and its instructions are English; these are the admin's
- * language, naming the dish or category and its position out of how many.
+ * language, naming the item and its position out of how many.
  *
  * **The dropped order is held here while it saves, never in the query cache.**
  * That is spec 0007's rule of no cache optimism kept: the list shows where the
  * admin put things at once, and nothing is written into the cache ahead of the
- * server. On success the menus are refetched and the held order let go once
- * the refetch has landed. On refusal, `menu_changed` most often because a dish
- * was added or removed mid drag, the held order is dropped, the menus are
- * refetched, and the list shows the server's current order with a message
- * saying why, never the stale order held before the conflict.
+ * server. On success the screen's data is refetched and the held order let go
+ * once the refetch has landed. On refusal (`menu_changed` or `floor_changed`,
+ * most often because something was added or removed mid drag) the held order
+ * is dropped, the data is refetched, and the list shows the server's current
+ * order with a message saying why, never the stale order held before the
+ * conflict.
  *
- * Nothing can be dragged out of this list into another one. A dish moves to
- * another category through its edit form, where its version is checked.
+ * Nothing can be dragged out of this list into another one. A dish or a table
+ * moves to another group through its edit form, where its version is checked.
  */
 export function ReorderableList<T extends { id: string }>({
   items,
   nameOf,
   kind,
   save,
+  invalidateKey,
   children,
   className,
   itemClassName,
@@ -100,12 +146,12 @@ export function ReorderableList<T extends { id: string }>({
   const reorder = useMutation({
     mutationFn: (ids: string[]) => save(ids),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['dish'] })
+      await queryClient.invalidateQueries({ queryKey: invalidateKey })
     },
     onError: async (error: unknown) => {
       setHeld(null)
       showToast({ title: apiErrorMessage(failureBody(error), common), tone: 'late' })
-      await queryClient.invalidateQueries({ queryKey: ['dish'] })
+      await queryClient.invalidateQueries({ queryKey: invalidateKey })
     },
     onSettled: (_saved, _error, ids: string[]) => {
       // Only the order this save placed. A second drop made while the first
@@ -129,11 +175,12 @@ export function ReorderableList<T extends { id: string }>({
     return item ? nameOf(item) : ''
   }
   const position = (id: UniqueIdentifier): number => ids.indexOf(String(id)) + 1
+  const words = WORDS[kind]
 
   const announcements: Announcements = {
     onDragStart: ({ active }) => {
       lastOver.current = active.id
-      return t('menu.order.pickedUp', {
+      return t(`${words.steps}.pickedUp`, {
         name: name(active.id),
         position: position(active.id),
         total: ids.length,
@@ -145,23 +192,23 @@ export function ReorderableList<T extends { id: string }>({
       lastOver.current = overId
 
       return over
-        ? t('menu.order.movedTo', {
+        ? t(`${words.steps}.movedTo`, {
             name: name(active.id),
             position: position(over.id),
             total: ids.length,
           })
-        : t('menu.order.outside', { name: name(active.id) })
+        : t(`${words.steps}.outside`, { name: name(active.id) })
     },
     onDragEnd: ({ active, over }) =>
       over
-        ? t('menu.order.dropped', {
+        ? t(`${words.steps}.dropped`, {
             name: name(active.id),
             position: position(over.id),
             total: ids.length,
           })
-        : t('menu.order.droppedBack', { name: name(active.id) }),
+        : t(`${words.steps}.droppedBack`, { name: name(active.id) }),
     onDragCancel: ({ active }) =>
-      t('menu.order.cancelled', {
+      t(`${words.steps}.cancelled`, {
         name: name(active.id),
         position: position(active.id),
         total: ids.length,
@@ -187,12 +234,7 @@ export function ReorderableList<T extends { id: string }>({
       modifiers={[upAndDownOnly]}
       accessibility={{
         announcements,
-        screenReaderInstructions: {
-          draggable:
-            kind === 'dish'
-              ? t('menu.order.dishInstructions')
-              : t('menu.order.categoryInstructions'),
-        },
+        screenReaderInstructions: { draggable: t(words.instructions) },
       }}
       onDragEnd={onDragEnd}
     >
@@ -206,12 +248,8 @@ export function ReorderableList<T extends { id: string }>({
               <SortableItem
                 key={id}
                 id={id}
-                label={t(kind === 'dish' ? 'menu.order.moveDish' : 'menu.order.moveCategory', {
-                  name: nameOf(item),
-                })}
-                roleDescription={
-                  kind === 'dish' ? t('menu.order.dishRole') : t('menu.order.categoryRole')
-                }
+                label={t(words.move, { name: nameOf(item) })}
+                roleDescription={t(words.role)}
                 className={itemClassName}
               >
                 {(handle) => children(item, handle)}
@@ -227,7 +265,7 @@ export function ReorderableList<T extends { id: string }>({
 /**
  * Keeps a dragged row in its column.
  *
- * The lists are vertical, so sideways movement means nothing and only makes a
+ * Every list is vertical, so sideways movement means nothing and only makes a
  * row look as if it could be dropped somewhere it cannot.
  */
 const upAndDownOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 })

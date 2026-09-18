@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::catalog::TableSection;
 use crate::domain::enums::{LineStatus, RoundStatus};
 use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::ids::{
@@ -31,7 +32,7 @@ use crate::domain::ids::{
 };
 use crate::domain::service::{FloorTable, NewOrderLine};
 use crate::infrastructure::db::ScopedTx;
-use crate::infrastructure::db::repository::{billing, catalog, service};
+use crate::infrastructure::db::repository::{billing, floor, service};
 use crate::presentation::dto::{LineStatusDto, OrderLineDto, OrderRoundDto, RoundStatusDto};
 use crate::presentation::error::{ApiError, ErrorBody};
 use crate::presentation::extract::{Actor, Chef, JsonBody, Waiter};
@@ -120,24 +121,35 @@ pub async fn floor(
         .begin_scoped_snapshot(actor.restaurant_id())
         .await?;
 
-    let sections = catalog::live_table_sections(&mut tx).await?;
+    let sections = floor::live_table_sections(&mut tx).await?;
     let tables = service::floor(&mut tx).await?;
 
     tx.commit().await?;
 
+    Ok(Json(FloorResponse {
+        sections: group_floor(sections, &tables),
+    }))
+}
+
+/// The floor in walking order: each live section that holds a live table, then
+/// the tables no live section holds.
+///
+/// A section with no live table is left out, so a waiter never reads a heading
+/// with nothing under it. A table can belong to no section at all, or to one
+/// archived before spec 0010 made that impossible. It is still a table somebody
+/// sits at, so it goes into a group of its own at the end rather than
+/// disappearing from the floor.
+fn group_floor(sections: Vec<TableSection>, tables: &[FloorTable]) -> Vec<FloorSectionDto> {
     let mut grouped: Vec<FloorSectionDto> = sections
         .into_iter()
         .map(|section| FloorSectionDto {
             id: Some(section.id.as_uuid()),
             name: Some(section.name),
-            tables: tables_in(&tables, Some(section.id.as_uuid())),
+            tables: tables_in(tables, Some(section.id.as_uuid())),
         })
         .filter(|section| !section.tables.is_empty())
         .collect();
 
-    // A table can belong to no section at all, or to one that has since been
-    // archived. It is still a table somebody sits at, so it goes into a group of
-    // its own at the end rather than disappearing from the floor.
     let named: Vec<Uuid> = grouped.iter().filter_map(|section| section.id).collect();
 
     let loose: Vec<FloorTableDto> = tables
@@ -159,7 +171,7 @@ pub async fn floor(
         });
     }
 
-    Ok(Json(FloorResponse { sections: grouped }))
+    grouped
 }
 
 /// The tables belonging to one section, in the order the read returned them.
@@ -625,4 +637,102 @@ async fn serve_every_ready_line(tx: &mut ScopedTx<'_>, round_id: OrderRoundId) -
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::domain::catalog::DiningTable;
+
+    fn section(name: &str, position: i32) -> TableSection {
+        TableSection {
+            id: TableSectionId::new(),
+            name: name.to_owned(),
+            position,
+            version: 1,
+            archived_at: None,
+        }
+    }
+
+    fn table(label: &str, section_id: Option<TableSectionId>) -> FloorTable {
+        FloorTable {
+            table: DiningTable {
+                id: DiningTableId::new(),
+                section_id,
+                label: label.to_owned(),
+                seats: Some(4),
+                position: 1,
+                version: 1,
+                archived_at: None,
+            },
+            occupancy: None,
+        }
+    }
+
+    fn shape(groups: &[FloorSectionDto]) -> Vec<(Option<String>, Vec<String>)> {
+        groups
+            .iter()
+            .map(|group| {
+                (
+                    group.name.clone(),
+                    group.tables.iter().map(|t| t.label.clone()).collect(),
+                )
+            })
+            .collect()
+    }
+
+    /// covers: AC-2, AC-15 (spec 0010)
+    ///
+    /// A section whose tables are all archived, or that has none yet, is not a
+    /// heading on the waiter's floor. The read only returns live tables, so an
+    /// archived one is simply absent from `tables` here.
+    #[test]
+    fn a_section_with_no_live_table_is_left_off_the_waiter_floor() {
+        let terrace = section("Terrace", 1);
+        let garden = section("Garden", 2);
+        let tables = [table("T1", Some(terrace.id)), table("T2", Some(terrace.id))];
+
+        let groups = group_floor(vec![terrace, garden], &tables);
+
+        assert_eq!(
+            shape(&groups),
+            [(
+                Some("Terrace".to_owned()),
+                vec!["T1".to_owned(), "T2".to_owned()]
+            )]
+        );
+    }
+
+    /// covers: AC-15 (spec 0010)
+    ///
+    /// A table with no section, or with a section that is no longer live, goes
+    /// in its own group at the end, with no name for the screen to translate.
+    #[test]
+    fn a_table_no_live_section_holds_goes_in_a_group_of_its_own_at_the_end() {
+        let terrace = section("Terrace", 1);
+        let gone = TableSectionId::new();
+        let tables = [
+            table("Counter", None),
+            table("T1", Some(terrace.id)),
+            table("Old", Some(gone)),
+        ];
+
+        let groups = group_floor(vec![terrace], &tables);
+
+        assert_eq!(
+            shape(&groups),
+            [
+                (Some("Terrace".to_owned()), vec!["T1".to_owned()]),
+                (None, vec!["Counter".to_owned(), "Old".to_owned()]),
+            ]
+        );
+        assert!(groups.last().is_some_and(|group| group.id.is_none()));
+    }
+
+    /// covers: AC-15 (spec 0010)
+    #[test]
+    fn a_restaurant_with_no_live_table_has_no_groups_at_all() {
+        assert!(group_floor(vec![section("Terrace", 1)], &[]).is_empty());
+    }
 }

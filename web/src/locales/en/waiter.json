@@ -9,7 +9,9 @@
     "openedBy": "Opened by {{name}} at {{at}}",
     "unsectioned": "Other tables",
     "emptyTitle": "No tables yet",
-    "emptyBody": "An admin adds the restaurant's tables before orders can be taken."
+    "emptyBody": "Ask your admin to add the tables. They appear here as soon as they are added.",
+    "seats_one": "Seats {{count}}",
+    "seats_other": "Seats {{count}}"
   },
   "table": {
     "title": "Table {{label}}",

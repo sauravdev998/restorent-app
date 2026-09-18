@@ -1,0 +1,105 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.version, t.archived_at,\n               EXISTS (\n                   SELECT 1 FROM visits AS v\n                   WHERE v.table_id = t.id AND v.status = 'open'\n               ) AS \"occupied!\"\n        FROM dining_tables AS t\n        WHERE t.archived_at IS NULL\n        ORDER BY t.position, t.label, t.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "section_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "section_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "label",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "seats",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "seats"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "position"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "archived_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "archived_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "occupied!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "ee069165a2c3e06580959d20bd40cbfe801c14bfd60f8699a3dc2326e084186f"
+}

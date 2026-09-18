@@ -102,6 +102,9 @@ export function SurfaceShell({
                     <ShellLink to="/admin/menu">{t('nav.menu')}</ShellLink>
                   </li>
                   <li>
+                    <ShellLink to="/admin/floor">{t('nav.tables')}</ShellLink>
+                  </li>
+                  <li>
                     <ShellLink to="/admin/staff">{t('nav.staff')}</ShellLink>
                   </li>
                   <li>

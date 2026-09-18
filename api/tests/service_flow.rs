@@ -8,7 +8,7 @@ use api::domain::enums::{LineStatus, RoundStatus, VisitStatus};
 use api::domain::error::{ConflictKind, DomainError};
 use api::domain::ids::RestaurantId;
 use api::domain::service::NewOrderLine;
-use api::infrastructure::db::repository::{billing, catalog, service, staff};
+use api::infrastructure::db::repository::{billing, catalog, floor, service, staff};
 
 /// One dish, the usual way to order it.
 fn one(dish_id: api::domain::ids::DishId) -> Vec<NewOrderLine> {
@@ -377,7 +377,7 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
         2
     );
     assert_eq!(
-        catalog::live_dining_tables(&mut tx)
+        floor::live_dining_tables(&mut tx)
             .await
             .expect("reading")
             .len(),
@@ -398,7 +398,7 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     catalog::archive_dish(&mut tx, f.steak, f.admin)
         .await
         .expect("archiving the steak");
-    catalog::archive_dining_table(&mut tx, f.table_two)
+    floor::archive_dining_table(&mut tx, f.table_two, f.admin)
         .await
         .expect("archiving a table");
     catalog::archive_menu_category(&mut tx, f.category, f.admin)
@@ -418,7 +418,7 @@ async fn archiving_hides_without_breaking_what_referred_to_it() {
     );
 
     assert_eq!(
-        catalog::live_dining_tables(&mut tx)
+        floor::live_dining_tables(&mut tx)
             .await
             .expect("reading tables")
             .len(),

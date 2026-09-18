@@ -25,6 +25,7 @@ export const ENTITY_KINDS = [
   'dish',
   'menu_category',
   'dining_table',
+  'table_section',
   'staff',
   'probe',
 ] as const
@@ -34,6 +35,16 @@ export type EntityKind = (typeof ENTITY_KINDS)[number]
 
 /** The floor: every live table and its occupancy. */
 export const floorKey = ['visit', 'floor'] as const
+
+/**
+ * The admin's whole floor, live and archived, with each table's occupancy.
+ *
+ * Under the waiter's floor key, and so under `visit`, on purpose: every `visit`
+ * event (a table opened or closed) already invalidates `['visit']`, which is
+ * what keeps the admin's occupied mark current with no row of its own below.
+ * An admin floor write invalidates `floorKey` on success, which reaches both.
+ */
+export const adminFloorKey = ['visit', 'floor', 'admin'] as const
 
 /** One table's whole meal. */
 export function visitKey(visitId: string) {
@@ -86,6 +97,11 @@ export const staffKey = ['staff', 'list'] as const
  * the same two menus a dish does, and nothing else: no open table holds a
  * category of its own, so `visit` is left alone.
  *
+ * A table changing reaches both floors and every open table under `visit`, and
+ * the kitchen queue, because the table screen and every ticket show its label
+ * and read it live. A section changing reaches the two floors only, which
+ * `visit` covers; nothing else shows a section's name.
+ *
  * `probe` invalidates nothing. It carries no product meaning: it exists so the
  * development endpoint can prove the whole path with no data behind it.
  */
@@ -96,7 +112,8 @@ export const FAN_OUT: Readonly<Record<EntityKind, readonly (readonly string[])[]
   bill: [['visit']],
   dish: [['dish'], ['visit']],
   menu_category: [['dish']],
-  dining_table: [floorKey],
+  dining_table: [['visit'], kitchenKey],
+  table_section: [['visit']],
   staff: [floorKey],
   probe: [],
 }

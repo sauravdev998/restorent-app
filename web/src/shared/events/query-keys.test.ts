@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  adminFloorKey,
   adminMenuKey,
   ENTITY_KINDS,
   FAN_OUT,
@@ -52,10 +53,30 @@ describe('the fan out map', () => {
     expect(adminMenuKey).not.toEqual(menuKey)
   }) // covers: AC-18 (spec 0008)
 
-  it('sends a table or staff change only to the floor', () => {
-    expect(FAN_OUT.dining_table).toEqual([floorKey])
+  it('sends a staff change only to the floor', () => {
     expect(FAN_OUT.staff).toEqual([floorKey])
   }) // covers: AC-15
+
+  it('sends a table change to both floors, every open table, and the kitchen', () => {
+    // A renamed table is shown on the waiter's table screen and on every
+    // ticket, both read live, so both have to hear about it.
+    expect(FAN_OUT.dining_table.map((key) => key.join('/'))).toEqual([
+      'visit',
+      'order_round/kitchen',
+    ])
+  }) // covers: AC-5, AC-18 (spec 0010)
+
+  it('sends a section change to the two floors and to nothing else', () => {
+    expect(FAN_OUT.table_section.map((key) => key.join('/'))).toEqual(['visit'])
+  }) // covers: AC-18 (spec 0010)
+
+  it('keeps the admin floor under the prefix a visit event already refreshes', () => {
+    // No row of its own: a table opening or closing reaches the admin's
+    // occupied mark through `visit`, and an admin write reaches both floors
+    // through the waiter floor's key.
+    expect(adminFloorKey.slice(0, floorKey.length)).toEqual([...floorKey])
+    expect(FAN_OUT.visit).toEqual([['visit']])
+  }) // covers: AC-14, AC-18 (spec 0010)
 
   it('sends a probe nowhere at all', () => {
     // It carries no product meaning. Invalidating on it would send every open
@@ -79,7 +100,14 @@ describe('the query keys', () => {
     // This is the mechanism, not a naming convention: an event can invalidate
     // exactly the queries built from its entity because those queries are the
     // ones whose key begins with that word.
-    for (const key of [floorKey, visitKey('any-visit'), kitchenKey, menuKey, adminMenuKey]) {
+    for (const key of [
+      floorKey,
+      adminFloorKey,
+      visitKey('any-visit'),
+      kitchenKey,
+      menuKey,
+      adminMenuKey,
+    ]) {
       const [first] = key
       expect(first).toBeDefined()
       expect(
@@ -105,12 +133,13 @@ describe('isEntityKind', () => {
     expect(isEntityKind('order_round')).toBe(true)
     expect(isEntityKind('visit')).toBe(true)
     expect(isEntityKind('menu_category')).toBe(true)
+    expect(isEntityKind('table_section')).toBe(true)
   }) // covers: AC-15
 
   it('refuses anything else rather than guessing', () => {
     // Acting on the wrong entity is a bug a user sees; a dropped event is one
     // the next stream open fixes.
-    expect(isEntityKind('table_section')).toBe(false)
+    expect(isEntityKind('floor_plan')).toBe(false)
     expect(isEntityKind('orderround')).toBe(false)
     expect(isEntityKind('')).toBe(false)
   }) // covers: AC-15

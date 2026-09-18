@@ -180,7 +180,7 @@ pub async fn lines_for_round(
 pub async fn floor(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<FloorTable>> {
     let rows = sqlx::query!(
         r#"
-        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.archived_at,
+        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.version, t.archived_at,
                v.id            AS "visit_id?",
                v.opened_at     AS "opened_at?",
                v.guest_count   AS "guest_count?",
@@ -194,7 +194,7 @@ pub async fn floor(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<FloorTable>> {
         LEFT JOIN visits AS v ON v.table_id = t.id AND v.status = 'open'
         LEFT JOIN staff AS opener ON opener.id = v.opened_by_staff_id
         WHERE t.archived_at IS NULL
-        ORDER BY s.position NULLS LAST, s.name NULLS LAST, t.position, t.label
+        ORDER BY s.position NULLS LAST, s.name NULLS LAST, t.position, t.label, t.id
         "#
     )
     .fetch_all(tx.connection())
@@ -225,6 +225,7 @@ pub async fn floor(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<FloorTable>> {
                     label: row.label,
                     seats: row.seats,
                     position: row.position,
+                    version: row.version,
                     archived_at: row.archived_at,
                 },
                 occupancy,
@@ -889,10 +890,17 @@ async fn recompute_round_status(
     Ok(next)
 }
 
-/// Refuses a table that is archived or is not this restaurant's.
+/// Refuses a table that is archived or is not this restaurant's, and holds it
+/// live until the transaction ends.
+///
+/// `FOR SHARE`, which conflicts with the `FOR UPDATE` an admin's archive takes
+/// (`floor::archive_dining_table`). Whichever comes second waits for the first
+/// and then sees its committed result, so a party is never seated at a table
+/// that was removed at the same instant, and a table is never removed from
+/// under a party seated at that instant.
 async fn require_live_table(tx: &mut ScopedTx<'_>, table_id: DiningTableId) -> DomainResult<()> {
     let live = sqlx::query!(
-        "SELECT id FROM dining_tables WHERE id = $1 AND archived_at IS NULL",
+        "SELECT id FROM dining_tables WHERE id = $1 AND archived_at IS NULL FOR SHARE",
         table_id.as_uuid()
     )
     .fetch_optional(tx.connection())

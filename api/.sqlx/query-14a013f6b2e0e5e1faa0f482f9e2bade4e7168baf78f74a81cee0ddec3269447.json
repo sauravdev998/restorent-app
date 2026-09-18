@@ -1,0 +1,102 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE dining_tables AS t\n        SET archived_at = NULL, section_id = $2, position = ($3::int + o.n - 1)::int,\n            version = t.version + 1, updated_at = now()\n        FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id, n)\n        WHERE t.id = o.id AND t.archived_at IS NOT NULL\n        RETURNING t.id, t.section_id, t.label, t.seats, t.position, t.version, t.archived_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "section_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "section_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "label",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "seats",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "seats"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "position"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "archived_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "archived_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "14a013f6b2e0e5e1faa0f482f9e2bade4e7168baf78f74a81cee0ddec3269447"
+}

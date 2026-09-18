@@ -42,6 +42,12 @@ pub enum FieldError {
     TooLarge,
     /// More decimal places than the currency writes, such as `12.345` rupees.
     TooManyDecimals,
+    /// Below the least a value may be, such as a table seating nobody.
+    TooSmall,
+    /// The end of a range comes before its start.
+    BeforeStart,
+    /// The range covers more items than one step may add.
+    TooMany,
 }
 
 impl FieldError {
@@ -61,6 +67,9 @@ impl FieldError {
             Self::Negative => "negative",
             Self::TooLarge => "too_large",
             Self::TooManyDecimals => "too_many_decimals",
+            Self::TooSmall => "too_small",
+            Self::BeforeStart => "before_start",
+            Self::TooMany => "too_many",
         }
     }
 }
@@ -114,8 +123,10 @@ impl FieldErrors {
 ///
 /// Two variants carry the status they expected rather than naming it, because
 /// the same conditional update helper raises them for several expectations and
-/// the code has to say which one was missed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// the code has to say which one was missed. One more,
+/// [`Self::LabelsTaken`], carries the labels that clashed, which is why this
+/// type is not `Copy`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ConflictKind {
     /// That table already has a party at it.
@@ -187,6 +198,29 @@ pub enum ConflictKind {
     /// needs it on. Also what a caller reading it gets when they try to bring
     /// back an account that was already active.
     StaffInactive,
+    /// The table has a party at it, so it cannot be taken off the floor.
+    TableInUse,
+    /// The table changed after the edit form loaded it.
+    TableChanged,
+    /// The section was renamed, archived, or restored after the rename form
+    /// loaded it.
+    SectionChanged,
+    /// The section still holds a live table, so archiving it would hide that
+    /// table from the floor.
+    SectionNotEmpty,
+    /// The section a table is being put into has been archived.
+    SectionArchived,
+    /// A reorder named a different set of sections or tables from the live
+    /// one, because something was added, moved, or removed meanwhile.
+    FloorChanged,
+    /// Some of the labels a range or a section restore would create already
+    /// belong to a live table.
+    ///
+    /// Carries those labels, spelled and ordered as the request would have
+    /// created them, so the admin sees every clash at once. Empty when a
+    /// colleague took a label between the check and the write and had removed
+    /// it again by the time the handler looked.
+    LabelsTaken(Vec<String>),
 }
 
 impl ConflictKind {
@@ -195,7 +229,7 @@ impl ConflictKind {
     /// Total over both carried enums, so a status that no repository currently
     /// expects still produces a real code rather than borrowing another one's.
     #[must_use]
-    pub const fn as_code(self) -> &'static str {
+    pub const fn as_code(&self) -> &'static str {
         match self {
             Self::TableOccupied => "table_occupied",
             Self::VisitNot(VisitStatus::Open) => "visit_not_open",
@@ -226,6 +260,13 @@ impl ConflictKind {
             Self::LastAdmin => "last_admin",
             Self::CannotActOnSelf => "cannot_act_on_self",
             Self::StaffInactive => "staff_inactive",
+            Self::TableInUse => "table_in_use",
+            Self::TableChanged => "table_changed",
+            Self::SectionChanged => "section_changed",
+            Self::SectionNotEmpty => "section_not_empty",
+            Self::SectionArchived => "section_archived",
+            Self::FloorChanged => "floor_changed",
+            Self::LabelsTaken(_) => "labels_taken",
         }
     }
 }
@@ -266,6 +307,13 @@ impl std::fmt::Display for ConflictKind {
             Self::LastAdmin => "a restaurant has to keep at least one admin who can sign in",
             Self::CannotActOnSelf => "an admin cannot do that to their own account",
             Self::StaffInactive => "that account is switched off",
+            Self::TableInUse => "that table has a party at it",
+            Self::TableChanged => "that table changed after the form was opened",
+            Self::SectionChanged => "that section changed after the form was opened",
+            Self::SectionNotEmpty => "that section still has tables on the floor",
+            Self::SectionArchived => "that section is no longer on the floor",
+            Self::FloorChanged => "the floor changed while it was being reordered",
+            Self::LabelsTaken(_) => "a live table already has one of those labels",
         };
 
         formatter.write_str(sentence)
@@ -344,7 +392,7 @@ mod tests {
     use super::*;
 
     /// Every kind, so the tests below run over all of them.
-    const ALL: [ConflictKind; 29] = [
+    const ALL: [ConflictKind; 36] = [
         ConflictKind::TableOccupied,
         ConflictKind::VisitNot(VisitStatus::Open),
         ConflictKind::VisitNot(VisitStatus::Closed),
@@ -374,6 +422,13 @@ mod tests {
         ConflictKind::LastAdmin,
         ConflictKind::CannotActOnSelf,
         ConflictKind::StaffInactive,
+        ConflictKind::TableInUse,
+        ConflictKind::TableChanged,
+        ConflictKind::SectionChanged,
+        ConflictKind::SectionNotEmpty,
+        ConflictKind::SectionArchived,
+        ConflictKind::FloorChanged,
+        ConflictKind::LabelsTaken(Vec::new()),
     ];
 
     /// covers: AC-12, AC-13
@@ -385,7 +440,7 @@ mod tests {
     fn no_two_conflict_kinds_share_a_code() {
         for kind in ALL {
             let clashes = ALL
-                .into_iter()
+                .iter()
                 .filter(|other| other.as_code() == kind.as_code())
                 .count();
 
