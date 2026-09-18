@@ -210,7 +210,7 @@ Thicken the two screens the restaurant actually lives in all evening. This is wh
 ### 12. Waiter service flow · in-progress
 The waiter's real working screen: keep one bill open per table across the whole meal, send each round to the kitchen as its own ticket, watch every round's progress live, and get a sound and a badge the moment food is ready to pick up. Includes the free text note per line, such as no onions.
 **Done when:** a waiter can add a second and third round to an open bill and each goes to the kitchen as its own ticket; the waiter's list shows every open order's live status; when a round becomes ready the waiter gets a sound and a clear badge and can mark it served; and per line notes reach the kitchen ticket unchanged.
-spec [0011](../specs/0011-waiter-service-flow/index.md) · code in `api/migrations/0009_waiter_service_flow.sql`, `api/src/infrastructure/db/repository/service.rs`, `api/src/presentation/handlers/service.rs`, `api/tests/waiter_service.rs`, `web/src/waiter/`, `web/e2e/order-thread.spec.ts`
+spec [0011](../specs/0011-waiter-service-flow/index.md) · verify [0011](../specs/0011-waiter-service-flow/verify.md) · code in `api/migrations/0009_waiter_service_flow.sql`, `api/src/infrastructure/db/repository/service.rs`, `api/src/presentation/handlers/service.rs`, `api/tests/waiter_service.rs`, `web/src/waiter/`, `web/e2e/order-thread.spec.ts`
 - [x] Design it (spec): `/architect waiter service flow`
 - [x] Build it: `/develop waiter service flow`
   - [x] The thread, top to bottom: migration 0009, the send key with replay, notes to the pass, the Orders read, serving one dish, the Floor and Orders switch, the shell wide alert, and the extended two device Playwright run (AC-5, AC-6, AC-8, AC-9, AC-12, AC-20)
