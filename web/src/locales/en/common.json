@@ -10,7 +10,8 @@
     "settings": "Settings",
     "account": "Account",
     "menu": "Menu",
-    "staff": "Staff"
+    "staff": "Staff",
+    "tables": "Tables"
   },
   "a11y": {
     "skipToMain": "Skip to main content",
@@ -100,13 +101,20 @@
     "menuChanged": "The menu changed while you were moving things. It now shows the current order, so try again.",
     "categoryNotEmpty": "That category still has dishes in it. Move or remove them first.",
     "categoryArchived": "That category has been removed. Choose another one.",
-    "nameTaken": "Something on the menu already has that name. Rename one of them first.",
+    "nameTaken": "Something live already has that name. Rename one of them first.",
     "dishNotOrderable": "A dish in the basket has just gone off. It is marked below; take it out to send the rest.",
     "passwordChangeRequired": "Choose your own password before doing anything else.",
     "staffChanged": "Somebody changed this person first. Their details above are how they stand now.",
     "lastAdmin": "A restaurant has to keep at least one admin who can sign in. Make somebody else an admin first.",
     "cannotActOnSelf": "You cannot do that to your own account. Your name, language, and password are on your account screen.",
-    "staffInactive": "That account is switched off. Bring it back first."
+    "staffInactive": "That account is switched off. Bring it back first.",
+    "tableInUse": "A party is at that table. Close the table first, then remove it.",
+    "tableChanged": "Somebody changed this table after you opened it. The form now shows where it stands.",
+    "sectionChanged": "Somebody changed this section after you opened it. It now shows the current name.",
+    "sectionNotEmpty": "That section still has tables in it. Move or remove them first.",
+    "sectionArchived": "That section has been removed. Choose another one.",
+    "floorChanged": "The floor changed while you were moving things. It now shows the current order, so try again.",
+    "labelsTaken": "Some of those table labels are already used by another table."
   },
   "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land.",
   "signIn": {
@@ -177,7 +185,10 @@
     "not_a_number": "That is not a number.",
     "negative": "That cannot be below zero.",
     "too_large": "That is more than this can hold.",
-    "too_many_decimals": "That has more decimal places than your currency uses."
+    "too_many_decimals": "That has more decimal places than your currency uses.",
+    "too_small": "That is less than the least this allows.",
+    "before_start": "That comes before the start.",
+    "too_many": "That is more than can be added in one go."
   },
   "diet": {
     "veg": "Vegetarian",

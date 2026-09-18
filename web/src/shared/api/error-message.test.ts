@@ -75,6 +75,13 @@ const CODES = [
   'category_archived',
   'name_taken',
   'dish_not_orderable',
+  'table_in_use',
+  'table_changed',
+  'section_changed',
+  'section_not_empty',
+  'section_archived',
+  'floor_changed',
+  'labels_taken',
 ]
 
 /** A failed response, shaped the way every one of them is. */

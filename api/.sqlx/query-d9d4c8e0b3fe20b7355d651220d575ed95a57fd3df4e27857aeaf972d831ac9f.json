@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, section_id, label, seats, position, archived_at\n        FROM dining_tables\n        WHERE archived_at IS NULL\n        ORDER BY position, label\n        ",
+  "query": "\n        INSERT INTO dining_tables\n            (id, restaurant_id, section_id, label, seats, position, updated_at)\n        SELECT o.id, $3, $4, o.label, $5, ($6::int + o.n - 1)::int, now()\n        FROM unnest($1::uuid[], $2::text[]) WITH ORDINALITY AS o(id, label, n)\n        RETURNING id, section_id, label, seats, position, version, archived_at\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,17 @@
       },
       {
         "ordinal": 5,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "archived_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -71,7 +82,14 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "Uuid",
+        "Uuid",
+        "Int2",
+        "Int4"
+      ]
     },
     "nullable": [
       false,
@@ -79,8 +97,9 @@
       false,
       true,
       false,
+      false,
       true
     ]
   },
-  "hash": "4ead671d805bd0cd14eae4d82d20344863bca9150676adb46c5e2141b8b25cac"
+  "hash": "d9d4c8e0b3fe20b7355d651220d575ed95a57fd3df4e27857aeaf972d831ac9f"
 }

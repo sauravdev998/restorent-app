@@ -23,6 +23,7 @@ pub mod accounts;
 pub mod audit;
 pub mod billing;
 pub mod catalog;
+pub mod floor;
 pub mod service;
 pub mod sessions;
 pub mod staff;

@@ -15,7 +15,9 @@ use super::dto::{
     OrderRoundDto, RestaurantDto, RoleDto, RoundStatusDto, StaffDto, StaffMemberDto,
 };
 use super::error::ErrorBody;
-use super::handlers::{admin_menu, auth, billing, events, health, me, menu, service, staff};
+use super::handlers::{
+    admin_floor, admin_menu, auth, billing, events, health, me, menu, service, staff,
+};
 
 /// The whole public API surface.
 #[derive(OpenApi)]
@@ -56,6 +58,18 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::archive_dish,
         admin_menu::restore_dish,
         menu::set_availability,
+        admin_floor::admin_floor,
+        admin_floor::create_section,
+        admin_floor::rename_section,
+        admin_floor::reorder_sections,
+        admin_floor::archive_section,
+        admin_floor::restore_section,
+        admin_floor::create_table,
+        admin_floor::create_table_range,
+        admin_floor::edit_table,
+        admin_floor::reorder_tables,
+        admin_floor::archive_table,
+        admin_floor::restore_table,
         staff::list_staff,
         staff::create_staff,
         staff::edit_staff,
@@ -115,6 +129,25 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         admin_menu::EditDishRequest,
         admin_menu::ReorderRequest,
         admin_menu::RestoreDishRequest,
+        admin_floor::AdminFloorResponse,
+        admin_floor::AdminFloorGroupDto,
+        admin_floor::AdminTableDto,
+        admin_floor::ArchivedFloorDto,
+        admin_floor::ArchivedSectionDto,
+        admin_floor::ArchivedSectionTableDto,
+        admin_floor::ArchivedTableDto,
+        admin_floor::SectionDto,
+        admin_floor::TableDto,
+        admin_floor::CreateSectionRequest,
+        admin_floor::RenameSectionRequest,
+        admin_floor::SectionOrderRequest,
+        admin_floor::RestoreSectionRequest,
+        admin_floor::RestoredSectionDto,
+        admin_floor::CreateTableRequest,
+        admin_floor::CreateTableRangeRequest,
+        admin_floor::EditTableRequest,
+        admin_floor::TableOrderRequest,
+        admin_floor::RestoreTableRequest,
         StaffMemberDto,
         staff::StaffListResponse,
         staff::CreateStaffRequest,
@@ -127,6 +160,7 @@ use super::handlers::{admin_menu, auth, billing, events, health, me, menu, servi
         (name = "accounts", description = "Registering, signing in, and who is signed in."),
         (name = "orders", description = "The floor, the menu, tickets to the kitchen, and the bill."),
         (name = "menu", description = "Building the menu, and switching a dish on or off."),
+        (name = "floor", description = "Building the floor: sections, tables, their order, and what was removed."),
         (name = "staff", description = "Who works here, and the six things an admin does to an account."),
     )
 )]
@@ -190,6 +224,66 @@ mod tests {
             ),
             ("/api/dishes/{id}/availability", "put", "Admins and chefs."),
             ("/api/menu", "get", "Waiters and chefs."),
+        ];
+
+        for (path, method, role) in expected {
+            let operation = &document["paths"][path][method];
+            assert!(
+                operation.is_object(),
+                "{method} {path} is missing from the OpenAPI document"
+            );
+
+            let responses = operation["responses"].to_string();
+            assert!(
+                responses.contains(role),
+                "{method} {path} does not say {role:?} in its responses"
+            );
+            assert!(
+                responses.contains("\"403\"") && responses.contains("\"401\""),
+                "{method} {path} does not document its 401 and 403"
+            );
+        }
+    }
+
+    /// covers: AC-16 (spec 0010)
+    ///
+    /// The same check for the floor: every admin floor endpoint is in the
+    /// document and says it is admin only, and the waiter's floor still says it
+    /// is the waiter's.
+    #[test]
+    fn every_floor_endpoint_is_in_the_document_and_says_who_may_call_it() {
+        let document = serde_json::to_value(ApiDoc::openapi()).expect("the document serialises");
+
+        let expected = [
+            ("/api/admin/floor", "get", "Admins only."),
+            ("/api/admin/floor/sections", "post", "Admins only."),
+            ("/api/admin/floor/sections/order", "put", "Admins only."),
+            ("/api/admin/floor/sections/{id}", "put", "Admins only."),
+            (
+                "/api/admin/floor/sections/{id}/archive",
+                "post",
+                "Admins only.",
+            ),
+            (
+                "/api/admin/floor/sections/{id}/restore",
+                "post",
+                "Admins only.",
+            ),
+            ("/api/admin/floor/tables", "post", "Admins only."),
+            ("/api/admin/floor/tables/range", "post", "Admins only."),
+            ("/api/admin/floor/table-order", "put", "Admins only."),
+            ("/api/admin/floor/tables/{id}", "put", "Admins only."),
+            (
+                "/api/admin/floor/tables/{id}/archive",
+                "post",
+                "Admins only.",
+            ),
+            (
+                "/api/admin/floor/tables/{id}/restore",
+                "post",
+                "Admins only.",
+            ),
+            ("/api/floor", "get", "Waiters only."),
         ];
 
         for (path, method, role) in expected {

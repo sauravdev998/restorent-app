@@ -1,5 +1,6 @@
 //! What a restaurant sets up before it can serve anybody, and the edits to it
-//! that are worth writing down.
+//! that are worth writing down. The floor, its sections and tables, lives in
+//! `floor.rs` beside this.
 //!
 //! Every working read here filters archived rows out for the caller. That is
 //! the whole reason these exist rather than each feature writing its own
@@ -29,15 +30,11 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::domain::audit::AuditAction;
-use crate::domain::catalog::{
-    ArchivedDish, DiningTable, Dish, MenuCategory, Restaurant, TableSection, TaxComponent,
-};
+use crate::domain::catalog::{ArchivedDish, Dish, MenuCategory, Restaurant, TaxComponent};
 use crate::domain::enums::Diet;
 use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::event::EntityKind;
-use crate::domain::ids::{
-    DiningTableId, DishId, MenuCategoryId, RestaurantId, StaffId, TableSectionId, TaxComponentId,
-};
+use crate::domain::ids::{DishId, MenuCategoryId, RestaurantId, StaffId, TaxComponentId};
 use crate::domain::language::{FormattingLocale, LanguageCode};
 use crate::domain::menu;
 use crate::domain::money::Currency;
@@ -127,149 +124,6 @@ pub async fn live_tax_components(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<TaxC
         .collect())
 }
 
-/// The floor as a waiter sees it: live sections, in displayed order.
-///
-/// # Errors
-///
-/// Returns [`DomainError::Unavailable`] if the read fails.
-pub async fn live_table_sections(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<TableSection>> {
-    let rows = sqlx::query!(
-        r#"
-        SELECT id, name, position, archived_at
-        FROM table_sections
-        WHERE archived_at IS NULL
-        ORDER BY position, name
-        "#
-    )
-    .fetch_all(tx.connection())
-    .await?;
-
-    Ok(rows
-        .into_iter()
-        .map(|row| TableSection {
-            id: TableSectionId::from_uuid(row.id),
-            name: row.name,
-            position: row.position,
-            archived_at: row.archived_at,
-        })
-        .collect())
-}
-
-/// The floor as a waiter sees it: live tables, in displayed order.
-///
-/// # Errors
-///
-/// Returns [`DomainError::Unavailable`] if the read fails.
-pub async fn live_dining_tables(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<DiningTable>> {
-    let rows = sqlx::query!(
-        r#"
-        SELECT id, section_id, label, seats, position, archived_at
-        FROM dining_tables
-        WHERE archived_at IS NULL
-        ORDER BY position, label
-        "#
-    )
-    .fetch_all(tx.connection())
-    .await?;
-
-    Ok(rows
-        .into_iter()
-        .map(|row| DiningTable {
-            id: DiningTableId::from_uuid(row.id),
-            section_id: row.section_id.map(TableSectionId::from_uuid),
-            label: row.label,
-            seats: row.seats,
-            position: row.position,
-            archived_at: row.archived_at,
-        })
-        .collect())
-}
-
-/// Adds a named group of tables, such as a terrace.
-///
-/// This and the one below exist because a restaurant has to have tables before
-/// anybody can order anything, and the seed is deliberately not allowed to write
-/// rows of its own: SQL lives in this layer, and a seeded restaurant has to be
-/// one the product could have produced. Feature 11 builds the admin screens over
-/// exactly these, which is why each takes what an admin form would collect and
-/// nothing more.
-///
-/// Neither invents a position; the caller supplies one. The menu's creates are
-/// different, because spec 0008 settled that a new dish or category goes to the
-/// end of its list and is moved by dragging from there.
-///
-/// # Errors
-///
-/// Returns [`DomainError::Invalid`] if the name is blank, and
-/// [`DomainError::Unavailable`] if the statement fails. A second live section of
-/// the same name is refused by the partial unique index.
-pub async fn create_table_section(
-    tx: &mut ScopedTx<'_>,
-    name: &str,
-    position: i32,
-) -> DomainResult<TableSectionId> {
-    let name = require_name(name, "a table section needs a name")?;
-    let id = TableSectionId::new();
-
-    sqlx::query!(
-        r#"
-        INSERT INTO table_sections (id, restaurant_id, name, position, updated_at)
-        VALUES ($1, $2, $3, $4, now())
-        "#,
-        id.as_uuid(),
-        tx.restaurant_id().as_uuid(),
-        name,
-        position,
-    )
-    .execute(tx.connection())
-    .await?;
-
-    Ok(id)
-}
-
-/// Adds a table somebody can sit at.
-///
-/// The section is optional, because a restaurant with one room has no use for
-/// one. A section belonging to another restaurant is refused by the composite
-/// foreign key rather than by a check written here.
-///
-/// # Errors
-///
-/// Returns [`DomainError::Invalid`] if the label is blank, and
-/// [`DomainError::Unavailable`] if the statement fails.
-pub async fn create_dining_table(
-    tx: &mut ScopedTx<'_>,
-    section_id: Option<TableSectionId>,
-    label: &str,
-    seats: Option<i16>,
-    position: i32,
-) -> DomainResult<DiningTableId> {
-    let label = require_name(label, "a table needs a label")?;
-    let id = DiningTableId::new();
-
-    sqlx::query!(
-        r#"
-        INSERT INTO dining_tables
-            (id, restaurant_id, section_id, label, seats, position, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, now())
-        "#,
-        id.as_uuid(),
-        tx.restaurant_id().as_uuid(),
-        section_id.map(TableSectionId::as_uuid),
-        label,
-        seats,
-        position,
-    )
-    .execute(tx.connection())
-    .await?;
-
-    // The floor read is keyed on tables, so a waiter looking at it while an
-    // admin adds one has to be told rather than left with a stale room.
-    Database::notify_entity_change(tx, EntityKind::DiningTable, id.as_uuid()).await?;
-
-    Ok(id)
-}
-
 /// Trims a name and refuses an empty one.
 ///
 /// The database checks this too, with a `not_blank` constraint on every one of
@@ -284,60 +138,6 @@ fn require_name<'a>(value: &'a str, complaint: &'static str) -> DomainResult<&'a
     }
 
     Ok(trimmed)
-}
-
-/// Takes a table out of use without deleting it.
-///
-/// # Errors
-///
-/// Returns [`DomainError::NotFound`] if no such live table belongs to this
-/// restaurant.
-pub async fn archive_dining_table(
-    tx: &mut ScopedTx<'_>,
-    table_id: DiningTableId,
-) -> DomainResult<DateTime<Utc>> {
-    let archived = sqlx::query!(
-        r#"
-        UPDATE dining_tables
-        SET archived_at = now(), updated_at = now()
-        WHERE id = $1 AND archived_at IS NULL
-        RETURNING archived_at AS "archived_at!"
-        "#,
-        table_id.as_uuid()
-    )
-    .fetch_optional(tx.connection())
-    .await?
-    .map(|row| row.archived_at)
-    .ok_or(DomainError::NotFound)?;
-
-    Database::notify_entity_change(tx, EntityKind::DiningTable, table_id.as_uuid()).await?;
-
-    Ok(archived)
-}
-
-/// Takes a section out of use without deleting it.
-///
-/// # Errors
-///
-/// Returns [`DomainError::NotFound`] if no such live section belongs to this
-/// restaurant.
-pub async fn archive_table_section(
-    tx: &mut ScopedTx<'_>,
-    section_id: TableSectionId,
-) -> DomainResult<DateTime<Utc>> {
-    sqlx::query!(
-        r#"
-        UPDATE table_sections
-        SET archived_at = now(), updated_at = now()
-        WHERE id = $1 AND archived_at IS NULL
-        RETURNING archived_at AS "archived_at!"
-        "#,
-        section_id.as_uuid()
-    )
-    .fetch_optional(tx.connection())
-    .await?
-    .map(|row| row.archived_at)
-    .ok_or(DomainError::NotFound)
 }
 
 /// Changes a tax component's name or rate, and writes down that it happened.

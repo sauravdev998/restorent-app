@@ -9,6 +9,931 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/admin/floor": {
+      "get": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "The admin's whole floor, live and archived, with each table's occupancy.",
+        "description": "# Errors\n\nReturns `401` if nobody is signed in, `403` for a waiter or a chef, and\n`503` if the database is unavailable.",
+        "operationId": "admin_floor",
+        "responses": {
+          "200": {
+            "description": "The whole floor, live and archived. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFloorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/sections": {
+      "post": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Adds a section to the end of the section list.",
+        "description": "It appears on the admin's screen at once, and on waiters' floors once it\nholds a live table.\n\n# Errors\n\nReturns `400` naming the field that was not accepted, including\n`fields.name=already_taken`, `401` if nobody is signed in, and `403` for a\nwaiter or a chef.",
+        "operationId": "create_section",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The section, at the end of the list. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/sections/order": {
+      "put": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Puts the sections in a new order, the order waiters then see.",
+        "description": "No audit row: a reorder changes no version, so it makes no open form stale.\n\n# Errors\n\nReturns `409 floor_changed` if the list is not exactly the live sections,\n`401` if nobody is signed in, and `403` for a waiter or a chef.",
+        "operationId": "reorder_sections",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The live sections in their new order. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SectionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`floor_changed`: the list is not the live set any more.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/sections/{id}": {
+      "put": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Renames a section, provided nobody changed it since the form loaded.",
+        "description": "# Errors\n\nReturns `409 section_changed` if the stored version is newer, `404` if\nthere is no such live section, `400` naming the field that was not\naccepted, `401` if nobody is signed in, and `403` for a waiter or a chef.",
+        "operationId": "rename_section",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The section to rename.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameSectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed section. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`section_changed`: somebody changed it after the form loaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/sections/{id}/archive": {
+      "post": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Takes a section off the floor. It moves to the Archived section.",
+        "description": "Refused while it still holds a live table, including one being created in,\nmoved into, or restored into it at the same instant.\n\n# Errors\n\nReturns `409 section_not_empty` if it holds a live table, `404` if there is\nno such live section, `401` if nobody is signed in, and `403` for a waiter\nor a chef.",
+        "operationId": "archive_section",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The section to remove.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived section. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SectionDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`section_not_empty`: it still holds a live table.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/sections/{id}/restore": {
+      "post": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Puts an archived section back at the end of the list, with the chosen\narchived tables that were in it, in one transaction.",
+        "description": "# Errors\n\nReturns `409 name_taken` if a live section now has its name, `409\nlabels_taken` with `labels` if a chosen table's label is taken (either\nrefusal restores nothing), `400` if an id is not an archived table of this\nsection, `404` if there is no such archived section, `401` if nobody is\nsigned in, and `403` for a waiter or a chef.",
+        "operationId": "restore_section",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The archived section to put back.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreSectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The section, live again, and its restored tables. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoredSectionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An id is not an archived table of this section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such archived section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`name_taken`, or `labels_taken` with the clashing `labels`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/table-order": {
+      "put": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Puts one group's tables in a new order, the order waiters then see.",
+        "description": "A table cannot be dragged into another group here: moving it is an edit.\n\n# Errors\n\nReturns `409 floor_changed` if the list is not exactly that group's live\ntables, `404` if the section is not a live one, `401` if nobody is signed\nin, and `403` for a waiter or a chef.",
+        "operationId": "reorder_tables",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TableOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The group's live tables in their new order. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TableDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`floor_changed`: the list is not the live set any more.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/tables": {
+      "post": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Adds one table to the end of its group.",
+        "description": "It appears on the admin's screen at once, and on every waiter's floor within\nabout two seconds.\n\n# Errors\n\nReturns `400` naming each field that was not accepted, including\n`fields.label=already_taken`, `409 section_archived` if the section has been\narchived, `404` for a section this restaurant does not have, `401` if nobody\nis signed in, and `403` for a waiter or a chef.",
+        "operationId": "create_table",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The table, at the end of its group. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`section_archived`: that section is no longer on the floor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/tables/range": {
+      "post": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Adds a numbered range of tables to the end of their group, every one or\nnone.",
+        "description": "# Errors\n\nReturns `400` naming each field that was not accepted, `409 labels_taken`\nwith `labels` listing every generated label a live table already has (and\nnothing created), `409 section_archived` if the section has been archived,\n`404` for a section this restaurant does not have, `401` if nobody is\nsigned in, and `403` for a waiter or a chef.",
+        "operationId": "create_table_range",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTableRangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The created tables, in number order. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TableDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`labels_taken` with the clashing `labels`, or `section_archived`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/tables/{id}": {
+      "put": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Edits a table's label, seats, or section, provided nobody changed it since\nthe form loaded.",
+        "description": "Allowed while a party sits at it. A changed label reaches every waiter's\nfloor, the waiter's table screen, and the kitchen's tickets within about two\nseconds.\n\n# Errors\n\nReturns `400` naming each field that was not accepted, `409\nsection_archived` if the target section has been archived, `409\ntable_changed` if the stored version is newer, `404` if there is no such\nlive table or section, `401` if nobody is signed in, and `403` for a waiter\nor a chef.",
+        "operationId": "edit_table",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The table to edit.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The table after the edit. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field was not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live table or section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`section_archived` or `table_changed`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/tables/{id}/archive": {
+      "post": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Takes a table off the floor. It moves to the Archived section.",
+        "description": "Refused while a party sits at it, including one being seated at the same\ninstant. Every visit, round, ticket, and bill that named it still resolves.\n\n# Errors\n\nReturns `409 table_in_use` if it has an open visit, `404` if there is no\nsuch live table, `401` if nobody is signed in, and `403` for a waiter or a\nchef.",
+        "operationId": "archive_table",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The table to remove.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived table. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such live table.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`table_in_use`: a party is at it. Close the table first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/floor/tables/{id}/restore": {
+      "post": {
+        "tags": [
+          "floor"
+        ],
+        "summary": "Puts an archived table back, at the end of a live section or of the no\nsection group. It keeps its label and seats.",
+        "description": "# Errors\n\nReturns `409 name_taken` if a live table now has its label, `409\nsection_archived` if the chosen section has been archived, `404` if there\nis no such archived table or section, `401` if nobody is signed in, and\n`403` for a waiter or a chef.",
+        "operationId": "restore_table",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The archived table to put back.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreTableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The table, live again. Admins only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an admin.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such archived table or section.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`name_taken` or `section_archived`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/menu": {
       "get": {
         "tags": [
@@ -2396,6 +3321,66 @@
           }
         }
       },
+      "AdminFloorGroupDto": {
+        "type": "object",
+        "description": "One group of live tables.",
+        "required": [
+          "tables"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which section this is, or `null` for the no section group."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it is called, or `null` for the no section group."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminTableDto"
+            },
+            "description": "Its live tables, in displayed order."
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Which edit of the section this is, or `null` for the no section group.\nSend it back with a rename."
+          }
+        }
+      },
+      "AdminFloorResponse": {
+        "type": "object",
+        "description": "The whole floor as the admin works on it, live and archived.",
+        "required": [
+          "groups",
+          "archived"
+        ],
+        "properties": {
+          "archived": {
+            "$ref": "#/components/schemas/ArchivedFloorDto",
+            "description": "What has been taken off the floor and can be put back."
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminFloorGroupDto"
+            },
+            "description": "The live groups in displayed order. The first is always the no section\ngroup (`id`, `name`, and `version` all `null`), even when it is empty;\nthen every live section, empty or not."
+          }
+        }
+      },
       "AdminMenuResponse": {
         "type": "object",
         "description": "The whole menu as the admin works on it, live and archived.",
@@ -2426,6 +3411,44 @@
             "format": "int32",
             "description": "How many decimal places that currency uses, which is also how many a\nprice may carry.",
             "minimum": 0
+          }
+        }
+      },
+      "AdminTableDto": {
+        "type": "object",
+        "description": "One live table on the admin's floor.",
+        "required": [
+          "id",
+          "label",
+          "version",
+          "occupied"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table this is."
+          },
+          "label": {
+            "type": "string",
+            "description": "What the staff call it."
+          },
+          "occupied": {
+            "type": "boolean",
+            "description": "Whether a party is at it right now. A table with a party at it cannot\nbe removed."
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many it seats, when recorded."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Which edit of the table this is. Send it back with an edit."
           }
         }
       },
@@ -2500,6 +3523,30 @@
           }
         }
       },
+      "ArchivedFloorDto": {
+        "type": "object",
+        "description": "Everything in the Archived section.",
+        "required": [
+          "sections",
+          "tables"
+        ],
+        "properties": {
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchivedSectionDto"
+            },
+            "description": "Archived sections, most recently removed first."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchivedTableDto"
+            },
+            "description": "Every archived table, in the order they stood before removal."
+          }
+        }
+      },
       "ArchivedMenuDto": {
         "type": "object",
         "description": "Everything in the Archived section.",
@@ -2521,6 +3568,119 @@
               "$ref": "#/components/schemas/ArchivedDishDto"
             },
             "description": "Archived dishes, most recently removed first."
+          }
+        }
+      },
+      "ArchivedSectionDto": {
+        "type": "object",
+        "description": "One archived section, with the archived tables a restore can bring back\nwith it.",
+        "required": [
+          "id",
+          "name",
+          "archivedAt",
+          "tables"
+        ],
+        "properties": {
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was taken off the floor."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which section this is."
+          },
+          "name": {
+            "type": "string",
+            "description": "What it was called."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchivedSectionTableDto"
+            },
+            "description": "The archived tables whose section is this one, in their old order."
+          }
+        }
+      },
+      "ArchivedSectionTableDto": {
+        "type": "object",
+        "description": "One table a section restore can bring back.",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table this is."
+          },
+          "label": {
+            "type": "string",
+            "description": "What the staff called it."
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many it seated, when recorded."
+          }
+        }
+      },
+      "ArchivedTableDto": {
+        "type": "object",
+        "description": "One archived table, with what the restore dialog needs.",
+        "required": [
+          "id",
+          "label",
+          "sectionLive",
+          "archivedAt"
+        ],
+        "properties": {
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was taken off the floor."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table this is."
+          },
+          "label": {
+            "type": "string",
+            "description": "What the staff called it."
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many it seated, when recorded."
+          },
+          "sectionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The section it was in when it was removed, if any."
+          },
+          "sectionLive": {
+            "type": "boolean",
+            "description": "Whether that section is still live. The restore dialog offers it as the\ndefault only when it is."
+          },
+          "sectionName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What that section is called, carried here because it may be archived\ntoo and so appear nowhere else on the screen."
           }
         }
       },
@@ -2756,6 +3916,19 @@
           }
         }
       },
+      "CreateSectionRequest": {
+        "type": "object",
+        "description": "What adding a section asks for.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it is called. At most 40 characters, unique among live sections\nignoring letter case."
+          }
+        }
+      },
       "CreateStaffRequest": {
         "type": "object",
         "description": "What creating a member of staff asks for.",
@@ -2781,6 +3954,78 @@
           "role": {
             "$ref": "#/components/schemas/RoleDto",
             "description": "What they are allowed to be."
+          }
+        }
+      },
+      "CreateTableRangeRequest": {
+        "type": "object",
+        "description": "What adding a numbered range of tables asks for.",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The first number, 1 to 999."
+          },
+          "prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Written before each number. Leading spaces are removed and trailing\nones kept, so `\"Bar \"` gives `Bar 1`. Absent or blank means bare\nnumbers."
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How many each table seats, a whole number from 1 to 50, or `null`."
+          },
+          "sectionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which live section every table goes in, or `null` for none."
+          },
+          "to": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The last number, 1 to 999, not below `from`, and at most 50 tables in\nall."
+          }
+        }
+      },
+      "CreateTableRequest": {
+        "type": "object",
+        "description": "What adding one table asks for.",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "What the staff call it. At most 12 characters, unique among the\nrestaurant's live tables ignoring letter case."
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How many it seats, a whole number from 1 to 50, or `null`."
+          },
+          "sectionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which live section it goes in, or `null` for none."
           }
         }
       },
@@ -2915,6 +4160,41 @@
           }
         }
       },
+      "EditTableRequest": {
+        "type": "object",
+        "description": "What editing a table asks for: everything the table should be, and which\nversion of it the form loaded.",
+        "required": [
+          "label",
+          "version"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "What the staff should call it."
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How many it seats, or `null`."
+          },
+          "sectionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which live section it should be in, or `null` for none. A different\ngroup moves it to the end of that group."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The version the edit form loaded."
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "The body every failed request returns.",
@@ -2933,7 +4213,7 @@
               "object",
               "null"
             ],
-            "description": "What is wrong with each named field, when the problem is a form rather\nthan the request as a whole.\n\nAbsent from every response that has no field level problem, which is\nmost of them, so nothing that was already reading this body changes.\nEach value is one of a closed set of codes: `already_taken`,\n`too_short`, `too_long`, `invalid_format`, `unknown_country`,\n`not_in_catalogue`, `incorrect`, `required`, `not_a_number`,\n`negative`, `too_large`, `too_many_decimals`.",
+            "description": "What is wrong with each named field, when the problem is a form rather\nthan the request as a whole.\n\nAbsent from every response that has no field level problem, which is\nmost of them, so nothing that was already reading this body changes.\nEach value is one of a closed set of codes: `already_taken`,\n`too_short`, `too_long`, `invalid_format`, `unknown_country`,\n`not_in_catalogue`, `incorrect`, `required`, `not_a_number`,\n`negative`, `too_large`, `too_many_decimals`, `too_small`,\n`before_start`, `too_many`.",
             "additionalProperties": {
               "type": "string"
             },
@@ -2943,6 +4223,19 @@
             "example": {
               "email": "already_taken"
             }
+          },
+          "labels": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The labels that clashed, present only on `409 labels_taken` and absent\nfrom every other response.\n\nSpelled and ordered as the request would have created them. Empty when\na label was taken between the check and the write and nothing clashes\nany more, which a screen reads as \"try again\".",
+            "example": [
+              "T3"
+            ]
           },
           "message": {
             "type": "string",
@@ -3550,6 +4843,25 @@
           }
         }
       },
+      "RenameSectionRequest": {
+        "type": "object",
+        "description": "What renaming a section asks for.",
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it should be called."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The version the rename form loaded. An older one is refused as stale."
+          }
+        }
+      },
       "ReorderRequest": {
         "type": "object",
         "description": "What a reorder asks for: the complete list, in its new order.\n\nThe whole list rather than a move, so the server never has to guess what\n\"after that one\" meant when the list changed underneath the drag. A list\nthat is not exactly the live set is refused with `409 menu_changed`.",
@@ -3652,6 +4964,58 @@
           }
         }
       },
+      "RestoreSectionRequest": {
+        "type": "object",
+        "description": "What restoring a section asks for.",
+        "required": [
+          "tableIds"
+        ],
+        "properties": {
+          "tableIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The archived tables of this section to bring back with it. May be\nempty. Each must be an archived table whose section is this one."
+          }
+        }
+      },
+      "RestoreTableRequest": {
+        "type": "object",
+        "description": "What restoring a table asks for.",
+        "properties": {
+          "sectionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which live section to put it in, or `null` for none. The dialog offers\nthe table's old section when that is still live."
+          }
+        }
+      },
+      "RestoredSectionDto": {
+        "type": "object",
+        "description": "A restored section and the tables that came back with it.",
+        "required": [
+          "section",
+          "tables"
+        ],
+        "properties": {
+          "section": {
+            "$ref": "#/components/schemas/SectionDto",
+            "description": "The section, live again at the end of the list."
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TableDto"
+            },
+            "description": "The tables restored into it, in their order."
+          }
+        }
+      },
       "RoleDto": {
         "type": "string",
         "description": "What a member of staff is allowed to be, on the wire.\n\nA separate enum from [`StaffRole`] because that one lives in the domain and\nmay not learn that `utoipa` exists. The strings are identical, and the two\ntests below are what keep them that way.",
@@ -3670,6 +5034,56 @@
           "served",
           "voided"
         ]
+      },
+      "SectionDto": {
+        "type": "object",
+        "description": "One section, as a write on it answers.",
+        "required": [
+          "id",
+          "name",
+          "version"
+        ],
+        "properties": {
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it was taken off the floor, or `null` while it is on it."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which section this is."
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is called."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Which edit of the section this is."
+          }
+        }
+      },
+      "SectionOrderRequest": {
+        "type": "object",
+        "description": "What reordering the sections asks for: the complete list, in its new order.",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Every live section id, each exactly once, in the new order."
+          }
+        }
       },
       "SendRoundLine": {
         "type": "object",
@@ -3875,6 +5289,80 @@
           }
         }
       },
+      "TableDto": {
+        "type": "object",
+        "description": "One table, as a write on it answers.",
+        "required": [
+          "id",
+          "label",
+          "version"
+        ],
+        "properties": {
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it was taken off the floor, or `null` while it is on it."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table this is."
+          },
+          "label": {
+            "type": "string",
+            "description": "What the staff call it."
+          },
+          "seats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many it seats, when recorded."
+          },
+          "sectionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which section it is in, or `null`."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Which edit of the table this is."
+          }
+        }
+      },
+      "TableOrderRequest": {
+        "type": "object",
+        "description": "What reordering one group of tables asks for.",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Every live table of that group, each exactly once, in the new order."
+          },
+          "sectionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Which group: a live section, or `null` for the no section group."
+          }
+        }
+      },
       "UpdateMeRequest": {
         "type": "object",
         "description": "What somebody may change about their own account.\n\nBoth fields are optional and absent means \"leave it alone\". `language` is\ndeliberately `Option<Option<String>>`: absent leaves it, and an explicit\n`null` clears it, which is a real choice somebody makes rather than an\nabsence. Collapsing the two would make \"follow the restaurant\" unsayable.",
@@ -4028,6 +5516,10 @@
     {
       "name": "menu",
       "description": "Building the menu, and switching a dish on or off."
+    },
+    {
+      "name": "floor",
+      "description": "Building the floor: sections, tables, their order, and what was removed."
     },
     {
       "name": "staff",

@@ -1,0 +1,126 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE dining_tables AS t\n        SET archived_at = NULL, section_id = $2, position = $3,\n            version = t.version + 1, updated_at = now()\n        FROM (SELECT id, archived_at, section_id FROM dining_tables WHERE id = $1) AS old\n        WHERE t.id = old.id AND t.archived_at IS NOT NULL\n        RETURNING t.id AS \"id!\", t.section_id AS \"section_id?\", t.label AS \"label!\",\n                  t.seats AS \"seats?\", t.position AS \"position!\", t.version AS \"version!\",\n                  t.archived_at AS \"archived_at?\",\n                  old.archived_at AS \"old_archived_at?\", old.section_id AS \"old_section_id?\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "section_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "section_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "label!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "seats?",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "seats"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "position!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "position"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "version!",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "archived_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "archived_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "old_archived_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "archived_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "old_section_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "section_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e332100b20819e29f309f24a030963e8b9a006097c32b196997e62220325cbd2"
+}

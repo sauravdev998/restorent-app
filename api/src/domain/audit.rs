@@ -5,7 +5,9 @@
 //! did it and what the value was before: voids, bill closes, price edits, tax
 //! edits, service charge edits, role changes, and deactivations. Every change to
 //! the menu except a reorder joins them, because a menu edit is a price edit
-//! more often than not and the admin screen makes every kind of one.
+//! more often than not and the admin screen makes every kind of one. Every
+//! change to the floor except a reorder joins them too, so "who removed table
+//! 7" has an answer.
 //!
 //! It has no retention policy, deliberately. It only records changes of
 //! consequence, so it grows far more slowly than the bills do.
@@ -66,6 +68,22 @@ pub enum AuditAction {
     StaffDeactivated,
     /// A switched off account was brought back.
     StaffReactivated,
+    /// A table was added to the floor.
+    DiningTableCreated,
+    /// A table's label, seats, or section changed.
+    DiningTableEdited,
+    /// A table was taken off the floor.
+    DiningTableArchived,
+    /// An archived table was put back on the floor.
+    DiningTableRestored,
+    /// A table section was added.
+    TableSectionCreated,
+    /// A table section was renamed.
+    TableSectionRenamed,
+    /// A table section was taken off the floor.
+    TableSectionArchived,
+    /// An archived table section was put back on the floor.
+    TableSectionRestored,
 }
 
 impl AuditAction {
@@ -95,6 +113,14 @@ impl AuditAction {
             Self::StaffPasswordReset => "staff_password_reset",
             Self::StaffDeactivated => "staff_deactivated",
             Self::StaffReactivated => "staff_reactivated",
+            Self::DiningTableCreated => "dining_table_created",
+            Self::DiningTableEdited => "dining_table_edited",
+            Self::DiningTableArchived => "dining_table_archived",
+            Self::DiningTableRestored => "dining_table_restored",
+            Self::TableSectionCreated => "table_section_created",
+            Self::TableSectionRenamed => "table_section_renamed",
+            Self::TableSectionArchived => "table_section_archived",
+            Self::TableSectionRestored => "table_section_restored",
         }
     }
 }
@@ -129,7 +155,7 @@ mod tests {
     ///
     /// Kept honest by [`position`]: adding a variant stops that match compiling,
     /// and filling it in stops this array being the right length.
-    const ALL: [AuditAction; 22] = [
+    const ALL: [AuditAction; 30] = [
         AuditAction::RestaurantRegistered,
         AuditAction::PasswordChanged,
         AuditAction::RestaurantSettingsUpdated,
@@ -152,6 +178,14 @@ mod tests {
         AuditAction::StaffPasswordReset,
         AuditAction::StaffDeactivated,
         AuditAction::StaffReactivated,
+        AuditAction::DiningTableCreated,
+        AuditAction::DiningTableEdited,
+        AuditAction::DiningTableArchived,
+        AuditAction::DiningTableRestored,
+        AuditAction::TableSectionCreated,
+        AuditAction::TableSectionRenamed,
+        AuditAction::TableSectionArchived,
+        AuditAction::TableSectionRestored,
     ];
 
     /// Where each action sits in [`ALL`].
@@ -183,6 +217,14 @@ mod tests {
             AuditAction::StaffPasswordReset => 19,
             AuditAction::StaffDeactivated => 20,
             AuditAction::StaffReactivated => 21,
+            AuditAction::DiningTableCreated => 22,
+            AuditAction::DiningTableEdited => 23,
+            AuditAction::DiningTableArchived => 24,
+            AuditAction::DiningTableRestored => 25,
+            AuditAction::TableSectionCreated => 26,
+            AuditAction::TableSectionRenamed => 27,
+            AuditAction::TableSectionArchived => 28,
+            AuditAction::TableSectionRestored => 29,
         }
     }
 
@@ -267,6 +309,38 @@ mod tests {
         assert_eq!(
             AuditAction::StaffReactivated.as_label(),
             "staff_reactivated"
+        );
+        assert_eq!(
+            AuditAction::DiningTableCreated.as_label(),
+            "dining_table_created"
+        );
+        assert_eq!(
+            AuditAction::DiningTableEdited.as_label(),
+            "dining_table_edited"
+        );
+        assert_eq!(
+            AuditAction::DiningTableArchived.as_label(),
+            "dining_table_archived"
+        );
+        assert_eq!(
+            AuditAction::DiningTableRestored.as_label(),
+            "dining_table_restored"
+        );
+        assert_eq!(
+            AuditAction::TableSectionCreated.as_label(),
+            "table_section_created"
+        );
+        assert_eq!(
+            AuditAction::TableSectionRenamed.as_label(),
+            "table_section_renamed"
+        );
+        assert_eq!(
+            AuditAction::TableSectionArchived.as_label(),
+            "table_section_archived"
+        );
+        assert_eq!(
+            AuditAction::TableSectionRestored.as_label(),
+            "table_section_restored"
         );
     }
 

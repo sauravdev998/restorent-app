@@ -29,6 +29,9 @@ export const FIELD_ERROR_CODES = [
   'negative',
   'too_large',
   'too_many_decimals',
+  'too_small',
+  'before_start',
+  'too_many',
 ] as const
 
 /** One of them. */

@@ -397,7 +397,7 @@ describe('useLiveEvents', () => {
       act(() => {
         source.emit(
           'entity_changed',
-          changeOf('table_section', 'f7c4899b-0e46-4f51-a1b8-827357a2b06f'),
+          changeOf('floor_plan', 'f7c4899b-0e46-4f51-a1b8-827357a2b06f'),
         )
       })
 

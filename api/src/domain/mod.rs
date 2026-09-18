@@ -16,6 +16,7 @@ pub mod credentials;
 pub mod enums;
 pub mod error;
 pub mod event;
+pub mod floor;
 pub mod ids;
 pub mod language;
 pub mod menu;

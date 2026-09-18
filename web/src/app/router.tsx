@@ -5,6 +5,7 @@ import {
   type RouteObject,
 } from 'react-router'
 
+import { AdminFloorScreen } from '@/admin/routes/admin-floor'
 import { AdminHome } from '@/admin/routes/admin-home'
 import { AdminMenuScreen } from '@/admin/routes/admin-menu'
 import { AdminStaffScreen } from '@/admin/routes/admin-staff'
@@ -190,6 +191,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <AdminHome /> },
           { path: 'menu', element: <AdminMenuScreen /> },
+          { path: 'floor', element: <AdminFloorScreen /> },
           { path: 'staff', element: <AdminStaffScreen /> },
           { path: 'settings', element: <RestaurantSettings /> },
         ],

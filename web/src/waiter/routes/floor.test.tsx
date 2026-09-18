@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -337,14 +337,41 @@ describe('WaiterFloor', () => {
     expect(screen.getByText('9')).toBeInTheDocument()
   }) // covers: AC-1
 
-  it('says the restaurant has no tables rather than showing a blank floor', async () => {
-    respondWith({ sections: [{ id: null, name: null, tables: [] }] })
+  it('says the restaurant has no tables, and to ask the admin, rather than showing a blank floor', async () => {
+    // The API leaves out every section with no live table, so a restaurant
+    // with no tables answers with no groups at all.
+    respondWith({ sections: [] })
     await mount()
 
     await waitFor(() => {
       expect(screen.getByText('No tables yet')).toBeInTheDocument()
     })
-  }) // covers: AC-1
+    expect(screen.getByText(/Ask your admin to add the tables/)).toBeInTheDocument()
+  }) // covers: AC-1, AC-15 (spec 0010)
+
+  it('shows how many each table seats, and nothing for a table with no count', async () => {
+    respondWith({
+      sections: [
+        {
+          id: '00000000-0000-7000-8000-000000000010',
+          name: 'Main room',
+          tables: [
+            { id: FREE_TABLE, label: '1', seats: 6, occupancy: null },
+            { id: TAKEN_TABLE, label: '2', seats: null, occupancy: null },
+          ],
+        },
+      ],
+    })
+    await mount()
+
+    const card = async (label: string) => {
+      const found = (await screen.findByText(label, { exact: true })).closest('li')
+      if (!found) throw new Error(`no card for table ${label}`)
+      return found
+    }
+    expect(within(await card('1')).getByText('Seats 6')).toBeInTheDocument()
+    expect(within(await card('2')).queryByText(/^Seats/)).toBeNull()
+  }) // covers: AC-15 (spec 0010)
 
   it('is accessible in both appearances and at every density', async () => {
     respondWith(floor({ foodReady: true }))

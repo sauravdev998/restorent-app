@@ -87,6 +87,13 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   last_admin: 'apiError.lastAdmin',
   cannot_act_on_self: 'apiError.cannotActOnSelf',
   staff_inactive: 'apiError.staffInactive',
+  table_in_use: 'apiError.tableInUse',
+  table_changed: 'apiError.tableChanged',
+  section_changed: 'apiError.sectionChanged',
+  section_not_empty: 'apiError.sectionNotEmpty',
+  section_archived: 'apiError.sectionArchived',
+  floor_changed: 'apiError.floorChanged',
+  labels_taken: 'apiError.labelsTaken',
 }
 
 /** What anything unrecognised says. */

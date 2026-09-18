@@ -17,7 +17,6 @@
 mod common;
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use uuid::Uuid;
 
@@ -572,6 +571,7 @@ async fn a_dish_created_while_its_category_is_removed_never_leaves_a_live_dish_i
                 .begin_scoped(restaurant_id)
                 .await
                 .expect("opening the create");
+            common::name_racer(&mut tx).await;
             let outcome = catalog::create_dish(
                 &mut tx,
                 &NewDish {
@@ -590,7 +590,7 @@ async fn a_dish_created_while_its_category_is_removed_never_leaves_a_live_dish_i
             outcome
         });
 
-        tokio::time::sleep(Duration::from_millis(300)).await;
+        common::until_blocked(&database, restaurant_id, &creating).await;
         archiving.commit().await.expect("the archive lands");
 
         let outcome = creating.await.expect("the create ran");
@@ -617,6 +617,7 @@ async fn a_dish_created_while_its_category_is_removed_never_leaves_a_live_dish_i
                 .begin_scoped(restaurant_id)
                 .await
                 .expect("opening the archive");
+            common::name_racer(&mut tx).await;
             let outcome = catalog::archive_menu_category(&mut tx, target, admin).await;
             if outcome.is_ok() {
                 tx.commit().await.expect("committing the archive");
@@ -624,7 +625,7 @@ async fn a_dish_created_while_its_category_is_removed_never_leaves_a_live_dish_i
             outcome
         });
 
-        tokio::time::sleep(Duration::from_millis(300)).await;
+        common::until_blocked(&database, restaurant_id, &archiving).await;
         creating.commit().await.expect("the create lands");
 
         let outcome = archiving.await.expect("the archive ran");

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.archived_at,\n               v.id            AS \"visit_id?\",\n               v.opened_at     AS \"opened_at?\",\n               v.guest_count   AS \"guest_count?\",\n               opener.display_name AS \"opened_by?\",\n               EXISTS (\n                   SELECT 1 FROM order_rounds AS r\n                   WHERE r.visit_id = v.id AND r.status = 'ready'\n               )               AS \"food_ready?\"\n        FROM dining_tables AS t\n        LEFT JOIN table_sections AS s ON s.id = t.section_id\n        LEFT JOIN visits AS v ON v.table_id = t.id AND v.status = 'open'\n        LEFT JOIN staff AS opener ON opener.id = v.opened_by_staff_id\n        WHERE t.archived_at IS NULL\n        ORDER BY s.position NULLS LAST, s.name NULLS LAST, t.position, t.label\n        ",
+  "query": "\n        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.version, t.archived_at,\n               v.id            AS \"visit_id?\",\n               v.opened_at     AS \"opened_at?\",\n               v.guest_count   AS \"guest_count?\",\n               opener.display_name AS \"opened_by?\",\n               EXISTS (\n                   SELECT 1 FROM order_rounds AS r\n                   WHERE r.visit_id = v.id AND r.status = 'ready'\n               )               AS \"food_ready?\"\n        FROM dining_tables AS t\n        LEFT JOIN table_sections AS s ON s.id = t.section_id\n        LEFT JOIN visits AS v ON v.table_id = t.id AND v.status = 'open'\n        LEFT JOIN staff AS opener ON opener.id = v.opened_by_staff_id\n        WHERE t.archived_at IS NULL\n        ORDER BY s.position NULLS LAST, s.name NULLS LAST, t.position, t.label, t.id\n        ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,17 @@
       },
       {
         "ordinal": 5,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "dining_tables",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "archived_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -70,7 +81,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "visit_id?",
         "type_info": "Uuid",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "opened_at?",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "guest_count?",
         "type_info": "Int2",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "opened_by?",
         "type_info": "Text",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "food_ready?",
         "type_info": "Bool",
         "origin": "Expression"
@@ -129,6 +140,7 @@
       false,
       true,
       false,
+      false,
       true,
       false,
       false,
@@ -137,5 +149,5 @@
       null
     ]
   },
-  "hash": "e32852bc5c9b593098b3be4342b332ee719f00189ba680bc3a1bcbe6d5710444"
+  "hash": "bcc6543b17b59eb368aa2dfd4604a1cabbeed0eb4450b3694cfcff4b3f97738c"
 }

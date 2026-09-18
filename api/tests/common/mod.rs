@@ -40,6 +40,7 @@ pub async fn database() -> Database {
     // The api crate's directory is the working directory for its tests, and the
     // .env lives one level up at the repository root.
     let _ = dotenvy::from_path("../.env");
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
     let database_url = std::env::var("DATABASE_URL").expect(
         "DATABASE_URL must be set for the integration tests. \
@@ -428,6 +429,75 @@ pub async fn rollback_to(tx: &mut ScopedTx<'_>, name: &'static str) {
         .execute(tx.connection())
         .await
         .expect("rewinding to a savepoint");
+}
+
+/// The name a racing transaction goes by in `pg_stat_activity`. One per
+/// restaurant, and every race test makes its own restaurant, so parallel tests
+/// never mistake each other's racer for their own.
+fn racer_name(restaurant_id: RestaurantId) -> String {
+    format!("racer {}", restaurant_id.as_uuid())
+}
+
+/// Names this transaction as the one a race test is waiting on, for
+/// [`until_blocked`] to find. Local to the transaction, so the pooled
+/// connection goes back unnamed.
+pub async fn name_racer(tx: &mut ScopedTx<'_>) {
+    let name = racer_name(tx.restaurant_id());
+    sqlx::query("SELECT set_config('application_name', $1, true)")
+        .bind(name)
+        .execute(tx.connection())
+        .await
+        .expect("naming the racer");
+}
+
+/// Waits until the named racer is queued on a lock, or has already finished.
+///
+/// A race test holds a lock, starts a racer that should queue behind it, and
+/// only then lets go. A fixed sleep guessed how long the racer takes to reach
+/// the lock, and against a remote database the guess was sometimes short: the
+/// racer arrived after the lock was released and saw a different world. This
+/// asks Postgres instead. Finishing counts too, for a racer that never had to
+/// wait; the test's own assertions then say whether that was right.
+pub async fn until_blocked<T>(
+    database: &Database,
+    restaurant_id: RestaurantId,
+    racer: &tokio::task::JoinHandle<T>,
+) {
+    let name = racer_name(restaurant_id);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+
+    loop {
+        if racer.is_finished() {
+            return;
+        }
+
+        // A fresh transaction each time: `pg_stat_activity` is a snapshot taken
+        // once per transaction.
+        let mut tx = database
+            .begin_scoped(restaurant_id)
+            .await
+            .expect("opening a transaction to watch the racer");
+        let blocked: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                 SELECT 1 FROM pg_stat_activity
+                  WHERE application_name = $1 AND wait_event_type = 'Lock'
+             )",
+        )
+        .bind(&name)
+        .fetch_one(tx.connection())
+        .await
+        .expect("watching the racer");
+        drop(tx);
+
+        if blocked {
+            return;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the racer neither queued on a lock nor finished within 30 seconds"
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
 }
 
 /// Unsets the scope entirely, to prove an unscoped transaction sees nothing.

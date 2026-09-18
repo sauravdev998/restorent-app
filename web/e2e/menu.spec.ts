@@ -47,6 +47,21 @@ async function signIn(
 }
 
 /**
+ * Picks up the focused handle with Space, and waits until the next key will
+ * be heard.
+ *
+ * dnd-kit's `KeyboardSensor` announces the pick up at once but adds its own
+ * keydown listener in a `setTimeout`. A key pressed in between is lost, so on
+ * a slow runner an arrow or an Escape sent straight after the announcement
+ * never reaches the sensor and the drag stays open. A timer queued now runs
+ * after the sensor's, so awaiting one closes that gap.
+ */
+async function pickUp(page: Page): Promise<void> {
+  await page.keyboard.press('Space')
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)))
+}
+
+/**
  * Puts the waiter on a table's ordering screen.
  *
  * An already occupied table is reused when there is one, so this scenario
@@ -183,7 +198,7 @@ test('an admin reorders a dish with the keyboard alone, and hears it in their la
 
   // Pick up the second dish, move it up one, and drop it.
   await handles.nth(1).focus()
-  await admin.keyboard.press('Space')
+  await pickUp(admin)
   await expect(heard).toHaveText(`Picked up ${second}. It is in position 2 of ${String(total)}.`)
   await admin.keyboard.press('ArrowUp')
   await expect(heard).toHaveText(`${second} moved to position 1 of ${String(total)}.`)
@@ -196,7 +211,7 @@ test('an admin reorders a dish with the keyboard alone, and hears it in their la
   const moved = section.getByRole('button', { name: `Move ${second}`, exact: true })
   await expect(handles.first()).toHaveAccessibleName(`Move ${second}`)
   await moved.focus()
-  await admin.keyboard.press('Space')
+  await pickUp(admin)
   await expect(heard).toHaveText(`Picked up ${second}. It is in position 1 of ${String(total)}.`)
   await admin.keyboard.press('ArrowDown')
   await expect(heard).toHaveText(`${second} moved to position 2 of ${String(total)}.`)
@@ -211,7 +226,7 @@ test('an admin reorders a dish with the keyboard alone, and hears it in their la
   await expect(hindiHandle).toBeVisible()
 
   await hindiHandle.focus()
-  await admin.keyboard.press('Space')
+  await pickUp(admin)
   await expect(heard).toHaveText(`${second} उठाया गया। यह ${String(total)} में से स्थान 2 पर है।`)
   await admin.keyboard.press('Escape')
   await expect(heard).toHaveText(

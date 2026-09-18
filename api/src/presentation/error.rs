@@ -13,7 +13,7 @@ use axum::response::{IntoResponse, Response};
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::domain::error::{DomainError, FieldErrors};
+use crate::domain::error::{ConflictKind, DomainError, FieldErrors};
 
 /// The body every failed request returns.
 #[derive(Debug, Serialize, ToSchema)]
@@ -41,10 +41,20 @@ pub struct ErrorBody {
     /// Each value is one of a closed set of codes: `already_taken`,
     /// `too_short`, `too_long`, `invalid_format`, `unknown_country`,
     /// `not_in_catalogue`, `incorrect`, `required`, `not_a_number`,
-    /// `negative`, `too_large`, `too_many_decimals`.
+    /// `negative`, `too_large`, `too_many_decimals`, `too_small`,
+    /// `before_start`, `too_many`.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = json!({ "email": "already_taken" }))]
     pub fields: Option<BTreeMap<String, &'static str>>,
+    /// The labels that clashed, present only on `409 labels_taken` and absent
+    /// from every other response.
+    ///
+    /// Spelled and ordered as the request would have created them. Empty when
+    /// a label was taken between the check and the write and nothing clashes
+    /// any more, which a screen reads as "try again".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = json!(["T3"]))]
+    pub labels: Option<Vec<String>>,
 }
 
 /// A domain error on its way out as an HTTP response.
@@ -80,6 +90,7 @@ impl IntoResponse for ApiError {
                     error: "invalid",
                     message: "One or more fields were not accepted.".to_owned(),
                     fields: Some(Self::field_body(errors)),
+                    labels: None,
                 }),
             )
                 .into_response();
@@ -95,6 +106,7 @@ impl IntoResponse for ApiError {
                     error: "throttled",
                     message: "Too many attempts. Try again shortly.".to_owned(),
                     fields: None,
+                    labels: None,
                 }),
             )
                 .into_response();
@@ -105,6 +117,11 @@ impl IntoResponse for ApiError {
 
             return response;
         }
+
+        let labels = match &self.0 {
+            DomainError::Conflict(ConflictKind::LabelsTaken(labels)) => Some(labels.clone()),
+            _ => None,
+        };
 
         let (status, code, message) = match &self.0 {
             DomainError::NotFound => (
@@ -170,6 +187,7 @@ impl IntoResponse for ApiError {
                 error: code,
                 message,
                 fields: None,
+                labels,
             }),
         )
             .into_response()
@@ -211,6 +229,36 @@ mod tests {
         assert!(
             json.get("fields").is_none(),
             "a plain error grew a fields member: {json}"
+        );
+        assert!(
+            json.get("labels").is_none(),
+            "a plain error grew a labels member: {json}"
+        );
+    }
+
+    /// covers: AC-4, AC-11
+    ///
+    /// The clashing labels ride on the one error shape, and only on the one
+    /// code that has them.
+    #[test]
+    fn a_label_clash_carries_its_labels_and_no_other_conflict_does() {
+        let json = body_of(DomainError::Conflict(ConflictKind::LabelsTaken(vec![
+            "t3".to_owned(),
+            "t5".to_owned(),
+        ])));
+
+        assert_eq!(json["status"], 409);
+        assert_eq!(json["error"], "labels_taken");
+        assert_eq!(json["labels"], serde_json::json!(["t3", "t5"]));
+
+        let late = body_of(DomainError::Conflict(ConflictKind::LabelsTaken(Vec::new())));
+        assert_eq!(late["labels"], serde_json::json!([]));
+
+        let other = body_of(DomainError::Conflict(ConflictKind::TableInUse));
+        assert_eq!(other["error"], "table_in_use");
+        assert!(
+            other.get("labels").is_none(),
+            "another conflict grew a labels member: {other}"
         );
     }
 
