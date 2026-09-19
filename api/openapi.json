@@ -2330,6 +2330,216 @@
         }
       }
     },
+    "/api/order-lines/{id}/served": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Marks one dish as having reached the table.",
+        "description": "Touches that dish only. A starter goes out the moment it is ready while the\nmain course on the same ticket is still cooking.\n\n# Errors\n\nReturns `409 line_not_ready` if the dish is not waiting to be carried out,\n`404` if there is no such dish, `401` if nobody is signed in, and `403` if\nthe caller is not a waiter.",
+        "operationId": "mark_line_served",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The dish that reached the table.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dish and its ticket's new status. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkedLineResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such dish.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`line_not_ready`: that dish is not waiting to be carried out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/order-lines/{id}/void": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Cancels one dish that is still cooking or waiting on the pass, with a\nreason, and takes it off the bill.",
+        "description": "# Errors\n\nReturns `400` if the reason is `other` with no words\n(`fields.reason = required`) or the words are over 200 characters\n(`fields.reason = too_long`), `409 line_not_voidable` if the dish has been\nserved or already cancelled, `404` if there is no such dish, `401` if nobody\nis signed in, and `403` if the caller is not a waiter.",
+        "operationId": "void_line",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The dish to cancel.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidLineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The cancelled dish, its ticket, and the bill's subtotal after. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoidLineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A missing or over long reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such dish.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`line_not_voidable`: that dish has been served or already cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/open": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Every open table and every ticket on it.",
+        "description": "# Errors\n\nReturns `401` if nobody is signed in, `403` if the caller is not a waiter,\nand `503` if the database is unavailable.",
+        "operationId": "open_orders",
+        "responses": {
+          "200": {
+            "description": "Every open visit with its tickets and dishes. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenOrdersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/restaurant": {
       "patch": {
         "tags": [
@@ -2397,14 +2607,14 @@
         "tags": [
           "orders"
         ],
-        "summary": "Marks a whole ticket as having reached the table.",
-        "description": "The one refusal here that is not a repository operation's own. It reads the\nticket first and refuses unless it is `ready` at that moment, because\n\"somebody has already carried this out\" is what the waiter needs to be told,\nand a line level message about one dish would not say it.\n\nInside the loop it marks every dish that is `ready` and skips one that is\nalready `served` or was cancelled rather than treating either as a conflict.\nTwo waiters serving the same ticket at the same instant is not a mistake\nworth stopping the second one over; only the precheck refuses, and only\nbecause by then the ticket is no longer ready.\n\n# Errors\n\nReturns `409 round_not_ready` if the ticket is not waiting to be carried\nout, `404` if there is no such ticket, `401` if nobody is signed in, and\n`403` if the caller is not a waiter.",
+        "summary": "Marks every dish on a ticket that is waiting to be carried out.",
+        "description": "Serves what is ready and leaves what is still cooking, so a waiter carrying\nout the starters on a ticket whose main is still on the stove taps once.\n\n# Errors\n\nReturns `409 nothing_ready` if no dish on the ticket is waiting to be\ncarried out, `404` if there is no such ticket, `401` if nobody is signed in,\nand `403` if the caller is not a waiter.",
         "operationId": "mark_round_served",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "The ticket that reached the table.",
+            "description": "The ticket whose ready dishes reached the table.",
             "required": true,
             "schema": {
               "type": "string",
@@ -2454,7 +2664,7 @@
             }
           },
           "409": {
-            "description": "That ticket is not waiting to be carried out.",
+            "description": "`nothing_ready`: no dish on that ticket is waiting to be carried out.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3123,7 +3333,7 @@
           "orders"
         ],
         "summary": "Ends the meal: closes the bill, then closes the visit.",
-        "description": "In that order and in one transaction. `close_visit` refuses while a bill on\nthe visit is still open, so the order is not a preference; and one\ntransaction is what stops a bill being numbered and totalled while its table\nstays occupied for ever because the second write failed.\n\n# Errors\n\nReturns `409 bill_has_unserved_lines` if a dish has not reached the table,\n`409 bill_already_closed` if somebody closed it first, `409\nbill_has_no_lines` if nothing was ordered, `404` if there is no such visit or\nit has no bill, `401` if nobody is signed in, and `403` if the caller is not\na waiter.",
+        "description": "In that order and in one transaction. `close_visit` refuses while a bill on\nthe visit is still open, so the order is not a preference; and one\ntransaction is what stops a bill being numbered and totalled while its table\nstays occupied for ever because the second write failed.\n\nA bill with nothing chargeable on it (nothing ordered, or every dish\ncancelled) is voided instead of closed, so it uses no bill number. The\nanswer then carries `status: voided`, zero figures, and no number, and the\nscreen says there was nothing to charge.\n\nThe lock order and the void live in `billing::end_visit`.\n\n# Errors\n\nReturns `409 bill_has_unserved_lines` if a dish has not reached the table,\n`409 bill_already_closed` if somebody closed or voided it first, `404` if\nthere is no such visit or it has no open bill, `401` if nobody is signed in,\nand `403` if the caller is not a waiter.",
         "operationId": "close_visit",
         "parameters": [
           {
@@ -3139,7 +3349,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The closed bill, with its number and every figure. Waiters only.",
+            "description": "The closed bill, with its number and every figure, or the voided empty bill with none. Waiters only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3191,13 +3401,97 @@
         }
       }
     },
+    "/api/visits/{id}/move": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Moves a party, with their tickets, bill, and responsible waiter, to a free\ntable.",
+        "description": "# Errors\n\nReturns `409 table_occupied` if the destination has a party at it, `409\nvisit_not_open` if the party has left, `404` if there is no such visit or\nthe destination is archived or unknown, `401` if nobody is signed in, and\n`403` if the caller is not a waiter.",
+        "operationId": "move_visit",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The visit to move.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveVisitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The party's new table. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveVisitResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such visit, or no such live table.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`table_occupied`: that table has a party at it. `visit_not_open`: the party has left.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/visits/{id}/rounds": {
       "post": {
         "tags": [
           "orders"
         ],
         "summary": "Sends one ticket to the kitchen and puts its dishes on the bill.",
-        "description": "One transaction, so a ticket whose lines are on no bill cannot exist. That\nis what keeps the bill's running subtotal true throughout the meal and\nleaves the close with no assignment left to do.\n\n# Errors\n\nReturns `400` if the basket is empty or a quantity is not positive, `409\ndish_not_orderable` if a dish was switched off or taken off the menu before\nthe ticket went, which refuses the whole ticket, `409 visit_not_open` if the\nparty has left, `404` if there is no such visit, `401` if nobody is signed\nin, and `403` if the caller is not a waiter.",
+        "description": "One transaction, so a ticket whose lines are on no bill cannot exist. That\nis what keeps the bill's running subtotal true throughout the meal and\nleaves the close with no assignment left to do.\n\nSafe to repeat: the same `clientKey` again answers `200` with the ticket the\nfirst send made, and writes nothing.\n\n# Errors\n\nReturns `400` if the basket is empty, a quantity is not positive, or a note\nis longer than 140 characters (as `fields.\"lines.N.note\" = too_long`), `409\ndish_not_orderable` if a dish was switched off or taken off the menu before\nthe ticket went, which refuses the whole ticket, `409 visit_not_open` if the\nparty has left, `409 client_key_reused` if the key already sent a ticket for\nanother visit, `404` if there is no such visit, `401` if nobody is signed\nin, and `403` if the caller is not a waiter.",
         "operationId": "send_round",
         "parameters": [
           {
@@ -3222,6 +3516,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "description": "An earlier send with the same key already made this ticket; nothing new was sent. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderRoundDto"
+                }
+              }
+            }
+          },
           "201": {
             "description": "The ticket that was sent. Waiters only.",
             "content": {
@@ -3233,7 +3537,7 @@
             }
           },
           "400": {
-            "description": "An empty basket, or a quantity below one.",
+            "description": "An empty basket, a quantity below one, or a note over 140 characters.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3273,7 +3577,91 @@
             }
           },
           "409": {
-            "description": "`visit_not_open`: that party has already left. `dish_not_orderable`: a dish went off before the ticket went, and nothing was sent.",
+            "description": "`visit_not_open`: that party has already left. `dish_not_orderable`: a dish went off before the ticket went, and nothing was sent. `client_key_reused`: that key already sent a ticket for another table.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/visits/{id}/take-over": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Makes the caller the responsible waiter for a table, so its ready chime\ncomes to them.",
+        "description": "# Errors\n\nReturns `409 table_taken_over` if somebody else became responsible after\nthe screen was drawn, `409 visit_not_open` if the party has left, `404` if\nthere is no such visit, `401` if nobody is signed in, and `403` if the\ncaller is not a waiter.",
+        "operationId": "take_over",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The visit to take over.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeOverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The caller is now responsible. Waiters only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TakeOverResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a waiter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such visit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`table_taken_over`: somebody else took it first. `visit_not_open`: the party has left.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4597,20 +4985,57 @@
           }
         }
       },
+      "MoveVisitRequest": {
+        "type": "object",
+        "description": "What moving a party asks for.",
+        "required": [
+          "tableId"
+        ],
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The free, live table they are moving to."
+          }
+        }
+      },
+      "MoveVisitResponse": {
+        "type": "object",
+        "description": "Where a party sits now.",
+        "required": [
+          "visitId",
+          "tableId",
+          "tableLabel"
+        ],
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The table they are at now."
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "What the staff call it."
+          },
+          "visitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The visit."
+          }
+        }
+      },
       "OccupancyDto": {
         "type": "object",
         "description": "What a waiter needs to know about an occupied table without opening it.",
         "required": [
           "visitId",
           "openedBy",
+          "responsibleStaffId",
+          "responsibleName",
           "openedAt",
-          "foodReady"
+          "readyDishCount"
         ],
         "properties": {
-          "foodReady": {
-            "type": "boolean",
-            "description": "Whether a ticket on this visit is waiting to be carried out."
-          },
           "guestCount": {
             "type": [
               "integer",
@@ -4628,10 +5053,96 @@
             "type": "string",
             "description": "What to call the waiter who seated them."
           },
+          "readyDishCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many dishes on this visit are waiting to be carried out."
+          },
+          "responsibleName": {
+            "type": "string",
+            "description": "What to call that waiter."
+          },
+          "responsibleStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The waiter who hears the ready chime for this table."
+          },
           "visitId": {
             "type": "string",
             "format": "uuid",
             "description": "The one open visit on this table."
+          }
+        }
+      },
+      "OpenOrderDto": {
+        "type": "object",
+        "description": "One open table on the Orders list.",
+        "required": [
+          "id",
+          "tableId",
+          "tableLabel",
+          "openedAt",
+          "responsibleStaffId",
+          "responsibleName",
+          "rounds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The visit."
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When they sat down."
+          },
+          "responsibleName": {
+            "type": "string",
+            "description": "What to call that waiter."
+          },
+          "responsibleStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The waiter who hears the ready chime for this table."
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderRoundDto"
+            },
+            "description": "Every ticket on the visit, oldest first, with its dishes."
+          },
+          "tableId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Which table they are at."
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "What the staff call that table."
+          }
+        }
+      },
+      "OpenOrdersResponse": {
+        "type": "object",
+        "description": "Every open table in the restaurant, with every ticket on it.",
+        "required": [
+          "visits",
+          "serverTime"
+        ],
+        "properties": {
+          "serverTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "What the server's clock reads, at the moment this answer was built. The\nscreen corrects every age it draws by the difference from its own clock."
+          },
+          "visits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenOrderDto"
+            },
+            "description": "The open visits, in the order they were opened. The screen sorts them\nby what is ready."
           }
         }
       },
@@ -4720,6 +5231,14 @@
             "format": "int32",
             "description": "How many."
           },
+          "readyAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it came off the pass. How long ready food has waited is measured\nfrom here."
+          },
           "status": {
             "$ref": "#/components/schemas/LineStatusDto",
             "description": "Where this one dish has got to."
@@ -4727,6 +5246,24 @@
           "unitPrice": {
             "type": "string",
             "description": "What one of them cost, as an exact decimal string."
+          },
+          "voidReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The waiter's own words about why, when they gave any."
+          },
+          "voidReasonCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VoidReasonDto",
+                "description": "Why it was cancelled, on a cancelled dish."
+              }
+            ]
           }
         }
       },
@@ -5103,7 +5640,7 @@
               "string",
               "null"
             ],
-            "description": "What the guest asked for, such as no onions."
+            "description": "What the guest asked for, such as no onions. At most 140 characters\nafter trimming; blank is the same as none."
           },
           "quantity": {
             "type": "integer",
@@ -5116,9 +5653,15 @@
         "type": "object",
         "description": "What sending a ticket asks for.\n\nNo price anywhere in it, and that is the point. The price and the name are\nread from the dish inside `send_round` and copied onto the line, so a client\ncannot name its own price however it is built.",
         "required": [
+          "clientKey",
           "lines"
         ],
         "properties": {
+          "clientKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A key the phone made for this basket, the same on every retry until one\nsend succeeds. A key the server already holds for this visit sends\nnothing new and answers with the first ticket."
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -5363,6 +5906,45 @@
           }
         }
       },
+      "TakeOverRequest": {
+        "type": "object",
+        "description": "What taking over a table asks for.",
+        "required": [
+          "expectedStaffId"
+        ],
+        "properties": {
+          "expectedStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The waiter the screen showed as responsible. If somebody else has taken\nthe table since, the request is refused rather than taking it from them."
+          }
+        }
+      },
+      "TakeOverResponse": {
+        "type": "object",
+        "description": "Who is responsible for a table now.",
+        "required": [
+          "visitId",
+          "responsibleStaffId",
+          "responsibleName"
+        ],
+        "properties": {
+          "responsibleName": {
+            "type": "string",
+            "description": "What to call them."
+          },
+          "responsibleStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The waiter now responsible."
+          },
+          "visitId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The visit."
+          }
+        }
+      },
       "UpdateMeRequest": {
         "type": "object",
         "description": "What somebody may change about their own account.\n\nBoth fields are optional and absent means \"leave it alone\". `language` is\ndeliberately `Option<Option<String>>`: absent leaves it, and an explicit\n`null` clears it, which is a real choice somebody makes rather than an\nabsence. Collapsing the two would make \"follow the restaurant\" unsayable.",
@@ -5433,6 +6015,8 @@
           "tableLabel",
           "status",
           "openedBy",
+          "responsibleStaffId",
+          "responsibleName",
           "openedAt",
           "rounds",
           "serverTime"
@@ -5471,6 +6055,15 @@
             "type": "string",
             "description": "What to call the waiter who seated them."
           },
+          "responsibleName": {
+            "type": "string",
+            "description": "What to call that waiter."
+          },
+          "responsibleStaffId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The waiter who hears the ready chime for this table."
+          },
           "rounds": {
             "type": "array",
             "items": {
@@ -5497,6 +6090,61 @@
             "description": "What the staff call that table."
           }
         }
+      },
+      "VoidLineRequest": {
+        "type": "object",
+        "description": "What cancelling a dish asks for.",
+        "required": [
+          "reasonCode"
+        ],
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The waiter's own words. Required for `other`, optional otherwise, at\nmost 200 characters."
+          },
+          "reasonCode": {
+            "$ref": "#/components/schemas/VoidReasonDto",
+            "description": "Why, from the closed list."
+          }
+        }
+      },
+      "VoidLineResponse": {
+        "type": "object",
+        "description": "What cancelling a dish changed.",
+        "required": [
+          "line",
+          "roundStatus"
+        ],
+        "properties": {
+          "billSubtotal": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The bill's running subtotal after the dish came off it, as an exact\ndecimal string. `null` for a dish on no bill."
+          },
+          "line": {
+            "$ref": "#/components/schemas/OrderLineDto",
+            "description": "The dish, after the write."
+          },
+          "roundStatus": {
+            "$ref": "#/components/schemas/RoundStatusDto",
+            "description": "What the whole ticket became, recomputed from all of its dishes."
+          }
+        }
+      },
+      "VoidReasonDto": {
+        "type": "string",
+        "description": "Why a dish was cancelled, on the wire.",
+        "enum": [
+          "guest_changed_mind",
+          "entered_by_mistake",
+          "kitchen_unavailable",
+          "other"
+        ]
       }
     }
   },

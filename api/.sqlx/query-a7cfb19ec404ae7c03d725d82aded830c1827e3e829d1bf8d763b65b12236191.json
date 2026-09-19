@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.version, t.archived_at,\n               v.id            AS \"visit_id?\",\n               v.opened_at     AS \"opened_at?\",\n               v.guest_count   AS \"guest_count?\",\n               opener.display_name AS \"opened_by?\",\n               EXISTS (\n                   SELECT 1 FROM order_rounds AS r\n                   WHERE r.visit_id = v.id AND r.status = 'ready'\n               )               AS \"food_ready?\"\n        FROM dining_tables AS t\n        LEFT JOIN table_sections AS s ON s.id = t.section_id\n        LEFT JOIN visits AS v ON v.table_id = t.id AND v.status = 'open'\n        LEFT JOIN staff AS opener ON opener.id = v.opened_by_staff_id\n        WHERE t.archived_at IS NULL\n        ORDER BY s.position NULLS LAST, s.name NULLS LAST, t.position, t.label, t.id\n        ",
+  "query": "\n        SELECT t.id, t.section_id, t.label, t.seats, t.position, t.version, t.archived_at,\n               v.id            AS \"visit_id?\",\n               v.opened_at     AS \"opened_at?\",\n               v.guest_count   AS \"guest_count?\",\n               opener.display_name AS \"opened_by?\",\n               v.responsible_staff_id AS \"responsible_staff_id?\",\n               responsible.display_name AS \"responsible_name?\",\n               (\n                   SELECT count(*)\n                   FROM order_lines AS l\n                   JOIN order_rounds AS r ON r.id = l.round_id\n                   WHERE r.visit_id = v.id AND l.status = 'ready'\n               )               AS \"ready_dish_count?\"\n        FROM dining_tables AS t\n        LEFT JOIN table_sections AS s ON s.id = t.section_id\n        LEFT JOIN visits AS v ON v.table_id = t.id AND v.status = 'open'\n        LEFT JOIN staff AS opener ON opener.id = v.opened_by_staff_id\n        LEFT JOIN staff AS responsible ON responsible.id = v.responsible_staff_id\n        WHERE t.archived_at IS NULL\n        ORDER BY s.position NULLS LAST, s.name NULLS LAST, t.position, t.label, t.id\n        ",
   "describe": {
     "columns": [
       {
@@ -126,8 +126,30 @@
       },
       {
         "ordinal": 11,
-        "name": "food_ready?",
-        "type_info": "Bool",
+        "name": "responsible_staff_id?",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "responsible_staff_id"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "responsible_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "staff",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "ready_dish_count?",
+        "type_info": "Int8",
         "origin": "Expression"
       }
     ],
@@ -146,8 +168,10 @@
       false,
       true,
       false,
+      false,
+      false,
       null
     ]
   },
-  "hash": "bcc6543b17b59eb368aa2dfd4604a1cabbeed0eb4450b3694cfcff4b3f97738c"
+  "hash": "a7cfb19ec404ae7c03d725d82aded830c1827e3e829d1bf8d763b65b12236191"
 }

@@ -11,6 +11,7 @@ import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { ElapsedTime } from '@/shared/ui/elapsed-time'
 import { EmptyState } from '@/shared/ui/empty-state'
+import { RestaurantText } from '@/shared/ui/restaurant-text'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
@@ -34,6 +35,10 @@ import { KitchenTabs } from '@/kitchen/components/kitchen-tabs'
  * **A tap marks one dish and nothing else.** The ticket's own status follows
  * from its dishes and is recomputed by the server, which is why nothing here
  * sets one, and why the last dish makes the whole ticket ready by itself.
+ *
+ * **A cancelled dish stays on its ticket**, struck through and labelled, with
+ * nothing to tap, and a ticket whose every dish was cancelled leaves the queue
+ * (spec 0011, AC-14). Notes are shown whole and wrapped.
  *
  * Feature 13 builds the real kitchen display over this.
  */
@@ -138,12 +143,28 @@ export function KitchenHome() {
                 {ticket.lines.map((line) => (
                   <li key={line.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-card-foreground">
-                        {line.quantity} × {line.dishName}
+                      {/* A cancelled dish stays on its ticket, struck through,
+                          so the chef sees it was cancelled rather than
+                          watching it vanish mid cook. */}
+                      <p
+                        className={
+                          line.status === 'voided'
+                            ? 'font-medium text-muted-foreground line-through'
+                            : 'font-medium text-card-foreground'
+                        }
+                      >
+                        {line.quantity} × <RestaurantText>{line.dishName}</RestaurantText>
                       </p>
-                      {/* Reaches the pass exactly as the guest said it. */}
+                      {/* Reaches the pass exactly as the guest said it, whole
+                          and wrapped, never cut off: "no onions, nut allergy"
+                          truncated to "no onions, nu" is a hospital visit. */}
                       {line.note !== null && line.note !== '' && (
-                        <p className="truncate text-sm text-muted-foreground">{line.note}</p>
+                        <RestaurantText
+                          as="p"
+                          className="text-sm break-words whitespace-pre-wrap text-muted-foreground"
+                        >
+                          {line.note}
+                        </RestaurantText>
                       )}
                     </div>
 

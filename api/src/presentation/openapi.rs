@@ -12,7 +12,7 @@ use utoipa::OpenApi;
 
 use super::dto::{
     BillDto, BillTaxDto, DietDto, DishDto, IdentityBundle, LineStatusDto, OrderLineDto,
-    OrderRoundDto, RestaurantDto, RoleDto, RoundStatusDto, StaffDto, StaffMemberDto,
+    OrderRoundDto, RestaurantDto, RoleDto, RoundStatusDto, StaffDto, StaffMemberDto, VoidReasonDto,
 };
 use super::error::ErrorBody;
 use super::handlers::{
@@ -46,6 +46,11 @@ use super::handlers::{
         service::mark_round_served,
         service::kitchen_tickets,
         service::mark_line_ready,
+        service::open_orders,
+        service::take_over,
+        service::move_visit,
+        service::mark_line_served,
+        service::void_line,
         admin_menu::admin_menu,
         admin_menu::create_category,
         admin_menu::rename_category,
@@ -114,6 +119,15 @@ use super::handlers::{
         service::KitchenLineDto,
         service::MarkedLineResponse,
         billing::VisitResponse,
+        VoidReasonDto,
+        service::OpenOrdersResponse,
+        service::OpenOrderDto,
+        service::TakeOverRequest,
+        service::TakeOverResponse,
+        service::MoveVisitRequest,
+        service::MoveVisitResponse,
+        service::VoidLineRequest,
+        service::VoidLineResponse,
         DietDto,
         DishDto,
         menu::SetAvailabilityRequest,
@@ -335,6 +349,46 @@ mod tests {
             assert!(
                 responses.contains("Admins only."),
                 "{method} {path} does not say it is admin only in its responses"
+            );
+            assert!(
+                responses.contains("\"403\"") && responses.contains("\"401\""),
+                "{method} {path} does not document its 401 and 403"
+            );
+        }
+    }
+
+    /// covers: AC-18 (spec 0011)
+    ///
+    /// Every endpoint the waiter service flow adds or changes is in the
+    /// document, says it is the waiter's, and documents its `401` and `403`.
+    #[test]
+    fn every_waiter_service_endpoint_is_in_the_document_and_says_it_is_the_waiters() {
+        let document = serde_json::to_value(ApiDoc::openapi()).expect("the document serialises");
+
+        let expected = [
+            ("/api/orders/open", "get"),
+            ("/api/floor", "get"),
+            ("/api/visits/{id}", "get"),
+            ("/api/visits/{id}/rounds", "post"),
+            ("/api/visits/{id}/take-over", "post"),
+            ("/api/visits/{id}/move", "post"),
+            ("/api/visits/{id}/close", "post"),
+            ("/api/order-lines/{id}/served", "post"),
+            ("/api/order-lines/{id}/void", "post"),
+            ("/api/rounds/{id}/served", "post"),
+        ];
+
+        for (path, method) in expected {
+            let operation = &document["paths"][path][method];
+            assert!(
+                operation.is_object(),
+                "{method} {path} is missing from the OpenAPI document"
+            );
+
+            let responses = operation["responses"].to_string();
+            assert!(
+                responses.contains("Waiters only."),
+                "{method} {path} does not say it is the waiter's in its responses"
             );
             assert!(
                 responses.contains("\"403\"") && responses.contains("\"401\""),

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, visit_id, sequence_no, status AS \"status: RoundStatus\",\n               sent_by_staff_id, sent_at, ready_at, served_at\n        FROM order_rounds\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, table_id, status AS \"status: VisitStatus\", guest_count,\n               opened_by_staff_id, responsible_staff_id, opened_at, closed_at\n        FROM visits\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -9,97 +9,95 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "order_rounds",
+            "table": "visits",
             "name": "id"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "visit_id",
+        "name": "table_id",
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "order_rounds",
-            "name": "visit_id"
+            "table": "visits",
+            "name": "table_id"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "sequence_no",
-        "type_info": "Int4",
-        "origin": {
-          "Table": {
-            "table": "order_rounds",
-            "name": "sequence_no"
-          }
-        }
-      },
-      {
-        "ordinal": 3,
-        "name": "status: RoundStatus",
+        "name": "status: VisitStatus",
         "type_info": {
           "Custom": {
-            "name": "round_status",
+            "name": "visit_status",
             "kind": {
               "Enum": [
-                "queued",
-                "ready",
-                "served",
-                "voided"
+                "open",
+                "closed"
               ]
             }
           }
         },
         "origin": {
           "Table": {
-            "table": "order_rounds",
+            "table": "visits",
             "name": "status"
           }
         }
       },
       {
+        "ordinal": 3,
+        "name": "guest_count",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "guest_count"
+          }
+        }
+      },
+      {
         "ordinal": 4,
-        "name": "sent_by_staff_id",
+        "name": "opened_by_staff_id",
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "order_rounds",
-            "name": "sent_by_staff_id"
+            "table": "visits",
+            "name": "opened_by_staff_id"
           }
         }
       },
       {
         "ordinal": 5,
-        "name": "sent_at",
-        "type_info": "Timestamptz",
+        "name": "responsible_staff_id",
+        "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "order_rounds",
-            "name": "sent_at"
+            "table": "visits",
+            "name": "responsible_staff_id"
           }
         }
       },
       {
         "ordinal": 6,
-        "name": "ready_at",
+        "name": "opened_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "order_rounds",
-            "name": "ready_at"
+            "table": "visits",
+            "name": "opened_at"
           }
         }
       },
       {
         "ordinal": 7,
-        "name": "served_at",
+        "name": "closed_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "order_rounds",
-            "name": "served_at"
+            "table": "visits",
+            "name": "closed_at"
           }
         }
       }
@@ -113,12 +111,12 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
       true,
+      false,
+      false,
+      false,
       true
     ]
   },
-  "hash": "cabc33cbd6a143a0b0f7064d8adde50c175153d24e8fa5946c342cd25357204c"
+  "hash": "800d9719b26d5ff3b8d32ca109edb37f29ba851a9d16ea7e0ff2e4c7a80a4a55"
 }

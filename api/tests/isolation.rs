@@ -111,7 +111,7 @@ async fn a_correctly_scoped_transaction_still_cannot_point_at_another_restaurant
     let alpha_visit = service::open_visit(&mut tx, a.table_one, a.waiter, Some(2))
         .await
         .expect("opening alpha's visit");
-    let (_, alpha_lines) = service::send_round(
+    let (_, alpha_lines) = common::send_round(
         &mut tx,
         alpha_visit.id,
         a.waiter,
@@ -181,7 +181,7 @@ async fn deleting_a_restaurant_is_complete_and_deactivating_one_removes_nothing(
     let visit = service::open_visit(&mut tx, a.table_one, a.waiter, Some(2))
         .await
         .expect("opening a visit");
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         a.waiter,

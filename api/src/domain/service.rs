@@ -5,7 +5,8 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
 use super::catalog::DiningTable;
-use super::enums::{LineStatus, RoundStatus, VisitStatus};
+use super::enums::{LineStatus, RoundStatus, VisitStatus, VoidReason};
+use super::error::FieldError;
 use super::ids::{BillId, DiningTableId, DishId, OrderLineId, OrderRoundId, StaffId, VisitId};
 
 /// One party's stay at one table, from sitting down to leaving.
@@ -26,6 +27,9 @@ pub struct Visit {
     pub guest_count: Option<i16>,
     /// Who seated them.
     pub opened_by_staff_id: StaffId,
+    /// The waiter who hears the ready chime for this table. Whoever opened it,
+    /// until a colleague takes it over.
+    pub responsible_staff_id: StaffId,
     /// When they sat down.
     pub opened_at: DateTime<Utc>,
     /// When they left, if they have.
@@ -55,6 +59,9 @@ pub struct OrderRound {
     pub ready_at: Option<DateTime<Utc>>,
     /// When the last dish reached the table.
     pub served_at: Option<DateTime<Utc>>,
+    /// The key the phone made for the send that created it, so a retried
+    /// send finds this ticket instead of making a second one.
+    pub client_key: Option<uuid::Uuid>,
 }
 
 /// One dish on one ticket.
@@ -98,7 +105,11 @@ pub struct OrderLine {
     pub voided_by_staff_id: Option<StaffId>,
     /// When it was cancelled.
     pub voided_at: Option<DateTime<Utc>>,
-    /// Why it was cancelled. Always present on a voided line.
+    /// Why it was cancelled, from the closed list. Always present on a voided
+    /// line.
+    pub void_reason_code: Option<VoidReason>,
+    /// The waiter's own words about why. Always present when the code is
+    /// [`VoidReason::Other`], optional otherwise.
     pub void_reason: Option<String>,
 }
 
@@ -136,17 +147,42 @@ pub struct TableOccupancy {
     /// The one open visit on this table, which the partial unique index
     /// guarantees is at most one.
     pub visit_id: VisitId,
-    /// What to call the waiter who seated them. A name, not a rule: any waiter
-    /// may act on any table, and a real floor hands tables over at a shift
-    /// change.
+    /// What to call the waiter who seated them.
     pub opened_by: String,
+    /// The waiter who hears the ready chime for this table. Responsibility,
+    /// not permission: any waiter may act on any table.
+    pub responsible_staff_id: StaffId,
+    /// What to call that waiter.
+    pub responsible_name: String,
     /// When they sat down.
     pub opened_at: DateTime<Utc>,
     /// How many of them, when the waiter recorded it.
     pub guest_count: Option<i16>,
-    /// Whether a ticket on this visit is waiting to be carried out. This is
+    /// How many dishes on this visit are waiting to be carried out. This is
     /// what puts a table in front of a waiter who is not watching the alert.
-    pub food_ready: bool,
+    pub ready_dish_count: i64,
+}
+
+/// One open visit as the waiter's Orders list reads it.
+///
+/// A read model, like [`FloorTable`]: every open table with every round on it,
+/// so a waiter can see where to walk next without opening each table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenOrder {
+    /// The visit.
+    pub visit_id: VisitId,
+    /// Where the party is sitting.
+    pub table_id: DiningTableId,
+    /// What the staff call that table.
+    pub table_label: String,
+    /// When they sat down.
+    pub opened_at: DateTime<Utc>,
+    /// The waiter who hears the ready chime for this table.
+    pub responsible_staff_id: StaffId,
+    /// What to call that waiter.
+    pub responsible_name: String,
+    /// Every ticket on the visit, oldest first, each with its dishes.
+    pub rounds: Vec<(OrderRound, Vec<OrderLine>)>,
 }
 
 /// One ticket as the kitchen screen reads it.
@@ -162,6 +198,58 @@ pub struct KitchenTicket {
     pub table_label: String,
     /// Every dish on it, oldest first.
     pub lines: Vec<OrderLine>,
+}
+
+/// The most characters a dish note may hold, counted as Unicode code points the
+/// way Postgres `char_length` counts them. The database holds the same ceiling.
+pub const NOTE_MAX_CHARS: usize = 140;
+
+/// The most characters a void explanation may hold, counted the same way.
+pub const VOID_REASON_MAX_CHARS: usize = 200;
+
+/// Tidies a dish note the way it is stored: surrounding spaces trimmed, and a
+/// note that is blank after trimming stored as none.
+///
+/// # Errors
+///
+/// Returns [`FieldError::TooLong`] if what is left is longer than
+/// [`NOTE_MAX_CHARS`].
+pub fn normalize_note(note: Option<&str>) -> Result<Option<String>, FieldError> {
+    let Some(trimmed) = note.map(str::trim).filter(|text| !text.is_empty()) else {
+        return Ok(None);
+    };
+
+    if trimmed.chars().count() > NOTE_MAX_CHARS {
+        return Err(FieldError::TooLong);
+    }
+
+    Ok(Some(trimmed.to_owned()))
+}
+
+/// Tidies the words a waiter gave for cancelling a dish, and checks them
+/// against the reason code they chose.
+///
+/// Text is required for [`VoidReason::Other`], because "other" alone tells a
+/// manager reading the log nothing, and optional for the three that already say
+/// what happened.
+///
+/// # Errors
+///
+/// Returns [`FieldError::Required`] if the code is `other` and no text was
+/// given, and [`FieldError::TooLong`] if the text is longer than
+/// [`VOID_REASON_MAX_CHARS`].
+pub fn void_reason_text(
+    code: VoidReason,
+    text: Option<&str>,
+) -> Result<Option<String>, FieldError> {
+    let trimmed = text.map(str::trim).filter(|text| !text.is_empty());
+
+    match trimmed {
+        None if code == VoidReason::Other => Err(FieldError::Required),
+        None => Ok(None),
+        Some(words) if words.chars().count() > VOID_REASON_MAX_CHARS => Err(FieldError::TooLong),
+        Some(words) => Ok(Some(words.to_owned())),
+    }
 }
 
 /// Works out where a whole ticket has got to from the dishes on it.
@@ -256,5 +344,57 @@ mod tests {
     #[test]
     fn a_ticket_with_no_dishes_is_queued_rather_than_cancelled() {
         assert_eq!(round_status_from_lines(&[]), RoundStatus::Queued);
+    }
+
+    /// covers: AC-6 (spec 0011)
+    #[test]
+    fn a_note_is_trimmed_and_a_blank_one_is_none() {
+        assert_eq!(
+            normalize_note(Some("  no onions  ")),
+            Ok(Some("no onions".to_owned()))
+        );
+        assert_eq!(normalize_note(Some("   ")), Ok(None));
+        assert_eq!(normalize_note(None), Ok(None));
+    }
+
+    /// covers: AC-6 (spec 0011)
+    ///
+    /// Counted in code points, not bytes: 140 Devanagari letters are three
+    /// bytes each and must still fit.
+    #[test]
+    fn a_note_is_measured_in_characters_not_bytes() {
+        let hindi = "प".repeat(NOTE_MAX_CHARS);
+        assert_eq!(normalize_note(Some(&hindi)), Ok(Some(hindi.clone())));
+
+        let too_long = "प".repeat(NOTE_MAX_CHARS + 1);
+        assert_eq!(normalize_note(Some(&too_long)), Err(FieldError::TooLong));
+    }
+
+    /// covers: AC-13 (spec 0011)
+    #[test]
+    fn other_needs_words_and_the_rest_do_not() {
+        assert_eq!(
+            void_reason_text(VoidReason::Other, None),
+            Err(FieldError::Required)
+        );
+        assert_eq!(
+            void_reason_text(VoidReason::Other, Some("  ")),
+            Err(FieldError::Required)
+        );
+        assert_eq!(
+            void_reason_text(VoidReason::Other, Some(" spilled ")),
+            Ok(Some("spilled".to_owned()))
+        );
+        assert_eq!(
+            void_reason_text(VoidReason::GuestChangedMind, None),
+            Ok(None)
+        );
+        assert_eq!(
+            void_reason_text(
+                VoidReason::KitchenUnavailable,
+                Some("x".repeat(201).as_str())
+            ),
+            Err(FieldError::TooLong)
+        );
     }
 }

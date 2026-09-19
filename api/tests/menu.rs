@@ -795,7 +795,7 @@ async fn a_ticket_carrying_a_dish_that_went_off_is_refused_whole() {
         .await
         .expect("the soup goes off");
 
-    let refused = service::send_round(
+    let refused = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -847,7 +847,7 @@ async fn no_menu_change_touches_a_line_already_sent() {
     let bill = billing::open_bill(&mut tx, visit.id, f.waiter)
         .await
         .expect("opening the bill");
-    let (_, sent) = service::send_round(
+    let (_, sent) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,

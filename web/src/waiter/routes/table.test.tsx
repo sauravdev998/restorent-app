@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,18 +8,18 @@ import { api } from '@/shared/api/client'
 import { menuKey } from '@/shared/events/query-keys'
 import { IDENTITY_KEY, type Identity } from '@/shared/session/identity'
 import { expectAccessible } from '@/test/axe'
+import { acknowledgedSnapshot, resetAcknowledgedForTests } from '@/waiter/alerts/acknowledged'
 
 import { WaiterTable } from './table'
 
 /**
- * The waiter's table screen, and the one rule on it that is easy to get wrong.
+ * The waiter's table screen.
  *
- * **A round is announced once.** The screen refetches every time the live
- * stream says anything on this visit moved, and a round that is ready stays
- * ready across all of those refetches. Without the guard, every refetch would
- * raise the alert again: a waiter carrying three plates would have their phone
- * shouting at them about food they collected two minutes ago, and they would
- * learn to ignore it, which is the one outcome this alert cannot survive.
+ * The ready alert is no longer this screen's: it lives in the waiter shell
+ * and is tested in `alerts/`. What this screen owes is the rest of spec 0011:
+ * standing at the table acknowledges its ready food, a dish is served or
+ * cancelled on its own, the basket survives a remount and carries its send
+ * key, and an empty close reads as nothing to charge.
  *
  * The client is replaced wholesale, the way the other screen tests do it: the
  * real one builds a `Request` from a relative address, which jsdom refuses.
@@ -54,9 +54,15 @@ const IDENTITY: Identity = {
 
 const VISIT_ID = '00000000-0000-7000-8000-000000000010'
 const ROUND_ID = '00000000-0000-7000-8000-000000000020'
+const LINE_ID = '00000000-0000-7000-8000-000000000030'
+const COLLEAGUE = '00000000-0000-7000-8000-000000000003'
 
 /** A visit document, with its one round in whatever state a test needs. */
-function visitWith(roundStatus: 'queued' | 'ready' | 'served') {
+function visitWith(
+  roundStatus: 'queued' | 'ready' | 'served',
+  options: { responsible?: 'me' | 'colleague'; billStatus?: 'open' | 'voided' } = {},
+) {
+  const colleague = options.responsible === 'colleague'
   return {
     id: VISIT_ID,
     tableId: '00000000-0000-7000-8000-000000000011',
@@ -64,6 +70,8 @@ function visitWith(roundStatus: 'queued' | 'ready' | 'served') {
     status: 'open',
     guestCount: 2,
     openedBy: 'Wes Waiter',
+    responsibleStaffId: colleague ? COLLEAGUE : IDENTITY.staff.id,
+    responsibleName: colleague ? 'Cara Colleague' : 'Wes Waiter',
     openedAt: '2026-09-08T12:00:00.000Z',
     serverTime: '2026-09-08T12:05:00.000Z',
     rounds: [
@@ -77,14 +85,17 @@ function visitWith(roundStatus: 'queued' | 'ready' | 'served') {
         servedAt: null,
         lines: [
           {
-            id: '00000000-0000-7000-8000-000000000030',
+            id: LINE_ID,
             dishId: '00000000-0000-7000-8000-000000000040',
             dishName: 'Tomato soup',
             quantity: 1,
             unitPrice: '180.0000',
             lineTotal: '180.0000',
-            note: null,
+            note: 'no onions',
             status: roundStatus === 'served' ? 'served' : roundStatus,
+            readyAt: roundStatus === 'queued' ? null : '2026-09-08T12:04:00.000Z',
+            voidReasonCode: null,
+            voidReason: null,
           },
         ],
       },
@@ -92,7 +103,7 @@ function visitWith(roundStatus: 'queued' | 'ready' | 'served') {
     bill: {
       id: '00000000-0000-7000-8000-000000000050',
       number: null,
-      status: 'open',
+      status: options.billStatus ?? 'open',
       currencyCode: 'INR',
       currencyDecimals: 2,
       subtotal: '180.0000',
@@ -162,6 +173,8 @@ function respondWith(visit: unknown, menu: unknown = MENU) {
       menuReads += 1
       return Promise.resolve({ data: currentMenu }) as never
     }
+    if (path === '/api/me') return Promise.resolve({ data: IDENTITY }) as never
+    if (path === '/api/floor') return Promise.resolve({ data: { sections: [] } }) as never
     return Promise.resolve({ data: visit }) as never
   })
 }
@@ -197,6 +210,8 @@ async function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.sessionStorage.clear()
+  resetAcknowledgedForTests()
 })
 
 describe('WaiterTable', () => {
@@ -208,53 +223,112 @@ describe('WaiterTable', () => {
       expect(screen.getByText('Table 7')).toBeInTheDocument()
     })
 
-    expect(screen.queryByText(/is ready/i)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /mark served/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^serve/i })).not.toBeInTheDocument()
   }) // covers: AC-8, AC-10
 
-  it('raises the alert naming the table and the round when food is ready', async () => {
+  it('acknowledges ready food just by being open on its table', async () => {
+    // Standing at the table is knowing its food is up, so the reminder stops.
     respondWith(visitWith('ready'))
     await mount()
 
+    await screen.findByText('Table 7')
     await waitFor(() => {
-      expect(screen.getByText('Table 7, round 1 is ready')).toBeInTheDocument()
+      expect(acknowledgedSnapshot().has(LINE_ID)).toBe(true)
     })
+    expect(window.sessionStorage.getItem('waiter.acknowledged')).toContain(LINE_ID)
+  }) // covers: AC-10 (spec 0011)
 
-    // And the alert carries the action, so collecting the food and saying so
-    // are one tap rather than two screens.
-    expect(screen.getByRole('button', { name: /mark served/i })).toBeInTheDocument()
-  }) // covers: AC-8
-
-  it('announces the same round once, however many times the screen refetches', async () => {
-    // The rule this whole file exists for. Every live event on this visit
-    // refetches the document, and a ready round stays ready in all of them.
+  it('serves one ready dish on its own', async () => {
+    const user = userEvent.setup()
     respondWith(visitWith('ready'))
-    const { queryClient } = await mount()
+    vi.mocked(api.POST).mockResolvedValue({ data: {} })
+    await mount()
 
-    await waitFor(() => {
-      expect(screen.getByText('Table 7, round 1 is ready')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Serve Tomato soup' }))
+
+    expect(api.POST).toHaveBeenCalledWith('/api/order-lines/{id}/served', {
+      params: { path: { id: LINE_ID } },
     })
+  }) // covers: AC-12 (spec 0011)
 
-    // Dismissed, the way a waiter who has collected the food would.
-    screen.getByRole('button', { name: /dismiss/i }).click()
+  it('offers serve all ready on a round with a ready dish', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('ready'))
+    vi.mocked(api.POST).mockResolvedValue({ data: {} })
+    await mount()
 
-    await waitFor(() => {
-      expect(screen.queryByText('Table 7, round 1 is ready')).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Serve all ready' }))
+
+    expect(api.POST).toHaveBeenCalledWith('/api/rounds/{id}/served', {
+      params: { path: { id: ROUND_ID } },
     })
+  }) // covers: AC-12 (spec 0011)
 
-    // Three more refetches of the very same answer, which is what a busy table
-    // produces: a line moving, a bill changing, another round being sent.
-    for (let i = 0; i < 3; i++) {
-      await act(async () => {
-        await queryClient.refetchQueries({ queryKey: ['visit', VISIT_ID] })
-      })
-    }
+  it('shows the note on a dish that was sent with one', async () => {
+    respondWith(visitWith('queued'))
+    await mount()
+
+    expect(await screen.findByText('no onions')).toBeInTheDocument()
+  }) // covers: AC-6 (spec 0011)
+
+  it('cancels a dish only with a reason, and asks for words when the reason is other', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('queued'))
+    vi.mocked(api.POST).mockResolvedValue({ data: {} })
+    await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Cancel Tomato soup' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Cancel this dish?' })
+
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Why' }), 'other')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel the dish' }))
 
     expect(
-      screen.queryByText('Table 7, round 1 is ready'),
-      'the alert came back on a refetch, so a waiter is shouted at about food they already have',
-    ).not.toBeInTheDocument()
-  }) // covers: AC-8
+      await within(dialog).findByText('Say what happened, so a manager reading this later knows.'),
+    ).toBeInTheDocument()
+    expect(api.POST).not.toHaveBeenCalled()
+
+    await user.type(within(dialog).getByRole('textbox', { name: /Details/ }), 'spilled')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel the dish' }))
+
+    await waitFor(() => {
+      expect(api.POST).toHaveBeenCalledWith('/api/order-lines/{id}/void', {
+        params: { path: { id: LINE_ID } },
+        body: { reasonCode: 'other', reason: 'spilled' },
+      })
+    })
+  }) // covers: AC-13 (spec 0011)
+
+  it('names the responsible waiter and offers to take the table over', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('queued', { responsible: 'colleague' }))
+    vi.mocked(api.POST).mockResolvedValue({ data: {} })
+    await mount()
+
+    expect(await screen.findByText("Cara Colleague's table")).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Take over' }))
+
+    expect(api.POST).toHaveBeenCalledWith('/api/visits/{id}/take-over', {
+      params: { path: { id: VISIT_ID } },
+      body: { expectedStaffId: COLLEAGUE },
+    })
+  }) // covers: AC-4 (spec 0011)
+
+  it('offers no take over on my own table', async () => {
+    respondWith(visitWith('queued'))
+    await mount()
+
+    expect(await screen.findByText('Your table')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Take over' })).not.toBeInTheDocument()
+  }) // covers: AC-4 (spec 0011)
+
+  it('says there is nothing to charge when the empty bill was voided', async () => {
+    respondWith({ ...visitWith('served', { billStatus: 'voided' }), status: 'closed' })
+    await mount()
+
+    expect(await screen.findByRole('heading', { name: 'Nothing to charge' })).toBeInTheDocument()
+    expect(screen.queryByText('Total')).not.toBeInTheDocument()
+  }) // covers: AC-16 (spec 0011)
 
   it('writes money in the bill’s own currency, from the exact decimal', async () => {
     respondWith(visitWith('ready'))
@@ -375,4 +449,100 @@ describe('WaiterTable basket', () => {
     })
     expect(await screen.findByText('Off now, cannot be sent')).toBeInTheDocument()
   }) // covers: AC-12 (spec 0008)
+})
+
+/** The basket that survives, spec 0011 AC-6, AC-7, AC-8. */
+describe('WaiterTable basket on the phone', () => {
+  it('survives leaving the screen, and sends its note and its key', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('served'), menuWith())
+    const first = await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Add one Tomato soup' }))
+    await user.type(screen.getByRole('textbox', { name: 'Note for Tomato soup' }), 'no onions')
+    first.unmount()
+
+    vi.mocked(api.POST).mockResolvedValue({ data: {} })
+    await mount()
+
+    const note = await screen.findByRole('textbox', { name: 'Note for Tomato soup' })
+    expect(note).toHaveValue('no onions')
+
+    await user.click(screen.getByRole('button', { name: /^send 1 dish$/i }))
+
+    await waitFor(() => {
+      expect(api.POST).toHaveBeenCalledWith('/api/visits/{id}/rounds', {
+        params: { path: { id: VISIT_ID } },
+        body: {
+          clientKey: expect.any(String) as string,
+          lines: [{ dishId: SOUP, quantity: 1, note: 'no onions' }],
+        },
+      })
+    })
+  }) // covers: AC-6, AC-7 (spec 0011)
+
+  it('sends the same key again after a failure, and clears once a send lands', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('served'), menuWith())
+    vi.mocked(api.POST).mockResolvedValueOnce({
+      error: { error: 'unavailable', message: 'timed out' },
+    })
+    await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Add one Tomato soup' }))
+    await user.click(screen.getByRole('button', { name: /^send 1 dish$/i }))
+    await waitFor(() => {
+      expect(api.POST).toHaveBeenCalledTimes(1)
+    })
+
+    // The retry lands, as the replay of the first try would.
+    vi.mocked(api.POST).mockResolvedValueOnce({ data: {} })
+    await user.click(screen.getByRole('button', { name: /^send 1 dish$/i }))
+    await waitFor(() => {
+      expect(api.POST).toHaveBeenCalledTimes(2)
+    })
+
+    const keys = vi
+      .mocked(api.POST)
+      .mock.calls.map((call) => JSON.stringify(call[1]).match(/"clientKey":"([^"]+)"/)?.[1])
+    expect(keys[0]).toBeDefined()
+    expect(keys[1]).toBe(keys[0])
+
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem(`waiter.basket.${VISIT_ID}`)).toBeNull()
+    })
+  }) // covers: AC-7, AC-8 (spec 0011)
+
+  it('drops the basket, and says why, when the table has closed', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('served'), menuWith())
+    vi.mocked(api.POST).mockResolvedValue({
+      error: { error: 'visit_not_open', message: 'that party has already left' },
+    })
+    await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Add one Tomato soup' }))
+    await user.click(screen.getByRole('button', { name: /^send 1 dish$/i }))
+
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem(`waiter.basket.${VISIT_ID}`)).toBeNull()
+    })
+    expect(screen.queryByRole('textbox', { name: 'Note for Tomato soup' })).not.toBeInTheDocument()
+  }) // covers: AC-7 (spec 0011)
+
+  it('refuses to send a note over 140 characters', async () => {
+    const user = userEvent.setup()
+    respondWith(visitWith('served'), menuWith())
+    await mount()
+
+    await user.click(await screen.findByRole('button', { name: 'Add one Tomato soup' }))
+    await user.click(screen.getByRole('textbox', { name: 'Note for Tomato soup' }))
+    await user.paste('x'.repeat(141))
+
+    expect(await screen.findByText('A note can be at most 140 characters.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^send 1 dish$/i })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
+  }) // covers: AC-6 (spec 0011)
 })

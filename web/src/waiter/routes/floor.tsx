@@ -8,36 +8,42 @@ import { failureBody } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import { floorKey } from '@/shared/events/query-keys'
 import { formatTimestamp } from '@/shared/format'
+import { useIdentity } from '@/shared/session/use-identity'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { RestaurantText } from '@/shared/ui/restaurant-text'
 import { Skeleton } from '@/shared/ui/skeleton'
-import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
 import { floorQuery, openVisit, type FloorTable } from '@/waiter/api/orders'
+import { ReadyBadge } from '@/waiter/components/ready-badge'
+import { WaiterViews } from '@/waiter/components/waiter-views'
+import { useMineOnly } from '@/waiter/mine-only'
 
 /**
  * The waiter's landing screen: the whole floor, free tables and taken ones.
  *
- * Deliberately plain. Feature 12 builds the real working screen a waiter uses
- * all evening; this one exists to prove the thread and to be usable while it
- * does, so it is a list of tables with one action on each.
+ * One of the waiter's two views, beside Orders (spec 0011, AC-1), and the one
+ * a waiter lands on. Each occupied table names its responsible waiter, the
+ * one who hears its ready chime, and carries a badge counting the dishes
+ * waiting on the pass. The Mine filter narrows it to the tables that are
+ * mine; free tables stay, because any waiter may seat a party.
  *
  * Tapping a free table opens it and walks straight into the ordering screen,
  * because that is what a waiter is doing: they are not opening a table for its
  * own sake, they are taking an order. Tapping a taken one goes to the same
  * screen without writing anything.
  *
- * Any waiter may act on any table. The screen names whoever opened it, because
- * that is worth knowing at a shift change, but it is a fact rather than a rule
- * and the server does not restrict on it either.
+ * Any waiter may act on any table. Responsibility decides who hears the chime,
+ * not who may act, and the server does not restrict on it either.
  */
 export function WaiterFloor() {
   const { t } = useTranslation(['waiter', 'common'])
   const { t: common } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const me = useIdentity().staff.id
+  const mineOnly = useMineOnly()
 
   const floor = useQuery(floorQuery)
 
@@ -85,6 +91,7 @@ export function WaiterFloor() {
   if (floor.isPending) {
     return (
       <div className="space-y-4">
+        <WaiterViews />
         <h1 className="text-2xl font-semibold text-foreground">{t('floor.title')}</h1>
         <Skeleton className="h-64 w-full" label={common('loading.label')} />
       </div>
@@ -94,6 +101,7 @@ export function WaiterFloor() {
   if (floor.isError) {
     return (
       <div className="space-y-4">
+        <WaiterViews />
         <h1 className="text-2xl font-semibold text-foreground">{t('floor.title')}</h1>
         <EmptyState
           icon={LayoutGrid}
@@ -115,8 +123,22 @@ export function WaiterFloor() {
 
   const empty = floor.data.sections.every((section) => section.tables.length === 0)
 
+  // Mine hides the occupied tables somebody else is responsible for. Free
+  // tables stay: seating a party is anybody's to do.
+  const sections = floor.data.sections
+    .map((section) => ({
+      ...section,
+      tables: mineOnly
+        ? section.tables.filter(
+            (table) => !table.occupancy || table.occupancy.responsibleStaffId === me,
+          )
+        : section.tables,
+    }))
+    .filter((section) => section.tables.length > 0)
+
   return (
     <div className="space-y-6">
+      <WaiterViews />
       <h1 className="text-2xl font-semibold text-foreground">{t('floor.title')}</h1>
 
       {empty ? (
@@ -125,8 +147,14 @@ export function WaiterFloor() {
           title={t('floor.emptyTitle')}
           description={t('floor.emptyBody')}
         />
+      ) : sections.length === 0 ? (
+        <EmptyState
+          icon={LayoutGrid}
+          title={t('floor.emptyMineTitle')}
+          description={t('floor.emptyMineBody')}
+        />
       ) : (
-        floor.data.sections.map((section) => (
+        sections.map((section) => (
           <section key={section.id ?? 'unsectioned'} aria-labelledby={`s-${section.id ?? 'none'}`}>
             <h2
               id={`s-${section.id ?? 'none'}`}
@@ -159,16 +187,22 @@ export function WaiterFloor() {
                         </p>
                       )}
                     </div>
-                    {table.occupancy?.foodReady === true && <StatusPill status="ready" compact />}
+                    <ReadyBadge count={table.occupancy?.readyDishCount ?? 0} />
                   </div>
 
                   {table.occupancy ? (
-                    <p className="text-xs text-muted-foreground">
-                      {t('floor.openedBy', {
-                        name: table.occupancy.openedBy,
-                        at: formatTimestamp(table.occupancy.openedAt, 'time'),
-                      })}
-                    </p>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="font-medium text-card-foreground">
+                        {table.occupancy.responsibleStaffId === me
+                          ? t('responsible.you')
+                          : t('responsible.named', { name: table.occupancy.responsibleName })}
+                      </p>
+                      <p>
+                        {t('floor.openedAt', {
+                          at: formatTimestamp(table.occupancy.openedAt, 'time'),
+                        })}
+                      </p>
+                    </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">{t('floor.free')}</p>
                   )}

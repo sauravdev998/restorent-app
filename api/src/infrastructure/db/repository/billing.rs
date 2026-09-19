@@ -313,18 +313,34 @@ pub async fn assign_lines_to_bill(
     // stay in that bill's total for ever.
     for id in affected {
         recompute_subtotal(tx, BillId::from_uuid(id)).await?;
-        Database::notify_entity_change(tx, EntityKind::Bill, id).await?;
     }
 
     bill(tx, bill_id).await
 }
 
-/// Adds up a bill's assigned dishes and stores the result.
+/// Adds up a bill's assigned dishes that were not cancelled, stores the
+/// result, and announces the bill.
 ///
 /// The subtotal is the only figure that moves before a bill closes. The service
 /// charge, the taxes, and the total stay at zero until the close computes all
 /// three at once, so no screen can ever read a half computed money figure.
-async fn recompute_subtotal(tx: &mut ScopedTx<'_>, bill_id: BillId) -> DomainResult<Decimal> {
+///
+/// Takes the bill's row lock first, so a close cannot snapshot figures while
+/// this is summing. A void calls it after locking the line and its ticket, which
+/// keeps the one lock order every path follows: visit, then line or ticket, then
+/// bill, then the bill number counter.
+pub(crate) async fn recompute_subtotal(
+    tx: &mut ScopedTx<'_>,
+    bill_id: BillId,
+) -> DomainResult<Decimal> {
+    sqlx::query!(
+        "SELECT id FROM bills WHERE id = $1 FOR UPDATE",
+        bill_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .ok_or(DomainError::NotFound)?;
+
     let currency = bill(tx, bill_id).await?.currency;
 
     let raw = sqlx::query!(
@@ -348,6 +364,8 @@ async fn recompute_subtotal(tx: &mut ScopedTx<'_>, bill_id: BillId) -> DomainRes
     )
     .execute(tx.connection())
     .await?;
+
+    Database::notify_entity_change(tx, EntityKind::Bill, bill_id.as_uuid()).await?;
 
     Ok(subtotal)
 }
@@ -418,6 +436,118 @@ pub async fn close_bill(
     Database::notify_entity_change(tx, EntityKind::Bill, bill_id.as_uuid()).await?;
 
     Ok(closed)
+}
+
+/// Ends the meal: settles the visit's open bill, then frees the table.
+///
+/// The visit's row lock comes first, before the bill's, so this keeps the one
+/// lock order a send on the same table also follows: visit, then bill, then the
+/// bill number counter. Close used to lock the bill and then update the visit,
+/// and a send and a close on one table could deadlock.
+///
+/// A bill with nothing chargeable on it (nothing ordered, or every dish
+/// cancelled) is voided rather than closed, so it uses no number. Otherwise it
+/// is closed as it always was.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Conflict`] with `bill_already_closed` if the visit's
+/// bill was already closed or voided, with `bill_has_unserved_lines` if a dish
+/// has not reached the table, and [`DomainError::NotFound`] if there is no such
+/// visit or it never had a bill.
+pub async fn end_visit(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+    closed_by: StaffId,
+) -> DomainResult<Bill> {
+    super::service::lock_visit(tx, visit_id).await?;
+
+    let Some(bill_id) = super::service::open_bill_of(tx, visit_id).await? else {
+        return Err(if latest_bill_of(tx, visit_id).await?.is_some() {
+            DomainError::Conflict(ConflictKind::BillAlreadyClosed)
+        } else {
+            DomainError::NotFound
+        });
+    };
+
+    let settled = if void_empty_bill(tx, bill_id, closed_by).await? {
+        bill(tx, bill_id).await?
+    } else {
+        close_bill(tx, bill_id, closed_by).await?
+    };
+
+    super::service::close_visit(tx, visit_id).await?;
+
+    Ok(settled)
+}
+
+/// Voids a bill that has nothing chargeable on it, instead of closing it.
+///
+/// A table whose every dish was cancelled, or that never ordered, has nothing
+/// to charge. Closing it would use a bill number on a bill of zero, so it is
+/// voided instead and the numbers stay gapless.
+///
+/// Returns `false`, having changed nothing, when the bill turns out to hold a
+/// dish that still counts after all, so the caller falls through to
+/// [`close_bill`], which closes it or says why it cannot.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Conflict`] with `bill_already_closed` if the bill was
+/// already closed or voided by somebody else, and [`DomainError::NotFound`] if
+/// there is no such bill.
+pub async fn void_empty_bill(
+    tx: &mut ScopedTx<'_>,
+    bill_id: BillId,
+    voided_by: StaffId,
+) -> DomainResult<bool> {
+    let locked = sqlx::query!(
+        r#"SELECT status AS "status: BillStatus" FROM bills WHERE id = $1 FOR UPDATE"#,
+        bill_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .ok_or(DomainError::NotFound)?;
+
+    if locked.status != BillStatus::Open {
+        return Err(DomainError::Conflict(ConflictKind::BillAlreadyClosed));
+    }
+
+    let voided = sqlx::query!(
+        r#"
+        UPDATE bills
+        SET status = 'voided', subtotal = 0, updated_at = now()
+        WHERE id = $1
+          AND status = 'open'
+          AND NOT EXISTS (
+              SELECT 1 FROM order_lines
+              WHERE bill_id = $1 AND status <> 'voided'
+          )
+        RETURNING id
+        "#,
+        bill_id.as_uuid()
+    )
+    .fetch_optional(tx.connection())
+    .await?;
+
+    if voided.is_none() {
+        return Ok(false);
+    }
+
+    super::audit::record(
+        tx,
+        Some(voided_by),
+        AuditAction::BillVoided,
+        "bill",
+        bill_id.as_uuid(),
+        Some(json!({ "status": BillStatus::Open })),
+        Some(json!({ "status": BillStatus::Voided })),
+    )
+    .await?;
+
+    Database::notify_entity_change(tx, EntityKind::Bill, bill_id.as_uuid()).await?;
+
+    Ok(true)
 }
 
 /// Every figure a close is about to stamp onto a bill, worked out but not yet

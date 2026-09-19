@@ -84,6 +84,13 @@ pub enum AuditAction {
     TableSectionArchived,
     /// An archived table section was put back on the floor.
     TableSectionRestored,
+    /// A waiter took over responsibility for an open table from a colleague.
+    VisitTakenOver,
+    /// A party was moved to a different table.
+    VisitMoved,
+    /// A bill with nothing chargeable on it was voided instead of closed, so
+    /// it used no bill number.
+    BillVoided,
 }
 
 impl AuditAction {
@@ -121,6 +128,9 @@ impl AuditAction {
             Self::TableSectionRenamed => "table_section_renamed",
             Self::TableSectionArchived => "table_section_archived",
             Self::TableSectionRestored => "table_section_restored",
+            Self::VisitTakenOver => "visit_taken_over",
+            Self::VisitMoved => "visit_moved",
+            Self::BillVoided => "bill_voided",
         }
     }
 }
@@ -155,7 +165,7 @@ mod tests {
     ///
     /// Kept honest by [`position`]: adding a variant stops that match compiling,
     /// and filling it in stops this array being the right length.
-    const ALL: [AuditAction; 30] = [
+    const ALL: [AuditAction; 33] = [
         AuditAction::RestaurantRegistered,
         AuditAction::PasswordChanged,
         AuditAction::RestaurantSettingsUpdated,
@@ -186,6 +196,9 @@ mod tests {
         AuditAction::TableSectionRenamed,
         AuditAction::TableSectionArchived,
         AuditAction::TableSectionRestored,
+        AuditAction::VisitTakenOver,
+        AuditAction::VisitMoved,
+        AuditAction::BillVoided,
     ];
 
     /// Where each action sits in [`ALL`].
@@ -225,6 +238,9 @@ mod tests {
             AuditAction::TableSectionRenamed => 27,
             AuditAction::TableSectionArchived => 28,
             AuditAction::TableSectionRestored => 29,
+            AuditAction::VisitTakenOver => 30,
+            AuditAction::VisitMoved => 31,
+            AuditAction::BillVoided => 32,
         }
     }
 
@@ -342,6 +358,9 @@ mod tests {
             AuditAction::TableSectionRestored.as_label(),
             "table_section_restored"
         );
+        assert_eq!(AuditAction::VisitTakenOver.as_label(), "visit_taken_over");
+        assert_eq!(AuditAction::VisitMoved.as_label(), "visit_moved");
+        assert_eq!(AuditAction::BillVoided.as_label(), "bill_voided");
     }
 
     /// covers: AC-14

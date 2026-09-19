@@ -15,7 +15,9 @@ import { KitchenMenu } from '@/kitchen/routes/kitchen-menu'
 import { identityQuery, type Identity, type Role } from '@/shared/session/identity'
 import { landingFor, REGISTER_PATH, signInPathFor, SIGN_IN_PATH } from '@/shared/session/signed-out'
 import { WaiterFloor } from '@/waiter/routes/floor'
+import { WaiterOrders } from '@/waiter/routes/orders'
 import { WaiterTable } from '@/waiter/routes/table'
+import { WaiterLayout } from '@/waiter/routes/waiter-layout'
 
 import { queryClient } from './query-client'
 import { ErrorScreen } from './error-screen'
@@ -199,8 +201,12 @@ export const router = createBrowserRouter([
       {
         path: 'waiter',
         loader: requireRole('waiter'),
+        // One frame around every waiter screen, holding the ready alert so it
+        // reaches the waiter on whichever of them is open.
+        element: <WaiterLayout />,
         children: [
           { index: true, element: <WaiterFloor /> },
+          { path: 'orders', element: <WaiterOrders /> },
           { path: 'tables/:visitId', element: <WaiterTable /> },
         ],
       },

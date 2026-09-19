@@ -45,7 +45,7 @@ const NAAN_LINE = '00000000-0000-7000-8000-000000000032'
 /** The moment the server says it is, for every fixture in this file. */
 const SERVER_NOW = '2026-09-08T12:05:00.000Z'
 
-type LineStatus = 'queued' | 'ready' | 'served'
+type LineStatus = 'queued' | 'ready' | 'served' | 'voided'
 
 interface FixtureLine {
   id: string
@@ -96,6 +96,15 @@ function at<T>(items: readonly T[], index: number): T {
   const item = items[index]
   if (item === undefined) throw new Error(`no element at index ${index}`)
   return item
+}
+
+/**
+ * Finds a dish line by everything it says, even though the dish name inside it
+ * sits in its own element marked with the restaurant's language.
+ */
+function dishLine(text: string) {
+  return (_content: string, element: Element | null) =>
+    element?.tagName === 'P' && element.textContent === text
 }
 
 /** Answers the queue with whatever a test set up. */
@@ -167,8 +176,8 @@ describe('KitchenHome', () => {
     })
 
     expect(screen.getByText('Round 1')).toBeInTheDocument()
-    expect(screen.getByText('2 × Tomato soup')).toBeInTheDocument()
-    expect(screen.getByText('1 × Butter naan')).toBeInTheDocument()
+    expect(screen.getByText(dishLine('2 × Tomato soup'))).toBeInTheDocument()
+    expect(screen.getByText(dishLine('1 × Butter naan'))).toBeInTheDocument()
   }) // covers: AC-5, AC-6
 
   it('keeps the queue in the order the server sent it, oldest first', async () => {
@@ -300,7 +309,7 @@ describe('KitchenHome', () => {
     expect(screen.getAllByRole('button', { name: 'Done' })).toHaveLength(1)
 
     // And the dish still reads as waiting, because nothing has confirmed it.
-    expect(screen.getByText('2 × Tomato soup')).toBeInTheDocument()
+    expect(screen.getByText(dishLine('2 × Tomato soup'))).toBeInTheDocument()
 
     await act(async () => {
       settle?.()
@@ -321,7 +330,7 @@ describe('KitchenHome', () => {
     await mount()
 
     await waitFor(() => {
-      expect(screen.getByText('2 × Tomato soup')).toBeInTheDocument()
+      expect(screen.getByText(dishLine('2 × Tomato soup'))).toBeInTheDocument()
     })
 
     // One dish done, one still to cook, and the ticket is still cooking:
@@ -398,6 +407,41 @@ describe('KitchenHome', () => {
       screen.getByText('New tickets appear here on their own, with no refresh.'),
     ).toBeInTheDocument()
   }) // covers: AC-6
+
+  it('keeps a cancelled dish on its ticket, struck through, with nothing to tap', async () => {
+    respondWith({
+      tickets: [
+        ticket({
+          lines: [{ ...at(baseLines(), 0), status: 'voided' }, at(baseLines(), 1)],
+        }),
+      ],
+      serverTime: SERVER_NOW,
+    })
+    await mount()
+
+    await waitFor(() => {
+      expect(screen.getByText(dishLine('2 × Tomato soup'))).toBeInTheDocument()
+    })
+
+    expect(screen.getByText(dishLine('2 × Tomato soup'))).toHaveClass('line-through')
+    expect(screen.getByText('Cancelled')).toBeInTheDocument()
+    // Only the naan, still cooking, can be marked done.
+    expect(screen.getAllByRole('button', { name: 'Done' })).toHaveLength(1)
+  }) // covers: AC-14 (spec 0011)
+
+  it('shows a 140 character note whole and wrapped, never cut off', async () => {
+    const note = `No onions, nut allergy. ${'x'.repeat(116)}`
+    respondWith({
+      tickets: [ticket({ lines: [{ ...at(baseLines(), 0), note }, at(baseLines(), 1)] })],
+      serverTime: SERVER_NOW,
+    })
+    await mount()
+
+    const shown = await screen.findByText(note)
+    expect(note).toHaveLength(140)
+    expect(shown).not.toHaveClass('truncate')
+    expect(shown).toHaveClass('whitespace-pre-wrap')
+  }) // covers: AC-6, AC-14 (spec 0011)
 
   it('offers a way back when the queue cannot be read', async () => {
     failWith({ error: 'unavailable', message: 'the database is unavailable' })

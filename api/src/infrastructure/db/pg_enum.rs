@@ -1,4 +1,4 @@
-//! Carries the domain's seven enums across to the Postgres enum types of the same
+//! Carries the domain's eight enums across to the Postgres enum types of the same
 //! names.
 //!
 //! This module exists because of the layer rule. The obvious way to do this is
@@ -16,7 +16,7 @@ use sqlx::error::BoxDynError;
 use sqlx::postgres::{PgArgumentBuffer, PgHasArrayType, PgTypeInfo, PgValueRef};
 
 use crate::domain::enums::{
-    BillStatus, Diet, LineStatus, PaymentMethod, RoundStatus, StaffRole, VisitStatus,
+    BillStatus, Diet, LineStatus, PaymentMethod, RoundStatus, StaffRole, VisitStatus, VoidReason,
 };
 
 /// Wires one domain enum up to the Postgres enum type it mirrors.
@@ -66,3 +66,4 @@ map_pg_enum!(LineStatus, "line_status");
 map_pg_enum!(BillStatus, "bill_status");
 map_pg_enum!(PaymentMethod, "payment_method");
 map_pg_enum!(Diet, "dish_diet");
+map_pg_enum!(VoidReason, "void_reason");

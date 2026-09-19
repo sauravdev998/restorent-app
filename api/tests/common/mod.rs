@@ -25,10 +25,14 @@ use std::str::FromStr;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
+use api::domain::error::DomainResult;
+use api::domain::ids::VisitId;
 use api::domain::ids::{
     DiningTableId, DishId, MenuCategoryId, RestaurantId, StaffId, TableSectionId, TaxComponentId,
 };
+use api::domain::service::{NewOrderLine, OrderLine, OrderRound};
 use api::infrastructure::config::{Config, Environment};
+use api::infrastructure::db::repository::service;
 use api::infrastructure::db::{Database, ScopedTx};
 
 /// Opens a pool as the API role.
@@ -57,6 +61,18 @@ pub async fn database() -> Database {
     Database::connect(&config)
         .await
         .expect("the integration tests need a reachable database")
+}
+
+/// Sends a ticket with a fresh send key, for the many tests that are about
+/// what a ticket does rather than about sending the same one twice.
+pub async fn send_round(
+    tx: &mut ScopedTx<'_>,
+    visit_id: VisitId,
+    sent_by: StaffId,
+    lines: &[NewOrderLine],
+) -> DomainResult<(OrderRound, Vec<OrderLine>)> {
+    let sent = service::send_round(tx, visit_id, sent_by, Uuid::now_v7(), lines).await?;
+    Ok((sent.round, sent.lines))
 }
 
 /// A decimal written as a literal in a test.
@@ -217,7 +233,9 @@ pub async fn seed_with(
     }
 }
 
-async fn seed_staff(
+/// Adds one member of staff to a restaurant, with a password nobody can sign
+/// in with.
+pub async fn seed_staff(
     tx: &mut ScopedTx<'_>,
     restaurant_id: Uuid,
     email: &str,
@@ -241,6 +259,22 @@ async fn seed_staff(
     .expect("seeding a staff member");
 
     id
+}
+
+/// Adds one more live table to a fixture's section, after its two.
+pub async fn seed_table_labelled(
+    tx: &mut ScopedTx<'_>,
+    fixture: &Fixture,
+    label: &str,
+) -> DiningTableId {
+    seed_table(
+        tx,
+        fixture.restaurant_id.as_uuid(),
+        fixture.section,
+        label,
+        3,
+    )
+    .await
 }
 
 async fn seed_table(
@@ -334,8 +368,9 @@ pub async fn seed_visit_and_bill(
 
     sqlx::query(
         "INSERT INTO visits
-             (id, restaurant_id, table_id, status, opened_by_staff_id, opened_at, updated_at)
-         VALUES ($1, $2, $3, 'open', $4, now(), now())",
+             (id, restaurant_id, table_id, status, opened_by_staff_id,
+              responsible_staff_id, opened_at, updated_at)
+         VALUES ($1, $2, $3, 'open', $4, $4, now(), now())",
     )
     .bind(visit_id)
     .bind(restaurant_id.as_uuid())

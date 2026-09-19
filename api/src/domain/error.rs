@@ -139,8 +139,8 @@ pub enum ConflictKind {
     VisitHasUnbilledLine,
     /// The dish is not in the state this action needed it to be in.
     LineNot(LineStatus),
-    /// The whole ticket is not waiting to be carried out.
-    RoundNotReady,
+    /// Serve all ready found no dish on the ticket waiting to be carried out.
+    NothingReady,
     /// The bill this action targets has already closed.
     BillNotOpen,
     /// One of those dishes is on a bill that has already closed.
@@ -221,6 +221,14 @@ pub enum ConflictKind {
     /// colleague took a label between the check and the write and had removed
     /// it again by the time the handler looked.
     LabelsTaken(Vec<String>),
+    /// Somebody else became responsible for the table after the screen asking
+    /// to take it over was drawn.
+    TableTakenOver,
+    /// A send key already made a round on a different visit.
+    ClientKeyReused,
+    /// The dish has been served or already cancelled, so it cannot be
+    /// cancelled now.
+    LineNotVoidable,
 }
 
 impl ConflictKind {
@@ -240,7 +248,7 @@ impl ConflictKind {
             Self::LineNot(LineStatus::Ready) => "line_not_ready",
             Self::LineNot(LineStatus::Served) => "line_not_served",
             Self::LineNot(LineStatus::Voided) => "line_not_voided",
-            Self::RoundNotReady => "round_not_ready",
+            Self::NothingReady => "nothing_ready",
             Self::BillNotOpen => "bill_not_open",
             Self::LineOnClosedBill => "line_on_closed_bill",
             Self::BillAlreadyClosed => "bill_already_closed",
@@ -267,6 +275,9 @@ impl ConflictKind {
             Self::SectionArchived => "section_archived",
             Self::FloorChanged => "floor_changed",
             Self::LabelsTaken(_) => "labels_taken",
+            Self::TableTakenOver => "table_taken_over",
+            Self::ClientKeyReused => "client_key_reused",
+            Self::LineNotVoidable => "line_not_voidable",
         }
     }
 }
@@ -287,7 +298,7 @@ impl std::fmt::Display for ConflictKind {
             Self::LineNot(LineStatus::Ready) => "that dish is not waiting to be carried out",
             Self::LineNot(LineStatus::Served) => "that dish has not reached the table",
             Self::LineNot(LineStatus::Voided) => "that dish has not been cancelled",
-            Self::RoundNotReady => "that ticket is not waiting to be carried out",
+            Self::NothingReady => "no dish on that ticket is waiting to be carried out",
             Self::BillNotOpen => "that bill is no longer open",
             Self::LineOnClosedBill => "one of those dishes is on a bill that has already closed",
             Self::BillAlreadyClosed => "that bill has already been closed",
@@ -314,6 +325,9 @@ impl std::fmt::Display for ConflictKind {
             Self::SectionArchived => "that section is no longer on the floor",
             Self::FloorChanged => "the floor changed while it was being reordered",
             Self::LabelsTaken(_) => "a live table already has one of those labels",
+            Self::TableTakenOver => "somebody else took that table over first",
+            Self::ClientKeyReused => "that send key was already used for another table",
+            Self::LineNotVoidable => "that dish has been served or already cancelled",
         };
 
         formatter.write_str(sentence)
@@ -392,7 +406,7 @@ mod tests {
     use super::*;
 
     /// Every kind, so the tests below run over all of them.
-    const ALL: [ConflictKind; 36] = [
+    const ALL: [ConflictKind; 39] = [
         ConflictKind::TableOccupied,
         ConflictKind::VisitNot(VisitStatus::Open),
         ConflictKind::VisitNot(VisitStatus::Closed),
@@ -402,7 +416,7 @@ mod tests {
         ConflictKind::LineNot(LineStatus::Ready),
         ConflictKind::LineNot(LineStatus::Served),
         ConflictKind::LineNot(LineStatus::Voided),
-        ConflictKind::RoundNotReady,
+        ConflictKind::NothingReady,
         ConflictKind::BillNotOpen,
         ConflictKind::LineOnClosedBill,
         ConflictKind::BillAlreadyClosed,
@@ -429,6 +443,9 @@ mod tests {
         ConflictKind::SectionArchived,
         ConflictKind::FloorChanged,
         ConflictKind::LabelsTaken(Vec::new()),
+        ConflictKind::TableTakenOver,
+        ConflictKind::ClientKeyReused,
+        ConflictKind::LineNotVoidable,
     ];
 
     /// covers: AC-12, AC-13

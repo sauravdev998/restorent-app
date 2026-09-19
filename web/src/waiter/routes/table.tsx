@@ -1,136 +1,168 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ReceiptText, TriangleAlert, UtensilsCrossed } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowRightLeft, ReceiptText, UtensilsCrossed } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 
 import { failureBody, failureCode } from '@/shared/api/call-error'
 import { apiErrorMessage } from '@/shared/api/error-message'
 import { menuQuery } from '@/shared/api/menu'
-import { floorKey, menuKey, visitKey } from '@/shared/events/query-keys'
+import { menuKey } from '@/shared/events/query-keys'
 import { clockOffset, onDeviceClock } from '@/shared/events/server-clock'
 import { formatMoney } from '@/shared/format'
-import { Alert } from '@/shared/ui/alert'
+import { useIdentity } from '@/shared/session/use-identity'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { DietMark } from '@/shared/ui/diet-mark'
 import { ElapsedTime } from '@/shared/ui/elapsed-time'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { Icon } from '@/shared/ui/icon'
+import { RestaurantText } from '@/shared/ui/restaurant-text'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { showToast } from '@/shared/ui/toast-store'
-import { closeVisit, markRoundServed, sendRound, visitQuery, type Round } from '@/waiter/api/orders'
+import { acknowledge } from '@/waiter/alerts/acknowledged'
+import {
+  closeVisit,
+  markRoundServed,
+  sendRound,
+  visitQuery,
+  type OrderLine,
+  type Round,
+} from '@/waiter/api/orders'
 import {
   addOne,
   basketSize,
-  removeOne,
-  takeOut,
+  noteTooLong,
+  sendLines,
   unorderableDishes,
-  type Basket,
+  type SendLine,
 } from '@/waiter/basket'
+import { BasketPanel } from '@/waiter/components/basket-panel'
+import { MoveDialog } from '@/waiter/components/move-dialog'
+import { VoidDialog } from '@/waiter/components/void-dialog'
+import { WaiterViews } from '@/waiter/components/waiter-views'
+import { useSavedBasket } from '@/waiter/use-saved-basket'
+import { useServeLine, useTakeOver } from '@/waiter/use-waiter-actions'
 
 /**
- * One table, for the whole meal: what has been ordered, what is ready, and what
- * it comes to.
+ * One table, for the whole meal: what to send, what is cooking, what is ready,
+ * and what it comes to.
  *
- * Three things are happening on this screen at once and it is worth naming
- * them, because feature 12 will pull them apart into a real working surface.
+ * **The basket survives.** It is saved per visit on this phone as it is built,
+ * so leaving for another table or reloading loses nothing, and it carries the
+ * key that makes tapping Send again after a timeout safe (spec 0011, AC-7,
+ * AC-8). It is cleared once a send lands, whether it made the ticket or found
+ * the one an earlier try made, and dropped with a word of explanation if the
+ * table has closed meanwhile.
  *
- * **A basket, which lives only in this component.** Nothing about an unsent
- * basket reaches the database. It is state in the browser until the waiter
- * sends it, which is what makes changing your mind free and what makes a
- * refresh mid order lose exactly nothing that mattered.
+ * **Every round is its own ticket** with its own status (AC-5). A ready dish
+ * is carried out on its own, or every ready dish on a round at once, even
+ * while the rest of that round still cooks (AC-12). A dish still cooking or
+ * waiting on the pass can be cancelled with a reason (AC-13).
  *
- * **A record of the meal**, refetched whenever the live stream says something
- * on this visit moved. Every round, its dishes, and the bill's running
- * subtotal, which is true throughout because lines are put on the bill at send.
+ * **Opening this screen acknowledges its ready food**, so the reminder stops
+ * chiming for a table the waiter is standing at (AC-10). The alert itself is
+ * the waiter shell's, not this screen's, so it reaches the waiter wherever
+ * they are.
  *
- * **An alert when food is ready**, once per round. The set of rounds already
- * announced lives in a ref rather than in state, because it must not cause a
- * render and must survive a refetch: without it, every refetch that still shows
- * a ready round would announce it again and a waiter would be shouted at by
- * their own phone.
+ * Any waiter may act on any table. The screen says who is responsible, the one
+ * who hears its chime, and offers to take it over.
  */
 export function WaiterTable() {
   const { visitId = '' } = useParams()
   const { t } = useTranslation(['waiter', 'common'])
   const { t: common } = useTranslation()
   const queryClient = useQueryClient()
+  const me = useIdentity().staff.id
 
   const visit = useQuery(visitQuery(visitId))
   const menu = useQuery(menuQuery)
+  const { basket, update, clear } = useSavedBasket(visitId)
 
-  const [basket, setBasket] = useState<Basket>({})
-  const [pending, setPending] = useState<string | null>(null)
-
-  // Rounds this screen has already shouted about. A ref, not state: announcing
-  // is a side effect, not something to draw, and a refetch must not re announce.
-  const announced = useRef<Set<string>>(new Set())
-  const [alerting, setAlerting] = useState<Round | null>(null)
+  const { serving, serve } = useServeLine()
+  const { taking, takeOver } = useTakeOver()
+  const [servingRound, setServingRound] = useState<string | null>(null)
+  const [voiding, setVoiding] = useState<OrderLine | null>(null)
+  const [moving, setMoving] = useState(false)
 
   // The device's clock error, measured against the answer that just arrived.
   // Every age drawn below is corrected by it, so a phone with a wrong clock
   // still shows a true one.
   const offset = useMemo(() => (visit.data ? clockOffset(visit.data.serverTime) : 0), [visit.data])
 
-  const readyRound = visit.data?.rounds.find((round) => round.status === 'ready') ?? null
-
+  // Standing at the table is knowing its food is up.
+  const readyHere = useMemo(
+    () =>
+      (visit.data?.rounds ?? []).flatMap((round) =>
+        round.lines.filter((line) => line.status === 'ready').map((line) => line.id),
+      ),
+    [visit.data],
+  )
   useEffect(() => {
-    if (!readyRound) return
-    if (announced.current.has(readyRound.id)) return
+    if (readyHere.length > 0) acknowledge(readyHere)
+  }, [readyHere])
 
-    announced.current.add(readyRound.id)
-    setAlerting(readyRound)
-  }, [readyRound])
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['visit'] })
 
   const send = useMutation({
-    mutationFn: () =>
-      sendRound(
-        visitId,
-        Object.entries(basket).map(([dishId, line]) => ({ dishId, quantity: line.quantity })),
-      ),
-    onSuccess: async () => {
-      // Cleared only on success. A send that failed leaves the basket exactly
-      // as the waiter built it, so retrying is one tap rather than re entering
-      // an order they already typed once.
-      setBasket({})
-      await queryClient.invalidateQueries({ queryKey: visitKey(visitId) })
+    mutationFn: (request: { visitId: string; clientKey: string; lines: SendLine[] }) =>
+      sendRound(request.visitId, request.clientKey, request.lines),
+    onSuccess: async (_round, request) => {
+      // Cleared only once a send has landed, and for the visit it was sent
+      // for, read from the request rather than from whatever this screen shows
+      // by now. A send that failed any other way leaves the basket and its key
+      // exactly as they were, so trying again is one tap and cannot make a
+      // second ticket.
+      clear(request.visitId)
+      await refresh()
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, request) => {
+      const code = failureCode(error)
+
+      if (code === 'visit_not_open') {
+        // Nothing can be sent to a table that has closed, so keeping the
+        // basket would only invite another refusal.
+        clear(request.visitId)
+        showToast({ title: t('basket.discardedClosed'), tone: 'late' })
+        void refresh()
+        return
+      }
+
       // A dish went off between the menu this screen holds and the send. The
       // whole ticket was refused, so nothing reached the kitchen; the menu is
       // read again, and the line that caused it is flagged in the basket.
-      if (failureCode(error) === 'dish_not_orderable') {
+      if (code === 'dish_not_orderable') {
         void queryClient.invalidateQueries({ queryKey: menuKey })
       }
       refuse(error)
     },
   })
 
-  const serve = useMutation({
+  const serveRound = useMutation({
     mutationFn: (roundId: string) => markRoundServed(roundId),
     onSuccess: async () => {
-      setAlerting(null)
-      await queryClient.invalidateQueries({ queryKey: visitKey(visitId) })
+      await refresh()
     },
     onError: (error: unknown) => {
-      void queryClient.invalidateQueries({ queryKey: visitKey(visitId) })
+      void refresh()
       refuse(error)
+    },
+    onSettled: () => {
+      setServingRound(null)
     },
   })
 
   const close = useMutation({
     mutationFn: () => closeVisit(visitId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: visitKey(visitId) })
-      await queryClient.invalidateQueries({ queryKey: floorKey })
+      await refresh()
     },
     onError: (error: unknown) => {
       // The common refusal here is `bill_has_unserved_lines`, and the sentence
       // the waiter reads is translated from that code rather than rendered from
       // the API's English.
-      void queryClient.invalidateQueries({ queryKey: visitKey(visitId) })
+      void refresh()
       refuse(error)
     },
   })
@@ -140,14 +172,6 @@ export function WaiterTable() {
       title: apiErrorMessage(failureBody(error), common),
       tone: 'late',
     })
-  }
-
-  function add(dishId: string, name: string): void {
-    setBasket((current) => addOne(current, dishId, name))
-  }
-
-  function remove(dishId: string): void {
-    setBasket((current) => removeOne(current, dishId))
   }
 
   if (visit.isPending) {
@@ -175,41 +199,68 @@ export function WaiterTable() {
 
   const { bill } = visit.data
   const closed = visit.data.status === 'closed'
+  const mine = visit.data.responsibleStaffId === me
   const plates = basketSize(basket)
   // Checked against the menu this screen holds, which the live stream keeps
   // fresh: a dish the kitchen switches off is flagged here within a second or
   // two, before the waiter tries to send it.
   const flagged = unorderableDishes(basket, menu.data)
+  const tooLong = basket.lines.some((line) => noteTooLong(line.note))
 
   /** Money on this bill, in the bill's own copied currency, never today's. */
   const billMoney = (amount: string): string =>
     bill ? formatMoney(amount, bill.currencyCode, bill.currencyDecimals) : amount
 
+  function sendBasket(): void {
+    // A basket saved before keys existed has none; it gets one now, and keeps
+    // it, so a retry of this very send carries the same key.
+    const clientKey = basket.clientKey ?? crypto.randomUUID()
+    if (basket.clientKey === null) update((current) => ({ ...current, clientKey }))
+    send.mutate({ visitId, clientKey, lines: sendLines(basket) })
+  }
+
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-foreground">
-          {t('table.title', { label: visit.data.tableLabel })}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t('table.openedBy', { name: visit.data.openedBy })}
-        </p>
-      </header>
+      <WaiterViews withMine={false} />
+      <header className="space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h1 className="text-2xl font-semibold text-foreground">
+            {t('table.title', { label: visit.data.tableLabel })}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {mine
+              ? t('responsible.you')
+              : t('responsible.named', { name: visit.data.responsibleName })}
+          </p>
+        </div>
 
-      {alerting && (
-        <Alert
-          open
-          tone="ready"
-          title={t('alert.title', {
-            label: visit.data.tableLabel,
-            round: alerting.sequenceNo,
-          })}
-          description={t('alert.body')}
-          onDismiss={() => {
-            setAlerting(null)
-          }}
-        />
-      )}
+        {!closed && (
+          <div className="flex flex-wrap gap-2">
+            {!mine && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={taking === visitId}
+                onClick={() => {
+                  takeOver(visitId, visit.data.responsibleStaffId)
+                }}
+              >
+                {taking === visitId ? t('takeOver.taking') : t('takeOver.action')}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setMoving(true)
+              }}
+            >
+              <Icon icon={ArrowRightLeft} size="sm" />
+              {t('move.action')}
+            </Button>
+          </div>
+        )}
+      </header>
 
       {!closed && (
         <section aria-labelledby="order-heading" className="space-y-3">
@@ -224,132 +275,70 @@ export function WaiterTable() {
           ) : (
             menu.data.categories.map((category) => (
               <Card key={category.id}>
-                <h3 className="mb-2 text-sm font-medium text-muted-foreground">{category.name}</h3>
+                <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                  <RestaurantText>{category.name}</RestaurantText>
+                </h3>
                 <ul className="divide-y divide-border">
-                  {category.dishes.map((dish) => (
-                    <li key={dish.id} className="flex items-center justify-between gap-3 py-2">
-                      <DietMark diet={dish.diet} />
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={
-                            dish.available
-                              ? 'truncate text-card-foreground'
-                              : 'truncate text-muted-foreground line-through'
-                          }
-                        >
-                          {dish.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatMoney(
-                            dish.price,
-                            menu.data.currencyCode,
-                            menu.data.currencyDecimals,
-                          )}
-                          {/* Shown rather than hidden, so a waiter can tell the
-                              customer the kitchen has run out. Sending one is
-                              refused by the server as well. */}
-                          {!dish.available && ` · ${t('table.unavailable')}`}
-                        </p>
-                      </div>
+                  {category.dishes.map((dish) => {
+                    const inBasket = basket.lines
+                      .filter((line) => line.dishId === dish.id)
+                      .reduce((total, line) => total + line.quantity, 0)
 
-                      <div className="flex items-center gap-2">
-                        {(basket[dish.id]?.quantity ?? 0) > 0 && (
-                          <>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              aria-label={t('table.removeOne', { dish: dish.name })}
-                              onClick={() => {
-                                remove(dish.id)
-                              }}
-                            >
-                              −
-                            </Button>
-                            <span className="tabular w-6 text-center text-sm">
-                              {basket[dish.id]?.quantity ?? 0}
-                            </span>
-                          </>
-                        )}
-                        <Button
-                          size="sm"
-                          disabled={!dish.available}
-                          aria-label={t('table.addOne', { dish: dish.name })}
-                          onClick={() => {
-                            add(dish.id, dish.name)
-                          }}
-                        >
-                          +
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
+                    return (
+                      <li key={dish.id} className="flex items-center justify-between gap-3 py-2">
+                        <DietMark diet={dish.diet} />
+                        <div className="min-w-0 flex-1">
+                          <RestaurantText
+                            as="p"
+                            className={
+                              dish.available
+                                ? 'truncate text-card-foreground'
+                                : 'truncate text-muted-foreground line-through'
+                            }
+                          >
+                            {dish.name}
+                          </RestaurantText>
+                          <p className="text-xs text-muted-foreground">
+                            {formatMoney(
+                              dish.price,
+                              menu.data.currencyCode,
+                              menu.data.currencyDecimals,
+                            )}
+                            {/* Shown rather than hidden, so a waiter can tell the
+                                customer the kitchen has run out. Sending one is
+                                refused by the server as well. */}
+                            {!dish.available && ` · ${t('table.unavailable')}`}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {inBasket > 0 && (
+                            <span className="tabular w-6 text-center text-sm">{inBasket}</span>
+                          )}
+                          <Button
+                            size="sm"
+                            disabled={!dish.available}
+                            aria-label={t('table.addOne', { dish: dish.name })}
+                            onClick={() => {
+                              update((current) => addOne(current, dish.id, dish.name))
+                            }}
+                          >
+                            +
+                          </Button>
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ul>
               </Card>
             ))
           )}
 
-          {plates > 0 && (
-            <Card as="section" aria-labelledby="basket-heading" className="space-y-2">
-              <h3 id="basket-heading" className="text-sm font-medium text-muted-foreground">
-                {t('basket.title')}
-              </h3>
-
-              {/* A status, so it is read out the moment a line goes off,
-                  whether or not the waiter is looking at the phone. */}
-              {flagged.length > 0 && (
-                <p
-                  role="status"
-                  className="flex items-start gap-2 text-sm font-medium text-status-late"
-                >
-                  <Icon icon={TriangleAlert} size="sm" className="mt-1" />
-                  {t('basket.flagged', { count: flagged.length })}
-                </p>
-              )}
-
-              <ul className="divide-y divide-border">
-                {Object.entries(basket).map(([dishId, line]) => {
-                  const off = flagged.includes(dishId)
-
-                  return (
-                    <li key={dishId} className="flex items-center justify-between gap-3 py-2">
-                      <div className="min-w-0">
-                        <p
-                          className={
-                            off ? 'truncate text-muted-foreground line-through' : 'truncate'
-                          }
-                        >
-                          {line.quantity} × {line.name}
-                        </p>
-                        {off && (
-                          <p className="text-xs font-medium text-status-late">
-                            {t('basket.lineOff')}
-                          </p>
-                        )}
-                      </div>
-                      {off && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          aria-label={t('basket.takeOutNamed', { dish: line.name })}
-                          onClick={() => {
-                            setBasket((current) => takeOut(current, dishId))
-                          }}
-                        >
-                          {t('basket.takeOut')}
-                        </Button>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </Card>
-          )}
+          {plates > 0 && <BasketPanel basket={basket} onChange={update} flagged={flagged} />}
 
           <Button
-            disabled={plates === 0 || flagged.length > 0 || send.isPending}
-            onClick={() => {
-              send.mutate()
-            }}
+            disabled={plates === 0 || flagged.length > 0 || tooLong || send.isPending}
+            onClick={sendBasket}
           >
             {send.isPending ? t('table.sending') : t('table.send', { count: plates })}
           </Button>
@@ -370,43 +359,21 @@ export function WaiterTable() {
         ) : (
           <ul className="space-y-3">
             {visit.data.rounds.map((round) => (
-              <Card as="li" key={round.id} className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-card-foreground">
-                    {t('table.round', { number: round.sequenceNo })}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <ElapsedTime since={onDeviceClock(round.sentAt, offset)} />
-                    <StatusPill status={round.status} />
-                  </div>
-                </div>
-
-                <ul className="divide-y divide-border text-sm">
-                  {round.lines.map((line) => (
-                    <li key={line.id} className="flex items-center justify-between gap-3 py-1">
-                      <span className="truncate">
-                        {line.quantity} × {line.dishName}
-                      </span>
-                      <span className="flex items-center gap-3">
-                        <span className="tabular">{billMoney(line.lineTotal)}</span>
-                        <StatusPill status={line.status} compact />
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-
-                {round.status === 'ready' && (
-                  <Button
-                    disabled={serve.isPending}
-                    onClick={() => {
-                      setPending(round.id)
-                      serve.mutate(round.id, { onSettled: () => setPending(null) })
-                    }}
-                  >
-                    {pending === round.id ? t('table.serving') : t('table.serve')}
-                  </Button>
-                )}
-              </Card>
+              <RoundCard
+                key={round.id}
+                round={round}
+                offset={offset}
+                billMoney={billMoney}
+                open={!closed}
+                serving={serving}
+                onServe={serve}
+                servingRound={servingRound === round.id}
+                onServeRound={() => {
+                  setServingRound(round.id)
+                  serveRound.mutate(round.id)
+                }}
+                onVoid={setVoiding}
+              />
             ))}
           </ul>
         )}
@@ -416,31 +383,42 @@ export function WaiterTable() {
         <Card>
           <h2 className="mb-2 flex items-center gap-2 text-lg font-medium text-card-foreground">
             <ReceiptText aria-hidden="true" className="size-5" />
-            {closed ? t('bill.closedTitle', { number: bill.number ?? 0 }) : t('bill.runningTitle')}
+            {bill.status === 'voided'
+              ? t('bill.nothingTitle')
+              : closed
+                ? t('bill.closedTitle', { number: bill.number ?? 0 })
+                : t('bill.runningTitle')}
           </h2>
 
-          <dl className="space-y-1 text-sm">
-            <Figure label={t('bill.subtotal')} value={billMoney(bill.subtotal)} />
+          {bill.status === 'voided' ? (
+            // Every dish was cancelled, or none was ordered: the bill was
+            // voided rather than closed, so no number was used and there is
+            // no total to show.
+            <p className="text-sm text-muted-foreground">{t('bill.nothingBody')}</p>
+          ) : (
+            <dl className="space-y-1 text-sm">
+              <Figure label={t('bill.subtotal')} value={billMoney(bill.subtotal)} />
 
-            {/* Shown only when there is one. A restaurant that charges no
-                service charge should not read a line saying it charged zero. */}
-            {bill.serviceChargePercent !== null && (
-              <Figure
-                label={t('bill.serviceCharge', { percent: bill.serviceChargePercent })}
-                value={billMoney(bill.serviceChargeAmount)}
-              />
-            )}
+              {/* Shown only when there is one. A restaurant that charges no
+                  service charge should not read a line saying it charged zero. */}
+              {bill.serviceChargePercent !== null && (
+                <Figure
+                  label={t('bill.serviceCharge', { percent: bill.serviceChargePercent })}
+                  value={billMoney(bill.serviceChargeAmount)}
+                />
+              )}
 
-            {bill.taxes.map((tax) => (
-              <Figure
-                key={tax.name}
-                label={t('bill.tax', { name: tax.name, rate: tax.ratePercent })}
-                value={billMoney(tax.amount)}
-              />
-            ))}
+              {bill.taxes.map((tax) => (
+                <Figure
+                  key={tax.name}
+                  label={t('bill.tax', { name: tax.name, rate: tax.ratePercent })}
+                  value={billMoney(tax.amount)}
+                />
+              ))}
 
-            {closed && <Figure label={t('bill.total')} value={billMoney(bill.total)} emphasis />}
-          </dl>
+              {closed && <Figure label={t('bill.total')} value={billMoney(bill.total)} emphasis />}
+            </dl>
+          )}
 
           {!closed && (
             <Button
@@ -455,7 +433,135 @@ export function WaiterTable() {
           )}
         </Card>
       )}
+
+      <VoidDialog
+        line={voiding}
+        onClose={() => {
+          setVoiding(null)
+        }}
+      />
+      <MoveDialog
+        open={moving}
+        onClose={() => {
+          setMoving(false)
+        }}
+        visitId={visitId}
+        tableLabel={visit.data.tableLabel}
+      />
     </div>
+  )
+}
+
+interface RoundCardProps {
+  round: Round
+  offset: number
+  billMoney: (amount: string) => string
+  /** Whether the table is still open, so its dishes can still be acted on. */
+  open: boolean
+  serving: string | null
+  onServe: (lineId: string) => void
+  servingRound: boolean
+  onServeRound: () => void
+  onVoid: (line: OrderLine) => void
+}
+
+/** One ticket: its status, its age, and every dish on it with what can be done. */
+function RoundCard({
+  round,
+  offset,
+  billMoney,
+  open,
+  serving,
+  onServe,
+  servingRound,
+  onServeRound,
+  onVoid,
+}: RoundCardProps) {
+  const { t } = useTranslation('waiter')
+  const anyReady = round.lines.some((line) => line.status === 'ready')
+
+  return (
+    <Card as="li" className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium text-card-foreground">
+          {t('table.round', { number: round.sequenceNo })}
+        </span>
+        <div className="flex items-center gap-3">
+          <ElapsedTime since={onDeviceClock(round.sentAt, offset)} />
+          <StatusPill status={round.status} />
+        </div>
+      </div>
+
+      <ul className="divide-y divide-border text-sm">
+        {round.lines.map((line) => (
+          <li key={line.id} className="space-y-2 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className={line.status === 'voided' ? 'text-muted-foreground line-through' : ''}>
+                  {line.quantity} × <RestaurantText>{line.dishName}</RestaurantText>
+                </p>
+                {line.note !== null && (
+                  <RestaurantText
+                    as="p"
+                    className="text-xs break-words whitespace-pre-wrap text-muted-foreground"
+                  >
+                    {line.note}
+                  </RestaurantText>
+                )}
+                {line.status === 'voided' && line.voidReasonCode !== null && (
+                  <p className="text-xs text-muted-foreground">
+                    {t(`void.reason.${line.voidReasonCode}`)}
+                    {line.voidReason !== null && (
+                      <>
+                        {' · '}
+                        <RestaurantText>{line.voidReason}</RestaurantText>
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
+              <span className="flex items-center gap-3">
+                <span className="tabular">{billMoney(line.lineTotal)}</span>
+                <StatusPill status={line.status} compact />
+              </span>
+            </div>
+
+            {open && (line.status === 'ready' || line.status === 'queued') && (
+              <div className="flex flex-wrap justify-end gap-2">
+                {line.status === 'ready' && (
+                  <Button
+                    size="sm"
+                    disabled={serving === line.id}
+                    aria-label={t('serve.oneNamed', { dish: line.dishName })}
+                    onClick={() => {
+                      onServe(line.id)
+                    }}
+                  >
+                    {serving === line.id ? t('table.serving') : t('serve.one')}
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('void.actionNamed', { dish: line.dishName })}
+                  onClick={() => {
+                    onVoid(line)
+                  }}
+                >
+                  {t('void.action')}
+                </Button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {open && anyReady && (
+        <Button disabled={servingRound} onClick={onServeRound}>
+          {servingRound ? t('table.serving') : t('serve.allReady')}
+        </Button>
+      )}
+    </Card>
   )
 }
 

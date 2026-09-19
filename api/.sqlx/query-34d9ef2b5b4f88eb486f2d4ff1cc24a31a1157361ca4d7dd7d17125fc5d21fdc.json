@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, round_id, dish_id, bill_id, quantity, unit_price, dish_name, line_total,\n               note, status AS \"status: LineStatus\", ready_by_staff_id, ready_at, served_at,\n               voided_by_staff_id, voided_at, void_reason\n        FROM order_lines\n        WHERE id = $1\n        ",
+  "query": "\n        SELECT id, round_id, dish_id, bill_id, quantity, unit_price, dish_name, line_total,\n               note, status AS \"status: LineStatus\", ready_by_staff_id, ready_at, served_at,\n               voided_by_staff_id, voided_at,\n               void_reason_code AS \"void_reason_code: VoidReason\", void_reason\n        FROM order_lines\n        WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -182,6 +182,29 @@
       },
       {
         "ordinal": 15,
+        "name": "void_reason_code: VoidReason",
+        "type_info": {
+          "Custom": {
+            "name": "void_reason",
+            "kind": {
+              "Enum": [
+                "guest_changed_mind",
+                "entered_by_mistake",
+                "kitchen_unavailable",
+                "other"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "void_reason_code"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
         "name": "void_reason",
         "type_info": "Text",
         "origin": {
@@ -213,8 +236,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "858c798286c7ab1b11c4bfe48045b0027c07b90e500337248b5288d3ed6f37aa"
+  "hash": "34d9ef2b5b4f88eb486f2d4ff1cc24a31a1157361ca4d7dd7d17125fc5d21fdc"
 }

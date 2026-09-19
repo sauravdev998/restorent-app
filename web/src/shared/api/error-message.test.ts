@@ -60,7 +60,7 @@ const CODES = [
   'line_not_ready',
   'line_not_served',
   'line_not_voided',
-  'round_not_ready',
+  'nothing_ready',
   'bill_not_open',
   'line_on_closed_bill',
   'bill_already_closed',
@@ -82,6 +82,9 @@ const CODES = [
   'section_archived',
   'floor_changed',
   'labels_taken',
+  'table_taken_over',
+  'client_key_reused',
+  'line_not_voidable',
 ]
 
 /** A failed response, shaped the way every one of them is. */

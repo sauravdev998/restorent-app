@@ -277,6 +277,10 @@ pub async fn rename(
     )
     .await?;
 
+    // The floor, the Orders list, and every table screen name the responsible
+    // waiter, so a new name has to reach them live.
+    Database::notify_entity_change(tx, EntityKind::Staff, staff_id.as_uuid()).await?;
+
     Ok(staff_from!(row))
 }
 

@@ -68,7 +68,7 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   line_not_ready: 'apiError.lineNotReady',
   line_not_served: 'apiError.lineNotServed',
   line_not_voided: 'apiError.lineNotVoided',
-  round_not_ready: 'apiError.roundNotReady',
+  nothing_ready: 'apiError.nothingReady',
   bill_not_open: 'apiError.billNotOpen',
   line_on_closed_bill: 'apiError.lineOnClosedBill',
   bill_already_closed: 'apiError.billAlreadyClosed',
@@ -94,6 +94,9 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   section_archived: 'apiError.sectionArchived',
   floor_changed: 'apiError.floorChanged',
   labels_taken: 'apiError.labelsTaken',
+  table_taken_over: 'apiError.tableTakenOver',
+  client_key_reused: 'apiError.clientKeyReused',
+  line_not_voidable: 'apiError.lineNotVoidable',
 }
 
 /** What anything unrecognised says. */

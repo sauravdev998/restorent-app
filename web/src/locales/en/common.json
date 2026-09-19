@@ -33,7 +33,7 @@
     "queued": "Cooking",
     "ready": "Ready",
     "served": "Served",
-    "voided": "Voided",
+    "voided": "Cancelled",
     "late": "Late"
   },
   "elapsed": {
@@ -85,7 +85,6 @@
     "lineNotReady": "That dish is not waiting to be carried out.",
     "lineNotServed": "That dish has not reached the table yet.",
     "lineNotVoided": "That dish has not been cancelled.",
-    "roundNotReady": "Somebody has already carried that ticket out.",
     "billNotOpen": "That bill has already been closed, so nothing more can go on it.",
     "lineOnClosedBill": "One of those dishes is on a bill that has already been closed.",
     "billAlreadyClosed": "That bill has already been closed. Its total is on the table screen.",
@@ -114,7 +113,11 @@
     "sectionNotEmpty": "That section still has tables in it. Move or remove them first.",
     "sectionArchived": "That section has been removed. Choose another one.",
     "floorChanged": "The floor changed while you were moving things. It now shows the current order, so try again.",
-    "labelsTaken": "Some of those table labels are already used by another table."
+    "labelsTaken": "Some of those table labels are already used by another table.",
+    "tableTakenOver": "Somebody else took that table over first. The screen now shows who has it.",
+    "clientKeyReused": "That order was already sent for another table. Start the basket again.",
+    "lineNotVoidable": "That dish has already been served or cancelled, so it cannot be cancelled now.",
+    "nothingReady": "Nothing on that round is ready to carry out yet."
   },
   "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land.",
   "signIn": {

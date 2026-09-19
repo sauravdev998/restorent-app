@@ -1,4 +1,4 @@
-//! The seven closed vocabularies the schema is built on.
+//! The eight closed vocabularies the schema is built on.
 //!
 //! Each one mirrors a Postgres enum type of the same name, value for value. The
 //! two must stay in step: adding a value means a one line `ALTER TYPE` in a
@@ -162,6 +162,24 @@ labelled_enum! {
     }
 }
 
+labelled_enum! {
+    /// Why a dish was cancelled off a ticket.
+    ///
+    /// A short closed list rather than free text alone, so the reports in
+    /// feature 18 can group voids by why they happened. Free text rides beside
+    /// it, required only for [`Self::Other`].
+    VoidReason {
+        /// The guest no longer wants it.
+        GuestChangedMind => "guest_changed_mind",
+        /// The waiter sent it by mistake.
+        EnteredByMistake => "entered_by_mistake",
+        /// The kitchen cannot make it.
+        KitchenUnavailable => "kitchen_unavailable",
+        /// Anything else, which the waiter explains in words.
+        Other => "other",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +241,15 @@ mod tests {
             ]
         );
         check!(Diet, [Diet::Veg, Diet::NonVeg, Diet::Egg]);
+        check!(
+            VoidReason,
+            [
+                VoidReason::GuestChangedMind,
+                VoidReason::EnteredByMistake,
+                VoidReason::KitchenUnavailable,
+                VoidReason::Other
+            ]
+        );
     }
 
     /// A value the database knows about and this enum does not must not decode.

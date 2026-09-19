@@ -9,6 +9,7 @@ import { floorKey } from '@/shared/events/query-keys'
 import { IDENTITY_KEY, type Identity } from '@/shared/session/identity'
 import { ToastViewport } from '@/shared/ui/toast'
 import { expectAccessible } from '@/test/axe'
+import { resetMineOnlyForTests } from '@/waiter/mine-only'
 
 import { WaiterFloor } from './floor'
 
@@ -58,8 +59,11 @@ const FREE_TABLE = '00000000-0000-7000-8000-000000000011'
 const TAKEN_TABLE = '00000000-0000-7000-8000-000000000012'
 const OPEN_VISIT = '00000000-0000-7000-8000-000000000020'
 
+const COLLEAGUE = '00000000-0000-7000-8000-000000000003'
+
 /** One section, one free table and one with a party at it. */
-function floor(overrides: { foodReady?: boolean } = {}) {
+function floor(overrides: { readyDishCount?: number; responsible?: 'me' | 'colleague' } = {}) {
+  const colleague = overrides.responsible === 'colleague'
   return {
     sections: [
       {
@@ -74,9 +78,11 @@ function floor(overrides: { foodReady?: boolean } = {}) {
             occupancy: {
               visitId: OPEN_VISIT,
               openedBy: 'Wes Waiter',
+              responsibleStaffId: colleague ? COLLEAGUE : IDENTITY.staff.id,
+              responsibleName: colleague ? 'Cara Colleague' : 'Wes Waiter',
               openedAt: '2026-09-08T12:00:00.000Z',
               guestCount: 2,
-              foodReady: overrides.foodReady ?? false,
+              readyDishCount: overrides.readyDishCount ?? 0,
             },
           },
         ],
@@ -126,6 +132,8 @@ async function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
+  resetMineOnlyForTests()
 })
 
 describe('WaiterFloor', () => {
@@ -144,45 +152,74 @@ describe('WaiterFloor', () => {
     expect(labels).toEqual(['1', '2'])
   }) // covers: AC-1
 
-  it('names who opened a taken table and offers a free one', async () => {
-    respondWith(floor())
+  it('names who is responsible for a taken table and offers a free one', async () => {
+    respondWith(floor({ responsible: 'colleague' }))
     await mount()
 
     await waitFor(() => {
-      expect(screen.getByText(/Opened by Wes Waiter at/)).toBeInTheDocument()
+      expect(screen.getByText("Cara Colleague's table")).toBeInTheDocument()
     })
 
+    expect(screen.getByText(/Opened at/)).toBeInTheDocument()
     expect(screen.getByText('Free')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open table' })).toBeInTheDocument()
 
-    // Any waiter may still act on a table somebody else opened. Naming the
-    // opener is a fact worth knowing at a shift change, not a lock.
+    // Any waiter may still act on a table somebody else has. Responsibility
+    // decides who hears the chime, not who may act.
     expect(screen.getByRole('button', { name: 'View' })).toBeInTheDocument()
-  }) // covers: AC-1
+  }) // covers: AC-1 (spec 0011)
 
-  it('marks a table whose food is waiting to be collected', async () => {
-    respondWith(floor({ foodReady: true }))
+  it('says so when the table is mine', async () => {
+    respondWith(floor())
     await mount()
 
-    await waitFor(() => {
-      expect(screen.getByText(/Opened by Wes Waiter at/)).toBeInTheDocument()
-    })
+    expect(await screen.findByText('Your table')).toBeInTheDocument()
+  }) // covers: AC-1 (spec 0011)
 
-    expect(screen.getByText('Ready')).toBeInTheDocument()
-  }) // covers: AC-1, AC-8
-
-  it('shows no ready marker on a table whose food is still cooking', async () => {
-    // The other half of the same rule. A marker that was always on would tell
-    // a waiter nothing, and they would stop looking at it.
-    respondWith(floor({ foodReady: false }))
+  it('counts the dishes waiting to be collected on a table', async () => {
+    respondWith(floor({ readyDishCount: 2 }))
     await mount()
 
-    await waitFor(() => {
-      expect(screen.getByText(/Opened by Wes Waiter at/)).toBeInTheDocument()
-    })
+    expect(await screen.findByText('2 ready')).toBeInTheDocument()
+  }) // covers: AC-1 (spec 0011)
 
-    expect(screen.queryByText('Ready')).not.toBeInTheDocument()
+  it('shows no ready badge on a table whose food is still cooking', async () => {
+    // The other half of the same rule. A badge that was always on would tell a
+    // waiter nothing, and they would stop looking at it.
+    respondWith(floor({ readyDishCount: 0 }))
+    await mount()
+
+    await screen.findByText('Your table')
+    expect(screen.queryByText(/ready$/)).not.toBeInTheDocument()
   }) // covers: AC-1
+
+  it('narrows to my tables with Mine, keeps free tables, and remembers the choice', async () => {
+    respondWith(floor({ responsible: 'colleague' }))
+    const user = userEvent.setup()
+    await mount()
+
+    await screen.findByText("Cara Colleague's table")
+    await user.click(screen.getByRole('switch', { name: 'Show only my tables' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("Cara Colleague's table")).not.toBeInTheDocument()
+    })
+    // Seating a party is anybody's to do, so free tables stay.
+    expect(screen.getByText('Free')).toBeInTheDocument()
+    expect(window.localStorage.getItem('waiter.mineOnly')).toBe('true')
+  }) // covers: AC-3 (spec 0011)
+
+  it('offers the switch to Orders one tap away', async () => {
+    respondWith(floor())
+    await mount()
+
+    const nav = await screen.findByRole('navigation', { name: 'Waiter views' })
+    expect(within(nav).getByRole('link', { name: 'Floor' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: 'Orders' })).toHaveAttribute(
+      'href',
+      '/waiter/orders',
+    )
+  }) // covers: AC-1 (spec 0011)
 
   it('opens a free table and walks straight into taking the order', async () => {
     // A waiter is not opening a table for its own sake, they are taking an
@@ -374,7 +411,7 @@ describe('WaiterFloor', () => {
   }) // covers: AC-15 (spec 0010)
 
   it('is accessible in both appearances and at every density', async () => {
-    respondWith(floor({ foodReady: true }))
+    respondWith(floor({ readyDishCount: 1, responsible: 'colleague' }))
 
     await expectAccessible(
       <QueryClientProvider

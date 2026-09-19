@@ -15,7 +15,7 @@
 
 mod common;
 
-use api::domain::enums::{LineStatus, RoundStatus};
+use api::domain::enums::{LineStatus, RoundStatus, VoidReason};
 use api::domain::error::DomainError;
 use api::domain::ids::{DishId, RestaurantId, StaffId, VisitId};
 use api::domain::service::NewOrderLine;
@@ -30,7 +30,7 @@ async fn served_line(
     chef: StaffId,
     dish_id: DishId,
 ) -> api::domain::ids::OrderLineId {
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         tx,
         visit_id,
         waiter,
@@ -227,7 +227,7 @@ async fn the_loser_of_a_race_on_one_dish_changes_nothing() {
     let visit = service::open_visit(&mut setup, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut setup,
         visit.id,
         f.waiter,
@@ -251,7 +251,8 @@ async fn the_loser_of_a_race_on_one_dish_changes_nothing() {
         &mut waiter_side,
         line_id,
         f.waiter,
-        "guest changed their mind",
+        VoidReason::GuestChangedMind,
+        None,
     )
     .await
     .expect("the waiter cancels the dish");
@@ -473,7 +474,7 @@ async fn two_dishes_on_one_ticket_marked_at_once_still_leave_it_ready() {
         .await
         .expect("seating a party");
 
-    let (round, lines) = service::send_round(
+    let (round, lines) = common::send_round(
         &mut setup,
         visit.id,
         f.waiter,

@@ -4,7 +4,7 @@
 
 mod common;
 
-use api::domain::enums::{BillStatus, Diet, PaymentMethod, StaffRole};
+use api::domain::enums::{BillStatus, Diet, PaymentMethod, StaffRole, VoidReason};
 use api::domain::error::DomainError;
 use api::domain::ids::{BillId, DishId, RestaurantId};
 use api::domain::service::NewOrderLine;
@@ -34,7 +34,7 @@ async fn meal_ready_to_close(
         })
         .collect();
 
-    let (_, sent) = service::send_round(tx, visit.id, f.waiter, &lines)
+    let (_, sent) = common::send_round(tx, visit.id, f.waiter, &lines)
         .await
         .expect("sending the ticket");
 
@@ -348,7 +348,7 @@ async fn a_bill_cannot_close_while_a_dish_is_still_out() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -376,9 +376,15 @@ async fn a_bill_cannot_close_while_a_dish_is_still_out() {
 
     // Cancelling the dish with a reason is the explicit way out, and then the
     // bill has nothing countable on it, so it still cannot close.
-    service::void_line(&mut tx, lines[0].id, f.waiter, "kitchen ran out")
-        .await
-        .expect("cancelling the dish");
+    service::void_line(
+        &mut tx,
+        lines[0].id,
+        f.waiter,
+        VoidReason::Other,
+        Some("kitchen ran out"),
+    )
+    .await
+    .expect("cancelling the dish");
 
     let still_refused = billing::close_bill(&mut tx, bill.id, f.waiter).await;
     assert!(
@@ -402,7 +408,7 @@ async fn moving_a_dish_between_bills_recomputes_both_of_them() {
     let visit = service::open_visit(&mut tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -456,9 +462,15 @@ async fn moving_a_dish_between_bills_recomputes_both_of_them() {
     );
 
     // A cancelled dish counts for nothing on either.
-    service::void_line(&mut tx, lines[0].id, f.waiter, "sent back")
-        .await
-        .expect("cancelling the soup");
+    service::void_line(
+        &mut tx,
+        lines[0].id,
+        f.waiter,
+        VoidReason::Other,
+        Some("sent back"),
+    )
+    .await
+    .expect("cancelling the soup");
     let recomputed = billing::assign_lines_to_bill(&mut tx, first.id, &[lines[0].id])
         .await
         .expect("reassigning the cancelled soup");
@@ -659,7 +671,7 @@ async fn void_one_dish_and_close_the_bill(tx: &mut ScopedTx<'_>, f: &common::Fix
     let visit = service::open_visit(tx, f.table_one, f.waiter, Some(2))
         .await
         .expect("the party sits down");
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         tx,
         visit.id,
         f.waiter,
@@ -679,9 +691,15 @@ async fn void_one_dish_and_close_the_bill(tx: &mut ScopedTx<'_>, f: &common::Fix
     .await
     .expect("sending the ticket");
 
-    service::void_line(tx, lines[0].id, f.waiter, "sent back")
-        .await
-        .expect("cancelling the soup");
+    service::void_line(
+        tx,
+        lines[0].id,
+        f.waiter,
+        VoidReason::Other,
+        Some("sent back"),
+    )
+    .await
+    .expect("cancelling the soup");
 
     service::mark_line_ready(tx, lines[1].id, f.chef)
         .await

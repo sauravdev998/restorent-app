@@ -47,7 +47,15 @@ pub fn build(state: AppState, config: &Config) -> Router {
         .route("/api/visits/{id}", get(billing::visit))
         .route("/api/visits/{id}/rounds", post(service::send_round))
         .route("/api/visits/{id}/close", post(billing::close_visit))
+        .route("/api/visits/{id}/take-over", post(service::take_over))
+        .route("/api/visits/{id}/move", post(service::move_visit))
+        .route("/api/orders/open", get(service::open_orders))
         .route("/api/rounds/{id}/served", post(service::mark_round_served))
+        .route(
+            "/api/order-lines/{id}/served",
+            post(service::mark_line_served),
+        )
+        .route("/api/order-lines/{id}/void", post(service::void_line))
         .route("/api/kitchen/tickets", get(service::kitchen_tickets))
         .route(
             "/api/order-lines/{id}/ready",

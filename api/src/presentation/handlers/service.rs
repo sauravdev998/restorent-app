@@ -1,5 +1,5 @@
-//! The service loop over HTTP: the floor, seating a party, sending a ticket,
-//! the kitchen queue, and moving one dish along.
+//! The service loop over HTTP: the floor, the waiter's Orders list, seating a
+//! party, sending a ticket, the kitchen queue, and moving one dish along.
 //!
 //! Every handler here is thin on purpose. The rules about who may act, what a
 //! conditional update expects, and what a ticket's status becomes all live
@@ -11,6 +11,14 @@
 //! its lines on the bill. Each pair is one `ScopedTx`, so a half opened table
 //! with no bill on it, or a ticket whose dishes are on no bill at all, cannot
 //! exist for even an instant.
+//!
+//! **One lock order.** Every path that takes more than one lock takes them as
+//! visit, then line or ticket, then bill, then the bill number counter. Send
+//! takes visit then bill; void and serve take line and ticket then bill; close
+//! takes the visit first (`service::lock_visit`), then the bill, then the
+//! counter. No path takes a visit lock after a bill lock, which is what lets a
+//! send and a close on one table race without deadlocking. Feature 23 will
+//! lock two bills at once and must fit in here: lower bill id first.
 //!
 //! **The role is in the signature.** `Actor<Waiter>` and `Actor<Chef>` refuse
 //! before the handler body runs, and they reach the `OpenAPI` document, so who
@@ -25,15 +33,15 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::catalog::TableSection;
-use crate::domain::enums::{LineStatus, RoundStatus};
-use crate::domain::error::{ConflictKind, DomainError, DomainResult};
+use crate::domain::error::{DomainError, FieldErrors};
 use crate::domain::ids::{
-    DiningTableId, DishId, OrderLineId, OrderRoundId, TableSectionId, VisitId,
+    DiningTableId, DishId, OrderLineId, OrderRoundId, StaffId, TableSectionId, VisitId,
 };
-use crate::domain::service::{FloorTable, NewOrderLine};
-use crate::infrastructure::db::ScopedTx;
+use crate::domain::service::{FloorTable, NewOrderLine, normalize_note, void_reason_text};
 use crate::infrastructure::db::repository::{billing, floor, service};
-use crate::presentation::dto::{LineStatusDto, OrderLineDto, OrderRoundDto, RoundStatusDto};
+use crate::presentation::dto::{
+    LineStatusDto, OrderLineDto, OrderRoundDto, RoundStatusDto, VoidReasonDto,
+};
 use crate::presentation::error::{ApiError, ErrorBody};
 use crate::presentation::extract::{Actor, Chef, JsonBody, Waiter};
 use crate::presentation::state::AppState;
@@ -86,12 +94,16 @@ pub struct OccupancyDto {
     pub visit_id: Uuid,
     /// What to call the waiter who seated them.
     pub opened_by: String,
+    /// The waiter who hears the ready chime for this table.
+    pub responsible_staff_id: Uuid,
+    /// What to call that waiter.
+    pub responsible_name: String,
     /// When they sat down.
     pub opened_at: DateTime<Utc>,
     /// How many of them, when the waiter recorded it.
     pub guest_count: Option<i16>,
-    /// Whether a ticket on this visit is waiting to be carried out.
-    pub food_ready: bool,
+    /// How many dishes on this visit are waiting to be carried out.
+    pub ready_dish_count: i64,
 }
 
 /// The floor, in the order it is walked.
@@ -201,11 +213,99 @@ fn table_dto(floor_table: &FloorTable) -> FloorTableDto {
             .map(|occupancy| OccupancyDto {
                 visit_id: occupancy.visit_id.as_uuid(),
                 opened_by: occupancy.opened_by.clone(),
+                responsible_staff_id: occupancy.responsible_staff_id.as_uuid(),
+                responsible_name: occupancy.responsible_name.clone(),
                 opened_at: occupancy.opened_at,
                 guest_count: occupancy.guest_count,
-                food_ready: occupancy.food_ready,
+                ready_dish_count: occupancy.ready_dish_count,
             }),
     }
+}
+
+// ===========================================================================
+// The Orders list
+// ===========================================================================
+
+/// Every open table in the restaurant, with every ticket on it.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenOrdersResponse {
+    /// The open visits, in the order they were opened. The screen sorts them
+    /// by what is ready.
+    pub visits: Vec<OpenOrderDto>,
+    /// What the server's clock reads, at the moment this answer was built. The
+    /// screen corrects every age it draws by the difference from its own clock.
+    pub server_time: DateTime<Utc>,
+}
+
+/// One open table on the Orders list.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenOrderDto {
+    /// The visit.
+    pub id: Uuid,
+    /// Which table they are at.
+    pub table_id: Uuid,
+    /// What the staff call that table.
+    pub table_label: String,
+    /// When they sat down.
+    pub opened_at: DateTime<Utc>,
+    /// The waiter who hears the ready chime for this table.
+    pub responsible_staff_id: Uuid,
+    /// What to call that waiter.
+    pub responsible_name: String,
+    /// Every ticket on the visit, oldest first, with its dishes.
+    pub rounds: Vec<OrderRoundDto>,
+}
+
+/// Every open table and every ticket on it.
+///
+/// # Errors
+///
+/// Returns `401` if nobody is signed in, `403` if the caller is not a waiter,
+/// and `503` if the database is unavailable.
+#[utoipa::path(
+    get,
+    path = "/api/orders/open",
+    tag = "orders",
+    responses(
+        (status = 200, description = "Every open visit with its tickets and dishes. Waiters only.", body = OpenOrdersResponse),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not a waiter.", body = ErrorBody),
+    )
+)]
+pub async fn open_orders(
+    State(state): State<AppState>,
+    actor: Actor<Waiter>,
+) -> Result<Json<OpenOrdersResponse>, ApiError> {
+    // A snapshot: the visits and their dishes are two statements, and a dish
+    // marked ready between them must not appear on a ticket read as cooking.
+    let mut tx = state
+        .database
+        .begin_scoped_snapshot(actor.restaurant_id())
+        .await?;
+    let orders = service::open_orders(&mut tx).await?;
+    tx.commit().await?;
+
+    Ok(Json(OpenOrdersResponse {
+        visits: orders
+            .into_iter()
+            .map(|order| OpenOrderDto {
+                id: order.visit_id.as_uuid(),
+                table_id: order.table_id.as_uuid(),
+                table_label: order.table_label,
+                opened_at: order.opened_at,
+                responsible_staff_id: order.responsible_staff_id.as_uuid(),
+                responsible_name: order.responsible_name,
+                rounds: order
+                    .rounds
+                    .into_iter()
+                    .map(|(round, lines)| OrderRoundDto::new(&round, lines))
+                    .collect(),
+            })
+            .collect(),
+        server_time: Utc::now(),
+    }))
 }
 
 // ===========================================================================
@@ -301,6 +401,10 @@ pub async fn open_visit(
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SendRoundRequest {
+    /// A key the phone made for this basket, the same on every retry until one
+    /// send succeeds. A key the server already holds for this visit sends
+    /// nothing new and answers with the first ticket.
+    pub client_key: Uuid,
     /// The basket, one entry per dish. At least one.
     pub lines: Vec<SendRoundLine>,
 }
@@ -313,7 +417,8 @@ pub struct SendRoundLine {
     pub dish_id: Uuid,
     /// How many.
     pub quantity: i32,
-    /// What the guest asked for, such as no onions.
+    /// What the guest asked for, such as no onions. At most 140 characters
+    /// after trimming; blank is the same as none.
     #[serde(default)]
     pub note: Option<String>,
 }
@@ -324,12 +429,17 @@ pub struct SendRoundLine {
 /// is what keeps the bill's running subtotal true throughout the meal and
 /// leaves the close with no assignment left to do.
 ///
+/// Safe to repeat: the same `clientKey` again answers `200` with the ticket the
+/// first send made, and writes nothing.
+///
 /// # Errors
 ///
-/// Returns `400` if the basket is empty or a quantity is not positive, `409
+/// Returns `400` if the basket is empty, a quantity is not positive, or a note
+/// is longer than 140 characters (as `fields."lines.N.note" = too_long`), `409
 /// dish_not_orderable` if a dish was switched off or taken off the menu before
 /// the ticket went, which refuses the whole ticket, `409 visit_not_open` if the
-/// party has left, `404` if there is no such visit, `401` if nobody is signed
+/// party has left, `409 client_key_reused` if the key already sent a ticket for
+/// another visit, `404` if there is no such visit, `401` if nobody is signed
 /// in, and `403` if the caller is not a waiter.
 #[utoipa::path(
     post,
@@ -338,12 +448,13 @@ pub struct SendRoundLine {
     params(("id" = Uuid, Path, description = "The visit to send the ticket for.")),
     request_body = SendRoundRequest,
     responses(
+        (status = 200, description = "An earlier send with the same key already made this ticket; nothing new was sent. Waiters only.", body = OrderRoundDto),
         (status = 201, description = "The ticket that was sent. Waiters only.", body = OrderRoundDto),
-        (status = 400, description = "An empty basket, or a quantity below one.", body = ErrorBody),
+        (status = 400, description = "An empty basket, a quantity below one, or a note over 140 characters.", body = ErrorBody),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
         (status = 403, description = "Not a waiter.", body = ErrorBody),
         (status = 404, description = "No such visit.", body = ErrorBody),
-        (status = 409, description = "`visit_not_open`: that party has already left. `dish_not_orderable`: a dish went off before the ticket went, and nothing was sent.", body = ErrorBody),
+        (status = 409, description = "`visit_not_open`: that party has already left. `dish_not_orderable`: a dish went off before the ticket went, and nothing was sent. `client_key_reused`: that key already sent a ticket for another table.", body = ErrorBody),
     )
 )]
 pub async fn send_round(
@@ -354,20 +465,44 @@ pub async fn send_round(
 ) -> Result<(StatusCode, Json<OrderRoundDto>), ApiError> {
     let visit_id = VisitId::from_uuid(visit_id);
 
-    let new_lines: Vec<NewOrderLine> = request
-        .lines
-        .into_iter()
-        .map(|line| NewOrderLine {
-            dish_id: DishId::from_uuid(line.dish_id),
-            quantity: line.quantity,
-            note: line.note.filter(|note| !note.trim().is_empty()),
-        })
-        .collect();
+    let mut new_lines = Vec::with_capacity(request.lines.len());
+    let mut problems = FieldErrors::default();
+
+    for (index, line) in request.lines.into_iter().enumerate() {
+        match normalize_note(line.note.as_deref()) {
+            Ok(note) => new_lines.push(NewOrderLine {
+                dish_id: DishId::from_uuid(line.dish_id),
+                quantity: line.quantity,
+                note,
+            }),
+            Err(problem) => problems.add(&format!("lines.{index}.note"), problem),
+        }
+    }
+
+    if !problems.is_empty() {
+        return Err(DomainError::InvalidFields(problems).into());
+    }
 
     let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
 
-    let (round, lines) =
-        service::send_round(&mut tx, visit_id, actor.staff_id(), &new_lines).await?;
+    let sent = service::send_round(
+        &mut tx,
+        visit_id,
+        actor.staff_id(),
+        request.client_key,
+        &new_lines,
+    )
+    .await?;
+
+    if sent.replayed {
+        // Nothing was written, so there is nothing to put on the bill and no
+        // subtotal to recompute or announce.
+        tx.commit().await?;
+        return Ok((
+            StatusCode::OK,
+            Json(OrderRoundDto::new(&sent.round, sent.lines)),
+        ));
+    }
 
     // Straight onto the visit's open bill, in this same transaction. A visit
     // opened by this API always has one; a visit that somehow has none is a
@@ -376,12 +511,163 @@ pub async fn send_round(
         .await?
         .ok_or(DomainError::NotFound)?;
 
-    let line_ids: Vec<OrderLineId> = lines.iter().map(|line| line.id).collect();
+    let line_ids: Vec<OrderLineId> = sent.lines.iter().map(|line| line.id).collect();
     billing::assign_lines_to_bill(&mut tx, bill_id, &line_ids).await?;
 
     tx.commit().await?;
 
-    Ok((StatusCode::CREATED, Json(OrderRoundDto::new(&round, lines))))
+    Ok((
+        StatusCode::CREATED,
+        Json(OrderRoundDto::new(&sent.round, sent.lines)),
+    ))
+}
+
+// ===========================================================================
+// Taking over and moving a table
+// ===========================================================================
+
+/// What taking over a table asks for.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TakeOverRequest {
+    /// The waiter the screen showed as responsible. If somebody else has taken
+    /// the table since, the request is refused rather than taking it from them.
+    pub expected_staff_id: Uuid,
+}
+
+/// Who is responsible for a table now.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TakeOverResponse {
+    /// The visit.
+    pub visit_id: Uuid,
+    /// The waiter now responsible.
+    pub responsible_staff_id: Uuid,
+    /// What to call them.
+    pub responsible_name: String,
+}
+
+/// Makes the caller the responsible waiter for a table, so its ready chime
+/// comes to them.
+///
+/// # Errors
+///
+/// Returns `409 table_taken_over` if somebody else became responsible after
+/// the screen was drawn, `409 visit_not_open` if the party has left, `404` if
+/// there is no such visit, `401` if nobody is signed in, and `403` if the
+/// caller is not a waiter.
+#[utoipa::path(
+    post,
+    path = "/api/visits/{id}/take-over",
+    tag = "orders",
+    params(("id" = Uuid, Path, description = "The visit to take over.")),
+    request_body = TakeOverRequest,
+    responses(
+        (status = 200, description = "The caller is now responsible. Waiters only.", body = TakeOverResponse),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not a waiter.", body = ErrorBody),
+        (status = 404, description = "No such visit.", body = ErrorBody),
+        (status = 409, description = "`table_taken_over`: somebody else took it first. `visit_not_open`: the party has left.", body = ErrorBody),
+    )
+)]
+pub async fn take_over(
+    State(state): State<AppState>,
+    actor: Actor<Waiter>,
+    Path(visit_id): Path<Uuid>,
+    JsonBody(request): JsonBody<TakeOverRequest>,
+) -> Result<Json<TakeOverResponse>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let visit = service::take_over_visit(
+        &mut tx,
+        VisitId::from_uuid(visit_id),
+        StaffId::from_uuid(request.expected_staff_id),
+        actor.staff_id(),
+    )
+    .await?;
+
+    let responsible = crate::infrastructure::db::repository::accounts::staff_by_id(
+        &mut tx,
+        visit.responsible_staff_id,
+    )
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(TakeOverResponse {
+        visit_id: visit.id.as_uuid(),
+        responsible_staff_id: visit.responsible_staff_id.as_uuid(),
+        responsible_name: responsible.display_name,
+    }))
+}
+
+/// What moving a party asks for.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveVisitRequest {
+    /// The free, live table they are moving to.
+    pub table_id: Uuid,
+}
+
+/// Where a party sits now.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveVisitResponse {
+    /// The visit.
+    pub visit_id: Uuid,
+    /// The table they are at now.
+    pub table_id: Uuid,
+    /// What the staff call it.
+    pub table_label: String,
+}
+
+/// Moves a party, with their tickets, bill, and responsible waiter, to a free
+/// table.
+///
+/// # Errors
+///
+/// Returns `409 table_occupied` if the destination has a party at it, `409
+/// visit_not_open` if the party has left, `404` if there is no such visit or
+/// the destination is archived or unknown, `401` if nobody is signed in, and
+/// `403` if the caller is not a waiter.
+#[utoipa::path(
+    post,
+    path = "/api/visits/{id}/move",
+    tag = "orders",
+    params(("id" = Uuid, Path, description = "The visit to move.")),
+    request_body = MoveVisitRequest,
+    responses(
+        (status = 200, description = "The party's new table. Waiters only.", body = MoveVisitResponse),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not a waiter.", body = ErrorBody),
+        (status = 404, description = "No such visit, or no such live table.", body = ErrorBody),
+        (status = 409, description = "`table_occupied`: that table has a party at it. `visit_not_open`: the party has left.", body = ErrorBody),
+    )
+)]
+pub async fn move_visit(
+    State(state): State<AppState>,
+    actor: Actor<Waiter>,
+    Path(visit_id): Path<Uuid>,
+    JsonBody(request): JsonBody<MoveVisitRequest>,
+) -> Result<Json<MoveVisitResponse>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let visit = service::move_visit(
+        &mut tx,
+        VisitId::from_uuid(visit_id),
+        DiningTableId::from_uuid(request.table_id),
+        actor.staff_id(),
+    )
+    .await?;
+    let label = service::table_label(&mut tx, visit.table_id).await?;
+
+    tx.commit().await?;
+
+    Ok(Json(MoveVisitResponse {
+        visit_id: visit.id.as_uuid(),
+        table_id: visit.table_id.as_uuid(),
+        table_label: label,
+    }))
 }
 
 // ===========================================================================
@@ -557,35 +843,148 @@ pub async fn mark_line_ready(
 // Carrying the food out
 // ===========================================================================
 
-/// Marks a whole ticket as having reached the table.
+/// Marks one dish as having reached the table.
 ///
-/// The one refusal here that is not a repository operation's own. It reads the
-/// ticket first and refuses unless it is `ready` at that moment, because
-/// "somebody has already carried this out" is what the waiter needs to be told,
-/// and a line level message about one dish would not say it.
-///
-/// Inside the loop it marks every dish that is `ready` and skips one that is
-/// already `served` or was cancelled rather than treating either as a conflict.
-/// Two waiters serving the same ticket at the same instant is not a mistake
-/// worth stopping the second one over; only the precheck refuses, and only
-/// because by then the ticket is no longer ready.
+/// Touches that dish only. A starter goes out the moment it is ready while the
+/// main course on the same ticket is still cooking.
 ///
 /// # Errors
 ///
-/// Returns `409 round_not_ready` if the ticket is not waiting to be carried
-/// out, `404` if there is no such ticket, `401` if nobody is signed in, and
-/// `403` if the caller is not a waiter.
+/// Returns `409 line_not_ready` if the dish is not waiting to be carried out,
+/// `404` if there is no such dish, `401` if nobody is signed in, and `403` if
+/// the caller is not a waiter.
+#[utoipa::path(
+    post,
+    path = "/api/order-lines/{id}/served",
+    tag = "orders",
+    params(("id" = Uuid, Path, description = "The dish that reached the table.")),
+    responses(
+        (status = 200, description = "The dish and its ticket's new status. Waiters only.", body = MarkedLineResponse),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not a waiter.", body = ErrorBody),
+        (status = 404, description = "No such dish.", body = ErrorBody),
+        (status = 409, description = "`line_not_ready`: that dish is not waiting to be carried out.", body = ErrorBody),
+    )
+)]
+pub async fn mark_line_served(
+    State(state): State<AppState>,
+    actor: Actor<Waiter>,
+    Path(line_id): Path<Uuid>,
+) -> Result<Json<MarkedLineResponse>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let (line, round_status) =
+        service::mark_line_served(&mut tx, OrderLineId::from_uuid(line_id)).await?;
+
+    tx.commit().await?;
+
+    Ok(Json(MarkedLineResponse {
+        line: line.into(),
+        round_status: round_status.into(),
+    }))
+}
+
+/// What cancelling a dish asks for.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VoidLineRequest {
+    /// Why, from the closed list.
+    pub reason_code: VoidReasonDto,
+    /// The waiter's own words. Required for `other`, optional otherwise, at
+    /// most 200 characters.
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// What cancelling a dish changed.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VoidLineResponse {
+    /// The dish, after the write.
+    pub line: OrderLineDto,
+    /// What the whole ticket became, recomputed from all of its dishes.
+    pub round_status: RoundStatusDto,
+    /// The bill's running subtotal after the dish came off it, as an exact
+    /// decimal string. `null` for a dish on no bill.
+    pub bill_subtotal: Option<String>,
+}
+
+/// Cancels one dish that is still cooking or waiting on the pass, with a
+/// reason, and takes it off the bill.
+///
+/// # Errors
+///
+/// Returns `400` if the reason is `other` with no words
+/// (`fields.reason = required`) or the words are over 200 characters
+/// (`fields.reason = too_long`), `409 line_not_voidable` if the dish has been
+/// served or already cancelled, `404` if there is no such dish, `401` if nobody
+/// is signed in, and `403` if the caller is not a waiter.
+#[utoipa::path(
+    post,
+    path = "/api/order-lines/{id}/void",
+    tag = "orders",
+    params(("id" = Uuid, Path, description = "The dish to cancel.")),
+    request_body = VoidLineRequest,
+    responses(
+        (status = 200, description = "The cancelled dish, its ticket, and the bill's subtotal after. Waiters only.", body = VoidLineResponse),
+        (status = 400, description = "A missing or over long reason.", body = ErrorBody),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not a waiter.", body = ErrorBody),
+        (status = 404, description = "No such dish.", body = ErrorBody),
+        (status = 409, description = "`line_not_voidable`: that dish has been served or already cancelled.", body = ErrorBody),
+    )
+)]
+pub async fn void_line(
+    State(state): State<AppState>,
+    actor: Actor<Waiter>,
+    Path(line_id): Path<Uuid>,
+    JsonBody(request): JsonBody<VoidLineRequest>,
+) -> Result<Json<VoidLineResponse>, ApiError> {
+    let code = request.reason_code.into();
+    let reason = void_reason_text(code, request.reason.as_deref())
+        .map_err(|problem| DomainError::InvalidFields(FieldErrors::one("reason", problem)))?;
+
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let voided = service::void_line(
+        &mut tx,
+        OrderLineId::from_uuid(line_id),
+        actor.staff_id(),
+        code,
+        reason.as_deref(),
+    )
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(VoidLineResponse {
+        line: voided.line.into(),
+        round_status: voided.round_status.into(),
+        bill_subtotal: voided.bill_subtotal.map(|subtotal| subtotal.to_string()),
+    }))
+}
+
+/// Marks every dish on a ticket that is waiting to be carried out.
+///
+/// Serves what is ready and leaves what is still cooking, so a waiter carrying
+/// out the starters on a ticket whose main is still on the stove taps once.
+///
+/// # Errors
+///
+/// Returns `409 nothing_ready` if no dish on the ticket is waiting to be
+/// carried out, `404` if there is no such ticket, `401` if nobody is signed in,
+/// and `403` if the caller is not a waiter.
 #[utoipa::path(
     post,
     path = "/api/rounds/{id}/served",
     tag = "orders",
-    params(("id" = Uuid, Path, description = "The ticket that reached the table.")),
+    params(("id" = Uuid, Path, description = "The ticket whose ready dishes reached the table.")),
     responses(
         (status = 200, description = "The ticket after the write. Waiters only.", body = OrderRoundDto),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
         (status = 403, description = "Not a waiter.", body = ErrorBody),
         (status = 404, description = "No such ticket.", body = ErrorBody),
-        (status = 409, description = "That ticket is not waiting to be carried out.", body = ErrorBody),
+        (status = 409, description = "`nothing_ready`: no dish on that ticket is waiting to be carried out.", body = ErrorBody),
     )
 )]
 pub async fn mark_round_served(
@@ -597,13 +996,7 @@ pub async fn mark_round_served(
 
     let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
 
-    let round = service::round(&mut tx, round_id).await?;
-
-    if round.status != RoundStatus::Ready {
-        return Err(DomainError::Conflict(ConflictKind::RoundNotReady).into());
-    }
-
-    serve_every_ready_line(&mut tx, round_id).await?;
+    service::serve_ready_lines(&mut tx, round_id).await?;
 
     let served = service::round(&mut tx, round_id).await?;
     let lines = service::lines_for_round(&mut tx, round_id).await?;
@@ -611,32 +1004,6 @@ pub async fn mark_round_served(
     tx.commit().await?;
 
     Ok(Json(OrderRoundDto::new(&served, lines)))
-}
-
-/// Marks every dish on a ticket that is waiting to be carried out.
-///
-/// A line level conflict raised in here means somebody else served this ticket
-/// between the precheck and now, so it is reported as `round_not_ready`: that
-/// is what it means to the person reading it, and a message about one dish
-/// would send them looking at the wrong thing.
-async fn serve_every_ready_line(tx: &mut ScopedTx<'_>, round_id: OrderRoundId) -> DomainResult<()> {
-    let lines = service::lines_for_round(tx, round_id).await?;
-
-    for line in lines {
-        if line.status != LineStatus::Ready {
-            continue;
-        }
-
-        match service::mark_line_served(tx, line.id).await {
-            Ok(_) => {}
-            Err(DomainError::Conflict(_)) => {
-                return Err(DomainError::Conflict(ConflictKind::RoundNotReady));
-            }
-            Err(other) => return Err(other),
-        }
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]

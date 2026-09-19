@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::domain::billing::{Bill, BillTax};
 use crate::domain::catalog::{Dish, Restaurant};
-use crate::domain::enums::{Diet, LineStatus, RoundStatus, StaffRole};
+use crate::domain::enums::{Diet, LineStatus, RoundStatus, StaffRole, VoidReason};
 use crate::domain::language::LanguageCode;
 use crate::domain::people::Staff;
 use crate::domain::service::{OrderLine, OrderRound};
@@ -280,6 +280,42 @@ impl From<RoundStatus> for RoundStatusDto {
     }
 }
 
+/// Why a dish was cancelled, on the wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum VoidReasonDto {
+    /// The guest no longer wants it.
+    GuestChangedMind,
+    /// The waiter sent it by mistake.
+    EnteredByMistake,
+    /// The kitchen cannot make it.
+    KitchenUnavailable,
+    /// Anything else, explained in words.
+    Other,
+}
+
+impl From<VoidReason> for VoidReasonDto {
+    fn from(reason: VoidReason) -> Self {
+        match reason {
+            VoidReason::GuestChangedMind => Self::GuestChangedMind,
+            VoidReason::EnteredByMistake => Self::EnteredByMistake,
+            VoidReason::KitchenUnavailable => Self::KitchenUnavailable,
+            VoidReason::Other => Self::Other,
+        }
+    }
+}
+
+impl From<VoidReasonDto> for VoidReason {
+    fn from(reason: VoidReasonDto) -> Self {
+        match reason {
+            VoidReasonDto::GuestChangedMind => Self::GuestChangedMind,
+            VoidReasonDto::EnteredByMistake => Self::EnteredByMistake,
+            VoidReasonDto::KitchenUnavailable => Self::KitchenUnavailable,
+            VoidReasonDto::Other => Self::Other,
+        }
+    }
+}
+
 /// One dish on one ticket, as every screen reads it.
 ///
 /// The name and the price are the ones copied onto the line when the round was
@@ -304,6 +340,13 @@ pub struct OrderLineDto {
     pub note: Option<String>,
     /// Where this one dish has got to.
     pub status: LineStatusDto,
+    /// When it came off the pass. How long ready food has waited is measured
+    /// from here.
+    pub ready_at: Option<DateTime<Utc>>,
+    /// Why it was cancelled, on a cancelled dish.
+    pub void_reason_code: Option<VoidReasonDto>,
+    /// The waiter's own words about why, when they gave any.
+    pub void_reason: Option<String>,
 }
 
 impl From<OrderLine> for OrderLineDto {
@@ -317,6 +360,9 @@ impl From<OrderLine> for OrderLineDto {
             line_total: line.line_total.to_string(),
             note: line.note,
             status: line.status.into(),
+            ready_at: line.ready_at,
+            void_reason_code: line.void_reason_code.map(VoidReasonDto::from),
+            void_reason: line.void_reason,
         }
     }
 }
@@ -545,6 +591,29 @@ mod tests {
                 diet.as_label()
             );
             assert_eq!(Diet::from(DietDto::from(diet)), diet);
+        }
+    }
+
+    /// covers: AC-13 (spec 0011)
+    ///
+    /// The four reasons are three enums in three layers too, and the web maps
+    /// each wire word to a translation key.
+    #[test]
+    fn every_void_reason_travels_as_the_word_the_database_stores() {
+        for reason in [
+            VoidReason::GuestChangedMind,
+            VoidReason::EnteredByMistake,
+            VoidReason::KitchenUnavailable,
+            VoidReason::Other,
+        ] {
+            let on_the_wire =
+                serde_json::to_value(VoidReasonDto::from(reason)).expect("a reason serialises");
+
+            assert_eq!(
+                on_the_wire,
+                serde_json::Value::String(reason.as_label().to_owned())
+            );
+            assert_eq!(VoidReason::from(VoidReasonDto::from(reason)), reason);
         }
     }
 

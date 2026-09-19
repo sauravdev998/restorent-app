@@ -81,10 +81,15 @@ async fn the_floor_shows_every_table_and_who_is_sitting_at_the_occupied_ones() {
         "the floor does not name who opened the table, which is what a shift \
          handover reads"
     );
-    assert!(
-        !occupancy.food_ready,
+    assert_eq!(
+        occupancy.ready_dish_count, 0,
         "a table with nothing ordered on it says food is ready"
     );
+    assert_eq!(
+        occupancy.responsible_staff_id, f.waiter,
+        "whoever opens a table is responsible for it"
+    );
+    assert_eq!(occupancy.responsible_name, "Wes Waiter");
 
     let still_free = after
         .iter()
@@ -138,7 +143,7 @@ async fn a_table_with_food_on_the_pass_says_so_on_the_floor() {
         .await
         .expect("seating a party");
 
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -152,12 +157,13 @@ async fn a_table_with_food_on_the_pass_says_so_on_the_floor() {
     .expect("sending the ticket");
 
     let queued = service::floor(&mut tx).await.expect("reading the floor");
-    assert!(
-        !queued[0]
+    assert_eq!(
+        queued[0]
             .occupancy
             .as_ref()
             .expect("the table is occupied")
-            .food_ready,
+            .ready_dish_count,
+        0,
         "a ticket still on the pass reads as ready to collect"
     );
 
@@ -168,12 +174,13 @@ async fn a_table_with_food_on_the_pass_says_so_on_the_floor() {
     let ready = service::floor(&mut tx)
         .await
         .expect("reading the floor again");
-    assert!(
+    assert_eq!(
         ready[0]
             .occupancy
             .as_ref()
             .expect("the table is occupied")
-            .food_ready,
+            .ready_dish_count,
+        1,
         "food came off the pass and the floor did not say so"
     );
 }
@@ -246,7 +253,7 @@ async fn sending_a_ticket_puts_its_dishes_on_the_bill_at_once() {
         "the handler could not find the bill it just opened"
     );
 
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -312,7 +319,7 @@ async fn the_kitchen_queue_is_the_work_left_oldest_first() {
         .await
         .expect("seating a party");
 
-    let (first, first_lines) = service::send_round(
+    let (first, first_lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -325,7 +332,7 @@ async fn the_kitchen_queue_is_the_work_left_oldest_first() {
     .await
     .expect("sending the starters");
 
-    let (second, _) = service::send_round(
+    let (second, _) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -390,7 +397,7 @@ async fn the_last_dish_off_the_pass_makes_the_whole_ticket_ready() {
         .await
         .expect("seating a party");
 
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -445,7 +452,7 @@ async fn a_visit_reads_back_as_the_whole_meal_and_closes_with_a_number() {
         .await
         .expect("opening the bill");
 
-    let (round, lines) = service::send_round(
+    let (round, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -569,7 +576,7 @@ async fn every_service_refusal_names_what_happened() {
     );
     common::rollback_to(&mut tx, "occupied").await;
 
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -633,7 +640,7 @@ async fn every_service_refusal_names_what_happened() {
 
     assert_eq!(
         code_of(
-            service::send_round(
+            common::send_round(
                 &mut tx,
                 visit.id,
                 f.waiter,
@@ -681,7 +688,7 @@ async fn every_closing_refusal_names_what_happened() {
     );
     common::rollback_to(&mut tx, "empty").await;
 
-    let (_, lines) = service::send_round(
+    let (_, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -826,7 +833,7 @@ async fn carrying_a_ticket_out_moves_every_dish_that_was_waiting() {
         .await
         .expect("seating a party");
 
-    let (round, lines) = service::send_round(
+    let (round, lines) = common::send_round(
         &mut tx,
         visit.id,
         f.waiter,
@@ -916,7 +923,7 @@ async fn a_document_read_never_shows_a_ticket_disagreeing_with_its_dishes() {
         .await
         .expect("seating a party");
 
-    let (round, lines) = service::send_round(
+    let (round, lines) = common::send_round(
         &mut setup,
         visit.id,
         f.waiter,

@@ -40,6 +40,10 @@ pub struct VisitResponse {
     pub guest_count: Option<i16>,
     /// What to call the waiter who seated them.
     pub opened_by: String,
+    /// The waiter who hears the ready chime for this table.
+    pub responsible_staff_id: Uuid,
+    /// What to call that waiter.
+    pub responsible_name: String,
     /// When they sat down.
     pub opened_at: DateTime<Utc>,
     /// Every ticket on the visit, oldest first, with its dishes.
@@ -91,6 +95,7 @@ pub async fn visit(
     let visit = service::visit(&mut tx, visit_id).await?;
     let table = service::table_label(&mut tx, visit.table_id).await?;
     let opener = accounts::staff_by_id(&mut tx, visit.opened_by_staff_id).await?;
+    let responsible = accounts::staff_by_id(&mut tx, visit.responsible_staff_id).await?;
     let rounds = service::rounds_for_visit(&mut tx, visit_id).await?;
     let bill = latest_bill(&mut tx, visit_id).await?;
 
@@ -103,6 +108,8 @@ pub async fn visit(
         status: visit.status.as_label().to_owned(),
         guest_count: visit.guest_count,
         opened_by: opener.display_name,
+        responsible_staff_id: visit.responsible_staff_id.as_uuid(),
+        responsible_name: responsible.display_name,
         opened_at: visit.opened_at,
         rounds: rounds
             .into_iter()
@@ -120,20 +127,26 @@ pub async fn visit(
 /// transaction is what stops a bill being numbered and totalled while its table
 /// stays occupied for ever because the second write failed.
 ///
+/// A bill with nothing chargeable on it (nothing ordered, or every dish
+/// cancelled) is voided instead of closed, so it uses no bill number. The
+/// answer then carries `status: voided`, zero figures, and no number, and the
+/// screen says there was nothing to charge.
+///
+/// The lock order and the void live in `billing::end_visit`.
+///
 /// # Errors
 ///
 /// Returns `409 bill_has_unserved_lines` if a dish has not reached the table,
-/// `409 bill_already_closed` if somebody closed it first, `409
-/// bill_has_no_lines` if nothing was ordered, `404` if there is no such visit or
-/// it has no bill, `401` if nobody is signed in, and `403` if the caller is not
-/// a waiter.
+/// `409 bill_already_closed` if somebody closed or voided it first, `404` if
+/// there is no such visit or it has no open bill, `401` if nobody is signed in,
+/// and `403` if the caller is not a waiter.
 #[utoipa::path(
     post,
     path = "/api/visits/{id}/close",
     tag = "orders",
     params(("id" = Uuid, Path, description = "The visit to close.")),
     responses(
-        (status = 200, description = "The closed bill, with its number and every figure. Waiters only.", body = BillDto),
+        (status = 200, description = "The closed bill, with its number and every figure, or the voided empty bill with none. Waiters only.", body = BillDto),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
         (status = 403, description = "Not a waiter.", body = ErrorBody),
         (status = 404, description = "No such visit, or it has no bill.", body = ErrorBody),
@@ -153,14 +166,8 @@ pub async fn close_visit(
     // bill identifier in the body would be one more thing a client could name,
     // and there is nothing it could usefully say that the visit does not
     // already decide.
-    let bill_id = service::open_bill_of(&mut tx, visit_id)
-        .await?
-        .ok_or(DomainError::NotFound)?;
-
-    let closed = billing::close_bill(&mut tx, bill_id, actor.staff_id()).await?;
-    service::close_visit(&mut tx, visit_id).await?;
-
-    let taxes = billing::bill_taxes(&mut tx, bill_id).await?;
+    let closed = billing::end_visit(&mut tx, visit_id, actor.staff_id()).await?;
+    let taxes = billing::bill_taxes(&mut tx, closed.id).await?;
 
     tx.commit().await?;
 

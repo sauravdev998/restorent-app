@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE order_lines\n        SET status = 'voided', voided_by_staff_id = $2, voided_at = now(),\n            void_reason_code = $3, void_reason = $4, updated_at = now()\n        WHERE id = $1 AND status IN ('queued', 'ready')\n        RETURNING round_id, bill_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "round_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "round_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "bill_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "bill_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "void_reason",
+            "kind": {
+              "Enum": [
+                "guest_changed_mind",
+                "entered_by_mistake",
+                "kitchen_unavailable",
+                "other"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "891a8e47940e5e17935fac58f7599fb77e6659c77d6f01d781c2925cf7d3a46a"
+}

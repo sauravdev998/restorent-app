@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status AS \"status: LineStatus\" FROM order_lines WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: LineStatus",
+        "type_info": {
+          "Custom": {
+            "name": "line_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "ready",
+                "served",
+                "voided"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3f038583ffbe60b4c3ec21d1266bfee3837426f1c0b4d0e4d6253cda3c9634ed"
+}

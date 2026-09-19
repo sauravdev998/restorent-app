@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT table_id, status AS \"status: VisitStatus\"\n        FROM visits\n        WHERE id = $1\n        FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "table_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "table_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "status: VisitStatus",
+        "type_info": {
+          "Custom": {
+            "name": "visit_status",
+            "kind": {
+              "Enum": [
+                "open",
+                "closed"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "visits",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b98724c880011f7de5cbe48be681839aae9722e004af9ddb9405ffcc693b6eed"
+}
