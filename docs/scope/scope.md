@@ -22,7 +22,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 9 | Menu management | Slice 2 | done |
 | 10 | Staff accounts | Slice 2 | done |
 | 11 | Tables and floor plan | Slice 2 | done |
-| 12 | Waiter service flow | Slice 3 | in-progress |
+| 12 | Waiter service flow | Slice 3 | done |
 | 13 | Kitchen display | Slice 3 | planned |
 | 14 | Bill generation, currency, and tax | Slice 4 | planned |
 | 15 | Closing a bill and recording payment | Slice 4 | planned |
@@ -207,7 +207,7 @@ spec [0010](../specs/0010-tables-and-floor-plan/index.md) · verify [0010](../sp
 
 Thicken the two screens the restaurant actually lives in all evening. This is where the product stops being a demo and starts being usable on a busy night.
 
-### 12. Waiter service flow · in-progress
+### 12. Waiter service flow · done
 The waiter's real working screen: keep one bill open per table across the whole meal, send each round to the kitchen as its own ticket, watch every round's progress live, and get a sound and a badge the moment food is ready to pick up. Includes the free text note per line, such as no onions.
 **Done when:** a waiter can add a second and third round to an open bill and each goes to the kitchen as its own ticket; the waiter's list shows every open order's live status; when a round becomes ready the waiter gets a sound and a clear badge and can mark it served; and per line notes reach the kitchen ticket unchanged.
 spec [0011](../specs/0011-waiter-service-flow/index.md) · verify [0011](../specs/0011-waiter-service-flow/verify.md) · code in `api/migrations/0009_waiter_service_flow.sql`, `api/src/infrastructure/db/repository/service.rs`, `api/src/presentation/handlers/service.rs`, `api/tests/waiter_service.rs`, `web/src/waiter/`, `web/e2e/order-thread.spec.ts`
