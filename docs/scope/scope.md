@@ -218,10 +218,10 @@ spec [0011](../specs/0011-waiter-service-flow/index.md) · verify [0011](../spec
   - [x] The basket that survives and serve all ready: per visit session storage with its key, and the new `nothing_ready` meaning (AC-7, AC-12)
   - [x] Voids, moves, and the empty close: the reason dialog and bill recompute, Cancelled on the kitchen ticket, moving a party, voiding an empty bill, the visit lock first on close, and the race tests (AC-13, AC-14, AC-15, AC-16, AC-17)
   - [x] Finish: role and isolation tests, English and Hindi keys, axe and density, and every check green (AC-18, AC-19)
-- [ ] Verify it: `/check verify waiter service flow`
-- [ ] Test it: `/test waiter service flow`
-- [ ] Review it (fresh model): `/check review waiter service flow`
-- [ ] Document it: `/document waiter service flow`
+- [x] Verify it: `/check verify waiter service flow`
+- [x] Test it: `/test waiter service flow`
+- [x] Review it (fresh model): `/check review waiter service flow`
+- [x] Document it: `/document waiter service flow`
 
 ### 13. Kitchen display · needs a decision
 The chef's real working screen, readable across a kitchen: incoming tickets appear live in the order they arrived, each shows how long it has been waiting, and the chef taps each dish done as it comes off the pass. The ticket flips to ready by itself when the last dish lands.
