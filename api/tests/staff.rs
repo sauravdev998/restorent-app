@@ -7,8 +7,10 @@
 //! the create path, the five refusals and the order they arrive in, the
 //! revocations, and the audit rows.
 //!
-//! The last two commit, because a race is invisible between two transactions
-//! that never do. Both delete their restaurant afterwards, which cascades.
+//! The last four commit: the two races, because a race is invisible between
+//! two transactions that never do, and the two rename events, because a
+//! `NOTIFY` is delivered only when its transaction commits. All four delete
+//! their restaurant afterwards, which cascades.
 //!
 //! Every one of them connects as `app_api`, never as the schema owner, so the
 //! row level security policies are the ones in force. That is what makes the
@@ -19,12 +21,15 @@
 
 mod common;
 
+use std::time::Duration;
+
 use api::domain::credentials::EmailAddress;
 use api::domain::enums::StaffRole;
 use api::domain::error::{ConflictKind, DomainError};
+use api::domain::event::{DomainEvent, EntityKind};
 use api::domain::ids::{RestaurantId, StaffId};
 use api::infrastructure::db::ScopedTx;
-use api::infrastructure::db::repository::{sessions, staff};
+use api::infrastructure::db::repository::{accounts, sessions, staff};
 
 /// A hash shaped like the real thing, without paying for `argon2` in a test.
 ///
@@ -948,4 +953,183 @@ async fn a_deactivate_and_a_reactivate_at_once_resolve_to_exactly_one_winner() {
     }
 
     common::drop_restaurant(&database, restaurant_id).await;
+}
+
+/// Found by `/check verify` on spec 0011: the floor, the Orders list, and every
+/// table screen name the responsible waiter, and they refetch on a `staff`
+/// event. A rename, by an admin or by the waiter themselves, has to send one.
+///
+/// This one commits, because a `NOTIFY` is delivered only when its transaction
+/// does. Listening starts after the fixture has landed, so the only traffic it
+/// can see from this restaurant is the two renames.
+#[tokio::test]
+async fn a_rename_by_the_admin_or_by_the_waiter_tells_every_screen() {
+    let database = common::database().await;
+    let restaurant_id = RestaurantId::new();
+
+    let mut setup = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening scoped");
+    let f = common::seed(&mut setup, restaurant_id).await;
+    let version = staff::list(&mut setup)
+        .await
+        .expect("reading the list")
+        .into_iter()
+        .find(|member| member.id == f.waiter)
+        .expect("the waiter works here")
+        .version;
+    setup.commit().await.expect("committing the fixture");
+
+    let mut listener = listen_for_entity_changes().await;
+
+    let mut tx = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening the admin rename");
+    staff::rename(&mut tx, f.waiter, "Wes Renamed", version, f.admin)
+        .await
+        .expect("the admin renaming the waiter");
+    tx.commit().await.expect("committing the admin rename");
+
+    let mut tx = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening the waiter's own rename");
+    accounts::set_display_name(&mut tx, f.waiter, "Wes Again")
+        .await
+        .expect("the waiter renaming themselves");
+    tx.commit()
+        .await
+        .expect("committing the waiter's own rename");
+
+    let seen = entity_events(&mut listener, restaurant_id, 2).await;
+
+    let waiter = (EntityKind::Staff, f.waiter.as_uuid());
+    assert_eq!(
+        seen,
+        vec![waiter, waiter],
+        "a rename left every open screen showing the old name"
+    );
+
+    common::drop_restaurant(&database, restaurant_id).await;
+}
+
+/// The refusal side of the test above: a rename that is turned away changes
+/// nothing on screen, so it must not make every screen refetch either.
+///
+/// Both refusals are committed on purpose, the way a careless caller might,
+/// so only the order inside each function stands between them and a stray
+/// event. A good rename lands last as a marker: `NOTIFY` arrives in commit
+/// order, so if either refusal had sent one, it would be seen before the
+/// marker instead of the test waiting out a silence.
+#[tokio::test]
+async fn a_refused_rename_tells_no_screen() {
+    let database = common::database().await;
+    let restaurant_id = RestaurantId::new();
+
+    let mut setup = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening scoped");
+    let f = common::seed(&mut setup, restaurant_id).await;
+    let version = staff::list(&mut setup)
+        .await
+        .expect("reading the list")
+        .into_iter()
+        .find(|member| member.id == f.waiter)
+        .expect("the waiter works here")
+        .version;
+    setup.commit().await.expect("committing the fixture");
+
+    let mut listener = listen_for_entity_changes().await;
+
+    let mut tx = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening the stale rename");
+    let stale = staff::rename(&mut tx, f.waiter, "Wes Stale", version + 1, f.admin).await;
+    assert!(
+        matches!(
+            stale,
+            Err(DomainError::Conflict(ConflictKind::StaffChanged))
+        ),
+        "a rename from an old screen is refused, got {stale:?}"
+    );
+    tx.commit()
+        .await
+        .expect("committing after the stale rename");
+
+    let mut tx = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening the blank rename");
+    let blank = accounts::set_display_name(&mut tx, f.waiter, "   ").await;
+    assert!(
+        matches!(blank, Err(DomainError::Invalid(_))),
+        "a blank name is refused, got {blank:?}"
+    );
+    let nobody = accounts::set_display_name(&mut tx, StaffId::new(), "Ghost").await;
+    assert!(
+        matches!(nobody, Err(DomainError::NotFound)),
+        "renaming somebody who does not work here is refused, got {nobody:?}"
+    );
+    tx.commit()
+        .await
+        .expect("committing after the refused renames");
+
+    let mut tx = database
+        .begin_scoped(restaurant_id)
+        .await
+        .expect("opening the marker rename");
+    accounts::set_display_name(&mut tx, f.chef, "Chef Marker")
+        .await
+        .expect("the marker rename");
+    tx.commit().await.expect("committing the marker rename");
+
+    let seen = entity_events(&mut listener, restaurant_id, 1).await;
+
+    assert_eq!(
+        seen,
+        vec![(EntityKind::Staff, f.chef.as_uuid())],
+        "a refused rename sent an event, so every screen refetched for nothing"
+    );
+
+    common::drop_restaurant(&database, restaurant_id).await;
+}
+
+/// Opens a connection of its own listening where every screen's events travel.
+async fn listen_for_entity_changes() -> sqlx::postgres::PgListener {
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let mut listener = sqlx::postgres::PgListener::connect(&database_url)
+        .await
+        .expect("opening a listen connection");
+    listener
+        .listen("entity_changed")
+        .await
+        .expect("listening on entity_changed");
+    listener
+}
+
+/// Collects up to `wanted` events for one restaurant, giving up after five
+/// seconds. Other tests share the channel, so their traffic is skipped.
+async fn entity_events(
+    listener: &mut sqlx::postgres::PgListener,
+    restaurant_id: RestaurantId,
+    wanted: usize,
+) -> Vec<(EntityKind, uuid::Uuid)> {
+    let mut seen = Vec::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while seen.len() < wanted {
+        let Ok(received) = tokio::time::timeout_at(deadline, listener.recv()).await else {
+            break;
+        };
+        let notification = received.expect("the listen connection stayed up");
+        let event: DomainEvent =
+            serde_json::from_str(notification.payload()).expect("a payload the listener can read");
+        if event.restaurant_id == restaurant_id {
+            seen.push((event.entity, event.entity_id));
+        }
+    }
+    seen
 }

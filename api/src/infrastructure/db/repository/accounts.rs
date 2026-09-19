@@ -20,11 +20,12 @@ use crate::domain::country::Country;
 use crate::domain::credentials::EmailAddress;
 use crate::domain::enums::StaffRole;
 use crate::domain::error::{ConflictKind, DomainError, DomainResult};
+use crate::domain::event::EntityKind;
 use crate::domain::ids::StaffId;
 use crate::domain::language::{FormattingLocale, LanguageCode};
 use crate::domain::people::Staff;
 
-use super::super::ScopedTx;
+use super::super::{Database, ScopedTx};
 use super::audit;
 
 /// What registration was asked to create.
@@ -296,6 +297,11 @@ pub async fn set_display_name(
     if updated == 0 {
         return Err(DomainError::NotFound);
     }
+
+    // Other waiters' screens show this name beside the tables they are
+    // responsible for, so they hear about the change the same way an admin's
+    // rename reaches them.
+    Database::notify_entity_change(tx, EntityKind::Staff, staff_id.as_uuid()).await?;
 
     Ok(())
 }
