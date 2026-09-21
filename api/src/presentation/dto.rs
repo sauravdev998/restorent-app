@@ -182,6 +182,16 @@ pub struct RestaurantDto {
     /// How money, numbers, dates, and times are written here. Deliberately not
     /// derived from the language.
     pub formatting_locale: String,
+    /// After how many seconds the kitchen pass draws a waiting ticket amber.
+    pub kitchen_warning_after_seconds: i32,
+    /// After how many seconds it draws one red. Always the larger of the two.
+    pub kitchen_late_after_seconds: i32,
+    /// Which version of this row the screen is holding. An edit has to name it,
+    /// and one naming an older version is refused rather than merged over
+    /// somebody else's change. Carried on every identity bundle, including the
+    /// one a successful save returns, so a screen that just saved holds the new
+    /// version without a second read.
+    pub version: i32,
 }
 
 impl From<Restaurant> for RestaurantDto {
@@ -196,6 +206,9 @@ impl From<Restaurant> for RestaurantDto {
             timezone: restaurant.timezone,
             default_language: restaurant.default_language.as_str().to_owned(),
             formatting_locale: restaurant.formatting_locale.as_str().to_owned(),
+            kitchen_warning_after_seconds: restaurant.kitchen_warning_after_seconds,
+            kitchen_late_after_seconds: restaurant.kitchen_late_after_seconds,
+            version: restaurant.version,
         }
     }
 }

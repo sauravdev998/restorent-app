@@ -21,6 +21,19 @@ export function isAudioUnlocked(): boolean {
 }
 
 /**
+ * The open audio context, or `null` while audio is still locked.
+ *
+ * For a surface that synthesises its own sound rather than playing the ready
+ * chime: the kitchen's ticket chime is three descending knocks and has to be
+ * unmistakably not this file's two rising notes. The context itself stays here,
+ * opened once in the one gesture a browser allows it in, because two contexts in
+ * one tab is a second thing that can be refused.
+ */
+export function audioContext(): AudioContext | null {
+  return context
+}
+
+/**
  * Listens for the first interaction of the session and opens the audio context
  * inside it, which is the only moment a browser will allow it.
  *

@@ -248,7 +248,8 @@ async fn a_long_hindi_note_reaches_the_kitchen_whole_and_the_database_holds_the_
 
     let pass = service::kitchen_queue(&mut tx)
         .await
-        .expect("reading the pass");
+        .expect("reading the pass")
+        .tickets;
     assert_eq!(pass[0].lines[0].note.as_deref(), Some(note.as_str()));
 
     common::savepoint(&mut tx, "long_note").await;
@@ -371,6 +372,7 @@ async fn serve_all_ready_serves_what_is_ready_and_refuses_when_nothing_is() {
         service::kitchen_queue(&mut tx)
             .await
             .expect("the pass")
+            .tickets
             .is_empty(),
         "a fully served ticket stayed in the kitchen queue"
     );
@@ -497,7 +499,10 @@ async fn voids_move_the_ticket_the_way_its_dishes_say() {
     .await
     .expect("cancelling the only dish");
     assert_eq!(all_gone.round_status, RoundStatus::Voided);
-    let pass = service::kitchen_queue(&mut tx).await.expect("the pass");
+    let pass = service::kitchen_queue(&mut tx)
+        .await
+        .expect("the pass")
+        .tickets;
     assert!(
         pass.iter().all(|ticket| ticket.round.id != second.round.id),
         "a ticket with every dish cancelled stayed on the pass"
@@ -572,7 +577,10 @@ async fn the_pass_keeps_a_cancelled_dish_on_its_ticket() {
     .await
     .expect("cancelling the soup");
 
-    let pass = service::kitchen_queue(&mut tx).await.expect("the pass");
+    let pass = service::kitchen_queue(&mut tx)
+        .await
+        .expect("the pass")
+        .tickets;
     let statuses: Vec<LineStatus> = pass[0].lines.iter().map(|line| line.status).collect();
     assert_eq!(statuses, vec![LineStatus::Voided, LineStatus::Queued]);
 }
@@ -657,7 +665,10 @@ async fn a_party_moves_with_everything_and_the_pass_follows() {
     assert_eq!(moved.table_id, f.table_two);
     assert_eq!(moved.responsible_staff_id, f.waiter);
 
-    let pass = service::kitchen_queue(&mut tx).await.expect("the pass");
+    let pass = service::kitchen_queue(&mut tx)
+        .await
+        .expect("the pass")
+        .tickets;
     assert_eq!(pass[0].round.id, sent.round.id);
     assert_eq!(pass[0].table_label, "T2");
     assert_eq!(

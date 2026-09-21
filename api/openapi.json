@@ -2050,12 +2050,12 @@
         "tags": [
           "orders"
         ],
-        "summary": "The kitchen queue, oldest first.",
-        "description": "# Errors\n\nReturns `401` if nobody is signed in, `403` if the caller is not a chef, and\n`503` if the database is unavailable.",
+        "summary": "The kitchen queue: cooking oldest first, then plated oldest first.",
+        "description": "Carries the restaurant's own two thresholds with it rather than leaving the\nscreen to decide when a ticket is late, and says how many tickets it left\nbehind rather than quietly cutting them off.\n\n# Errors\n\nReturns `401` if nobody is signed in, `403` if the caller is not a chef, and\n`503` if the database is unavailable.",
         "operationId": "kitchen_tickets",
         "responses": {
           "200": {
-            "description": "Every queued or ready ticket, oldest first. Chefs only.",
+            "description": "Up to 120 queued or ready tickets, cooking first, with this restaurant's ageing thresholds. Chefs only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2404,13 +2404,87 @@
         }
       }
     },
+    "/api/order-lines/{id}/unready": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Puts one plated dish back on the stove.",
+        "description": "The undo for [`mark_line_ready`], and the only way back from `ready` that is\nnot a waiter serving the food. A ticket that had gone ready returns to cooking\nwith the dish, recomputed in the same transaction, so the waiter's screen\ncorrects itself through the event rather than being told separately.\n\n# Errors\n\nReturns `409 line_not_ready` if the dish is not waiting to be carried out,\nwhich is what a waiter serving it a moment earlier produces, `404` if there is\nno such dish, `401` if nobody is signed in, and `403` if the caller is not a\nchef.",
+        "operationId": "unmark_line_ready",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The dish to put back on the stove.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dish and its ticket's new status. Chefs only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkedLineResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a chef.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such dish.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`line_not_ready`: that dish is not waiting to be carried out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/order-lines/{id}/void": {
       "post": {
         "tags": [
           "orders"
         ],
         "summary": "Cancels one dish that is still cooking or waiting on the pass, with a\nreason, and takes it off the bill.",
-        "description": "# Errors\n\nReturns `400` if the reason is `other` with no words\n(`fields.reason = required`) or the words are over 200 characters\n(`fields.reason = too_long`), `409 line_not_voidable` if the dish has been\nserved or already cancelled, `404` if there is no such dish, `401` if nobody\nis signed in, and `403` if the caller is not a waiter.",
+        "description": "**A waiter or a chef, and the two may give different reasons.** A waiter\ncancels for any of the four: the guest changed their mind, it was entered by\nmistake, the kitchen has run out, or something else they write down. A chef\nmay give one reason only, `kitchen_unavailable`, because that is the one thing\na kitchen knows that nobody else does. Why a guest changed their mind is not a\njudgement to make from behind the pass.\n\n**A chef giving any other reason is a `400`, not a `403`.** Every `403` in this\nAPI is the role refusal the `Actor` extractor makes before the handler body\nruns, and a chef calling this endpoint is allowed to call it. What is refused\nis the value of one field, and a refused field value is a named field error\neverywhere else here.\n\n# Errors\n\nReturns `400` if the reason is `other` with no words\n(`fields.reason = required`), the words are over 200 characters\n(`fields.reason = too_long`), or a chef gave any reason but kitchen\nunavailable (`fields.reasonCode = not_allowed_for_chef`),\n`409 line_not_voidable` if the dish has been served or already cancelled,\n`404` if there is no such dish, `401` if nobody is signed in, and `403` if the\ncaller is an admin.",
         "operationId": "void_line",
         "parameters": [
           {
@@ -2436,7 +2510,7 @@
         },
         "responses": {
           "200": {
-            "description": "The cancelled dish, its ticket, and the bill's subtotal after. Waiters only.",
+            "description": "The cancelled dish, its ticket, and the bill's subtotal after. Waiters, and chefs for kitchen unavailable only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2446,7 +2520,7 @@
             }
           },
           "400": {
-            "description": "A missing or over long reason.",
+            "description": "A missing or over long reason, or a reason a chef may not give.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2466,7 +2540,7 @@
             }
           },
           "403": {
-            "description": "Not a waiter.",
+            "description": "An admin asked.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2546,7 +2620,7 @@
           "accounts"
         ],
         "summary": "Changes the restaurant's settings. Admins only.",
-        "description": "The role requirement is in the signature: `Actor<Admin>` refuses a waiter and\na chef with `403` before this body runs, so there is no line here to forget.\n\n# Errors\n\nReturns a `400` naming each field that was not accepted, `403` for a waiter\nor a chef, `401` if nobody is signed in, and a `503` if the database is\nunavailable.",
+        "description": "The role requirement is in the signature: `Actor<Admin>` refuses a waiter and\na chef with `403` before this body runs, so there is no line here to forget.\n\n**The edit names the version it was made against**, and a stale one is refused\nrather than merged. That covers all seven settings, not only the two kitchen\nthresholds this endpoint grew in spec 0012: name, address, timezone, and the\ntwo language fields come under the same conditional update.\n\n**The two thresholds are merged over the stored pair before either is\nchecked.** Each may be edited on its own while the rule that amber comes\nbefore red spans both, so an edit raising only the warning can cross a stored\nlate value it never mentions. The merge is what catches that, and it is what\nlets a refusal name a field rather than say \"those two are wrong\".\n\n# Errors\n\nReturns a `400` naming each field that was not accepted, `409\nrestaurant_changed` if the version is no longer current, `403` for a waiter\nor a chef, `401` if nobody is signed in, and a `503` if the database is\nunavailable.",
         "operationId": "update_restaurant",
         "requestBody": {
           "content": {
@@ -2560,7 +2634,7 @@
         },
         "responses": {
           "200": {
-            "description": "The updated identity. Admins only.",
+            "description": "The updated identity, carrying the new version. Admins only.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2591,6 +2665,90 @@
           },
           "403": {
             "description": "A waiter or a chef asked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`restaurant_changed`: somebody saved these settings first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rounds/{id}/ready": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Marks every dish still cooking on one ticket off the pass, in one go.",
+        "description": "One transaction, so the ticket either fully flips or does not change at all. A\nchef who plates a whole table at once taps once instead of four times, and a\nrequest that fails half way leaves every dish exactly as it was.\n\n# Errors\n\nReturns `409 round_not_queued` if no dish on the ticket is still cooking,\nwhich is also what a colleague marking one of them between the read and the\nwrite produces, `404` if there is no such ticket, `401` if nobody is signed\nin, and `403` if the caller is not a chef.",
+        "operationId": "mark_round_ready",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The ticket whose cooking dishes are all done.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ticket after the write. Chefs only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderRoundDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Nobody is signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a chef.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such ticket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`round_not_queued`: nothing on that ticket is still cooking.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4792,6 +4950,24 @@
           "status": {
             "$ref": "#/components/schemas/LineStatusDto",
             "description": "Where this one dish has got to."
+          },
+          "voidReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The words whoever cancelled it gave. Carried only for `other`, the one\ncode that says nothing on its own and the one code that requires them;\nfor the other three the code is the reason and the words are a note to a\nmanager rather than to the kitchen."
+          },
+          "voidReasonCode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VoidReasonDto",
+                "description": "Why it was cancelled, for a dish in the Cancelled strip. The screen says\nit in its own language from this code; the free text behind it is the\nwaiter's own words and does not belong on a wall screen. `null` for a\ndish that was not cancelled."
+              }
+            ]
           }
         }
       },
@@ -4800,9 +4976,17 @@
         "description": "Everything the kitchen still has work on.",
         "required": [
           "tickets",
-          "serverTime"
+          "serverTime",
+          "warningAfterSeconds",
+          "lateAfterSeconds",
+          "truncatedCount"
         ],
         "properties": {
+          "lateAfterSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "description": "After how many seconds it draws one red."
+          },
           "serverTime": {
             "type": "string",
             "format": "date-time",
@@ -4814,6 +4998,16 @@
               "$ref": "#/components/schemas/KitchenTicketDto"
             },
             "description": "The tickets, oldest first."
+          },
+          "truncatedCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many more tickets there were than this answer carries. `0` means\nnothing was left out, which is every ordinary evening. Above zero, the\nscreen says work is hidden rather than hiding it silently."
+          },
+          "warningAfterSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "description": "After how many seconds of waiting the screen draws a ticket amber. This\nrestaurant's own setting, not a number the screen decides."
           }
         }
       },
@@ -4841,10 +5035,18 @@
             },
             "description": "Every dish on it, oldest first."
           },
+          "readyAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the last dish came off the pass, for a ticket that is ready. A\nplated ticket's age is measured from here instead, because what matters\nabout it is how long it has been under the lamp. `null` while it is still\ncooking."
+          },
           "sentAt": {
             "type": "string",
             "format": "date-time",
-            "description": "When it reached the kitchen. The waiting time is measured from here."
+            "description": "When it reached the kitchen. A cooking ticket's age is measured from here."
           },
           "sequenceNo": {
             "type": "integer",
@@ -5440,7 +5642,10 @@
           "currencyDecimals",
           "timezone",
           "defaultLanguage",
-          "formattingLocale"
+          "formattingLocale",
+          "kitchenWarningAfterSeconds",
+          "kitchenLateAfterSeconds",
+          "version"
         ],
         "properties": {
           "address": {
@@ -5477,6 +5682,16 @@
             "format": "uuid",
             "description": "Which restaurant this is."
           },
+          "kitchenLateAfterSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "description": "After how many seconds it draws one red. Always the larger of the two."
+          },
+          "kitchenWarningAfterSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "description": "After how many seconds the kitchen pass draws a waiting ticket amber."
+          },
           "name": {
             "type": "string",
             "description": "What it is called."
@@ -5484,6 +5699,11 @@
           "timezone": {
             "type": "string",
             "description": "Its own IANA timezone. Every timestamp on a screen is converted with it,\nnever with the device's."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Which version of this row the screen is holding. An edit has to name it,\nand one naming an older version is refused rather than merged over\nsomebody else's change. Carried on every identity bundle, including the\none a successful save returns, so a screen that just saved holds the new\nversion without a second read."
           }
         }
       },
@@ -5968,6 +6188,9 @@
       "UpdateRestaurantRequest": {
         "type": "object",
         "description": "What an admin may change about the restaurant.\n\nNo money setting appears here at all. The currency and its decimals were\nfixed by the country at registration and changing them under bills that have\nalready closed would rewrite history.",
+        "required": [
+          "version"
+        ],
         "properties": {
           "address": {
             "type": [
@@ -5990,6 +6213,22 @@
             ],
             "description": "How it writes money, numbers, and dates."
           },
+          "kitchenLateAfterSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "After how many seconds it draws one red. The same bounds, and above the\nwarning threshold."
+          },
+          "kitchenWarningAfterSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "After how many seconds the kitchen pass draws a waiting ticket amber.\nBetween 60 and 14400, and below the late threshold once laid over what is\nstored."
+          },
           "name": {
             "type": [
               "string",
@@ -6003,6 +6242,11 @@
               "null"
             ],
             "description": "Its IANA timezone."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Which version of the restaurant this edit was made against. Required, and\nan edit naming one that is no longer current is refused rather than\nmerged over somebody else's change. Every identity bundle carries it,\nincluding the one a successful save returns."
           }
         }
       },

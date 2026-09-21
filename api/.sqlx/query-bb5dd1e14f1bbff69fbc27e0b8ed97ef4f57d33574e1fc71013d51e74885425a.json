@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, name, country_code, currency_code, currency_decimals, timezone,\n               default_language, formatting_locale,\n               service_charge_percent, address, tax_registration_number, deactivated_at\n        FROM restaurants\n        ",
+  "query": "\n        SELECT id, name, country_code, currency_code, currency_decimals, timezone,\n               default_language, formatting_locale,\n               service_charge_percent, address, tax_registration_number, deactivated_at,\n               kitchen_warning_after_seconds, kitchen_late_after_seconds, version\n        FROM restaurants\n        ",
   "describe": {
     "columns": [
       {
@@ -134,6 +134,39 @@
             "name": "deactivated_at"
           }
         }
+      },
+      {
+        "ordinal": 12,
+        "name": "kitchen_warning_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_warning_after_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "kitchen_late_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_late_after_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "version"
+          }
+        }
       }
     ],
     "parameters": {
@@ -151,8 +184,11 @@
       true,
       true,
       true,
-      true
+      true,
+      false,
+      false,
+      false
     ]
   },
-  "hash": "52baf7253f7ea1096cd3d7b32c1c930cea4c75e5698e93abb33192909f7aaed2"
+  "hash": "bb5dd1e14f1bbff69fbc27e0b8ed97ef4f57d33574e1fc71013d51e74885425a"
 }

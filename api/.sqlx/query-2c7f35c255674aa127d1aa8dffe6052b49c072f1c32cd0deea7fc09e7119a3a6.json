@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE order_rounds\n        SET status = $2,\n            ready_at = CASE\n                WHEN $2 = 'ready'::round_status AND ready_at IS NULL THEN now()\n                -- An undo takes a ticket back to cooking, and the stamp goes\n                -- with it. Without this line the ticket keeps the moment it\n                -- first went ready, and when the dish is cooked again the Ready\n                -- area shows it as having waited under the lamp for the whole\n                -- of the undo as well, which is a red ticket that is not late.\n                -- Every other way into 'queued' has no stamp to clear, so this\n                -- reaches only the undo.\n                WHEN $2 = 'queued'::round_status THEN NULL\n                ELSE ready_at\n            END,\n            served_at = CASE\n                WHEN $2 = 'served'::round_status AND served_at IS NULL THEN now()\n                ELSE served_at\n            END,\n            updated_at = now()\n        WHERE id = $1 AND status IS DISTINCT FROM $2\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_rounds",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "round_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "ready",
+                "served",
+                "voided"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2c7f35c255674aa127d1aa8dffe6052b49c072f1c32cd0deea7fc09e7119a3a6"
+}

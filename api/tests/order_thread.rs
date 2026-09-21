@@ -347,7 +347,8 @@ async fn the_kitchen_queue_is_the_work_left_oldest_first() {
 
     let queue = service::kitchen_queue(&mut tx)
         .await
-        .expect("reading the pass");
+        .expect("reading the pass")
+        .tickets;
 
     assert_eq!(queue.len(), 2);
     assert_eq!(
@@ -372,7 +373,8 @@ async fn the_kitchen_queue_is_the_work_left_oldest_first() {
 
     let left = service::kitchen_queue(&mut tx)
         .await
-        .expect("reading the pass again");
+        .expect("reading the pass again")
+        .tickets;
 
     assert_eq!(
         left.len(),
@@ -788,7 +790,8 @@ async fn none_of_the_new_reads_can_see_another_restaurants_service() {
 
     let pass = service::kitchen_queue(&mut tx)
         .await
-        .expect("alpha reads its pass");
+        .expect("alpha reads its pass")
+        .tickets;
     assert!(
         pass.is_empty(),
         "alpha's kitchen screen is showing beta's tickets"
@@ -880,6 +883,7 @@ async fn carrying_a_ticket_out_moves_every_dish_that_was_waiting() {
         service::kitchen_queue(&mut tx)
             .await
             .expect("reading the pass")
+            .tickets
             .is_empty(),
         "a ticket that reached the table is still on the kitchen screen"
     );

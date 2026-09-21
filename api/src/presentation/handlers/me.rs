@@ -14,6 +14,7 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 
 use crate::application::ports::PasswordHasher as _;
+use crate::domain::catalog::{ThresholdProblem, merge_kitchen_thresholds};
 use crate::domain::credentials::Password;
 use crate::domain::error::{DomainError, FieldError, FieldErrors};
 use crate::domain::language::{FormattingLocale, LanguageCode};
@@ -68,6 +69,11 @@ pub struct ChangePasswordRequest {
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateRestaurantRequest {
+    /// Which version of the restaurant this edit was made against. Required, and
+    /// an edit naming one that is no longer current is refused rather than
+    /// merged over somebody else's change. Every identity bundle carries it,
+    /// including the one a successful save returns.
+    pub version: i32,
     /// What the restaurant is called.
     #[serde(default)]
     pub name: Option<String>,
@@ -83,6 +89,15 @@ pub struct UpdateRestaurantRequest {
     /// How it writes money, numbers, and dates.
     #[serde(default)]
     pub formatting_locale: Option<String>,
+    /// After how many seconds the kitchen pass draws a waiting ticket amber.
+    /// Between 60 and 14400, and below the late threshold once laid over what is
+    /// stored.
+    #[serde(default)]
+    pub kitchen_warning_after_seconds: Option<i32>,
+    /// After how many seconds it draws one red. The same bounds, and above the
+    /// warning threshold.
+    #[serde(default)]
+    pub kitchen_late_after_seconds: Option<i32>,
 }
 
 /// Tells an absent field from one explicitly set to `null`.
@@ -235,9 +250,21 @@ pub async fn change_password(
 /// The role requirement is in the signature: `Actor<Admin>` refuses a waiter and
 /// a chef with `403` before this body runs, so there is no line here to forget.
 ///
+/// **The edit names the version it was made against**, and a stale one is refused
+/// rather than merged. That covers all seven settings, not only the two kitchen
+/// thresholds this endpoint grew in spec 0012: name, address, timezone, and the
+/// two language fields come under the same conditional update.
+///
+/// **The two thresholds are merged over the stored pair before either is
+/// checked.** Each may be edited on its own while the rule that amber comes
+/// before red spans both, so an edit raising only the warning can cross a stored
+/// late value it never mentions. The merge is what catches that, and it is what
+/// lets a refusal name a field rather than say "those two are wrong".
+///
 /// # Errors
 ///
-/// Returns a `400` naming each field that was not accepted, `403` for a waiter
+/// Returns a `400` naming each field that was not accepted, `409
+/// restaurant_changed` if the version is no longer current, `403` for a waiter
 /// or a chef, `401` if nobody is signed in, and a `503` if the database is
 /// unavailable.
 #[utoipa::path(
@@ -246,10 +273,11 @@ pub async fn change_password(
     tag = "accounts",
     request_body = UpdateRestaurantRequest,
     responses(
-        (status = 200, description = "The updated identity. Admins only.", body = IdentityBundle),
+        (status = 200, description = "The updated identity, carrying the new version. Admins only.", body = IdentityBundle),
         (status = 400, description = "A field was not accepted.", body = ErrorBody),
         (status = 403, description = "A waiter or a chef asked.", body = ErrorBody),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 409, description = "`restaurant_changed`: somebody saved these settings first.", body = ErrorBody),
     )
 )]
 pub async fn update_restaurant(
@@ -276,6 +304,21 @@ pub async fn update_restaurant(
 
     let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
 
+    // Read in the same transaction as the write, so the pair the rule is checked
+    // against is the pair the write lands on. A change committed in between bumps
+    // the version, and the conditional update below refuses this edit rather than
+    // storing a pair checked against something that has moved.
+    let thresholds = match (
+        request.kitchen_warning_after_seconds,
+        request.kitchen_late_after_seconds,
+    ) {
+        (None, None) => None,
+        (warning, late) => {
+            let stored = catalog::kitchen_thresholds(&mut tx).await?;
+            Some(merge_kitchen_thresholds(warning, late, stored).map_err(threshold_field_error)?)
+        }
+    };
+
     accounts::update_settings(
         &mut tx,
         &accounts::RestaurantSettingsPatch {
@@ -284,7 +327,9 @@ pub async fn update_restaurant(
             timezone: request.timezone.as_deref(),
             default_language: default_language.as_ref(),
             formatting_locale: formatting_locale.as_ref(),
+            kitchen_thresholds: thresholds,
         },
+        request.version,
         actor.staff_id(),
     )
     .await
@@ -304,6 +349,17 @@ pub async fn update_restaurant(
 /// One field, one problem.
 fn field(name: &str, error: FieldError) -> ApiError {
     DomainError::InvalidFields(FieldErrors::one(name, error)).into()
+}
+
+/// Names the threshold box a refusal belongs to.
+///
+/// The domain says which of the two was refused and why, in its own words; this
+/// is the only place that knows what the boxes are called on the wire.
+fn threshold_field_error(problem: ThresholdProblem) -> ApiError {
+    match problem {
+        ThresholdProblem::Warning(error) => field("kitchenWarningAfterSeconds", error),
+        ThresholdProblem::Late(error) => field("kitchenLateAfterSeconds", error),
+    }
 }
 
 /// Puts the repository's two validation refusals beside the box they belong to.

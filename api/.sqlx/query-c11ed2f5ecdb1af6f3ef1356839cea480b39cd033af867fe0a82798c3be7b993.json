@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT r.id, r.visit_id, r.sequence_no, r.status AS \"status: RoundStatus\",\n               r.sent_by_staff_id, r.sent_at, r.ready_at, r.served_at, r.client_key,\n               t.label AS table_label\n        FROM order_rounds AS r\n        JOIN visits AS v ON v.id = r.visit_id\n        JOIN dining_tables AS t ON t.id = v.table_id\n        WHERE r.status IN ('queued', 'ready')\n        ORDER BY r.sent_at, r.id\n        ",
+  "query": "\n        SELECT r.id, r.visit_id, r.sequence_no, r.status AS \"status: RoundStatus\",\n               r.sent_by_staff_id, r.sent_at, r.ready_at, r.served_at, r.client_key,\n               t.label AS table_label\n        FROM order_rounds AS r\n        JOIN visits AS v ON v.id = r.visit_id\n        JOIN dining_tables AS t ON t.id = v.table_id\n        WHERE r.status = 'ready'\n        ORDER BY r.ready_at, r.id\n        LIMIT $1\n        ",
   "describe": {
     "columns": [
       {
@@ -127,7 +127,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -142,5 +144,5 @@
       false
     ]
   },
-  "hash": "edaed44bb0c370f3dd030d71ccab973d0e620c66d9dec9630187b0d490835afc"
+  "hash": "c11ed2f5ecdb1af6f3ef1356839cea480b39cd033af867fe0a82798c3be7b993"
 }

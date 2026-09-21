@@ -50,6 +50,9 @@ function identity(restaurantLanguage: string, staffLanguage: string | null): Ide
       timezone: 'Asia/Kolkata',
       defaultLanguage: restaurantLanguage,
       formattingLocale: 'en-IN',
+      kitchenWarningAfterSeconds: 600,
+      kitchenLateAfterSeconds: 900,
+      version: 1,
     },
   }
 }

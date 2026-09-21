@@ -61,6 +61,11 @@ pub fn build(state: AppState, config: &Config) -> Router {
             "/api/order-lines/{id}/ready",
             post(service::mark_line_ready),
         )
+        .route(
+            "/api/order-lines/{id}/unready",
+            post(service::unmark_line_ready),
+        )
+        .route("/api/rounds/{id}/ready", post(service::mark_round_ready))
         // The menu. Admin only under `/api/admin`, and the one switch a chef
         // may throw beside the read it changes.
         .route("/api/admin/menu", get(admin_menu::admin_menu))

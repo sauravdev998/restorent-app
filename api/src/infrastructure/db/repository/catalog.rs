@@ -30,7 +30,9 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::domain::audit::AuditAction;
-use crate::domain::catalog::{ArchivedDish, Dish, MenuCategory, Restaurant, TaxComponent};
+use crate::domain::catalog::{
+    ArchivedDish, Dish, KitchenThresholds, MenuCategory, Restaurant, TaxComponent,
+};
 use crate::domain::enums::Diet;
 use crate::domain::error::{ConflictKind, DomainError, DomainResult};
 use crate::domain::event::EntityKind;
@@ -57,7 +59,8 @@ pub async fn restaurant(tx: &mut ScopedTx<'_>) -> DomainResult<Restaurant> {
         r#"
         SELECT id, name, country_code, currency_code, currency_decimals, timezone,
                default_language, formatting_locale,
-               service_charge_percent, address, tax_registration_number, deactivated_at
+               service_charge_percent, address, tax_registration_number, deactivated_at,
+               kitchen_warning_after_seconds, kitchen_late_after_seconds, version
         FROM restaurants
         "#
     )
@@ -79,6 +82,34 @@ pub async fn restaurant(tx: &mut ScopedTx<'_>) -> DomainResult<Restaurant> {
         address: row.address,
         tax_registration_number: row.tax_registration_number,
         deactivated_at: row.deactivated_at,
+        kitchen_warning_after_seconds: row.kitchen_warning_after_seconds,
+        kitchen_late_after_seconds: row.kitchen_late_after_seconds,
+        version: row.version,
+    })
+}
+
+/// Just the pass's two ageing thresholds.
+///
+/// Its own read rather than [`restaurant`], because the kitchen queue needs these
+/// two numbers and nothing else: no currency to parse, no locale to validate, and
+/// no chance of a malformed language code somewhere else in the row turning a
+/// chef's pass into an error screen.
+///
+/// # Errors
+///
+/// Returns [`DomainError::NotFound`] if the scoped restaurant does not exist, and
+/// [`DomainError::Unavailable`] if the read fails.
+pub async fn kitchen_thresholds(tx: &mut ScopedTx<'_>) -> DomainResult<KitchenThresholds> {
+    let row = sqlx::query!(
+        "SELECT kitchen_warning_after_seconds, kitchen_late_after_seconds FROM restaurants"
+    )
+    .fetch_optional(tx.connection())
+    .await?
+    .ok_or(DomainError::NotFound)?;
+
+    Ok(KitchenThresholds {
+        warning_after_seconds: row.kitchen_warning_after_seconds,
+        late_after_seconds: row.kitchen_late_after_seconds,
     })
 }
 

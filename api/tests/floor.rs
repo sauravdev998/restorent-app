@@ -372,7 +372,8 @@ async fn a_busy_table_stays_and_can_still_be_renamed() {
     );
     let tickets = service::kitchen_queue(&mut tx)
         .await
-        .expect("reading the kitchen queue");
+        .expect("reading the kitchen queue")
+        .tickets;
     assert_eq!(
         tickets
             .iter()

@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT kitchen_warning_after_seconds, kitchen_late_after_seconds FROM restaurants",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kitchen_warning_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_warning_after_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "kitchen_late_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_late_after_seconds"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "803d19087f6cbc0dde49463419f0b0f9a68be026286b4bf5724d8b090bcd6dfd"
+}

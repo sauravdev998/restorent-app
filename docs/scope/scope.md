@@ -23,7 +23,7 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 10 | Staff accounts | Slice 2 | done |
 | 11 | Tables and floor plan | Slice 2 | done |
 | 12 | Waiter service flow | Slice 3 | done |
-| 13 | Kitchen display | Slice 3 | planned |
+| 13 | Kitchen display | Slice 3 | in-progress |
 | 14 | Bill generation, currency, and tax | Slice 4 | planned |
 | 15 | Closing a bill and recording payment | Slice 4 | planned |
 | 16 | Kitchen ticket and bill printing | Slice 4 | planned |
@@ -42,6 +42,8 @@ _You are in charge. Every box below is a **suggestion**, not a gate: run any, sk
 | 29 | Drawn floor map | Deferred | planned |
 | 30 | Ready alerts on a locked phone | Deferred | planned |
 | 31 | Approval for voiding cooked food | Deferred | planned |
+| 32 | Per dish prep minutes | Deferred | planned |
+| 33 | Kitchen stations | Deferred | planned |
 
 ## Foundations
 
@@ -223,10 +225,21 @@ spec [0011](../specs/0011-waiter-service-flow/index.md) · verify [0011](../spec
 - [x] Review it (fresh model): `/check review waiter service flow`
 - [x] Document it: `/document waiter service flow`
 
-### 13. Kitchen display · needs a decision
+### 13. Kitchen display · in-progress
 The chef's real working screen, readable across a kitchen: incoming tickets appear live in the order they arrived, each shows how long it has been waiting, and the chef taps each dish done as it comes off the pass. The ticket flips to ready by itself when the last dish lands.
 **Done when:** a new ticket appears without a refresh; tickets are ordered oldest first and show elapsed time with a visible warning once one waits too long; tapping a dish marks only that dish; the ticket flips to ready automatically on the last dish and leaves the active queue; and the whole screen is legible at kitchen distance and usable with wet or gloved hands.
-- [ ] Design it (spec): `/architect kitchen display`
+spec [0012](../specs/0012-kitchen-display/index.md) · code in `api/src/presentation/handlers/service.rs`, `api/src/infrastructure/db/repository/service.rs`, `web/src/kitchen/`, `web/src/admin/routes/restaurant-settings.tsx`
+- [x] Design it (spec): `/architect kitchen display`
+- [ ] Build it: `/develop kitchen display`
+  - [x] The thread, top to bottom: migration 0010 with the two thresholds, the version column and the two indexes, the kitchen read carrying the thresholds and the 120 cap, and the redrawn pass with two urgency levels and the Ready area (AC-1, AC-2, AC-3, AC-5, AC-6, AC-19, AC-20)
+  - [x] The chef's three new acts: undo with its audit row, All done on a ticket, and the chef void with the Cancelled strip and whole notes (AC-4, AC-7, AC-8, AC-9, AC-10, AC-11, AC-12, AC-13)
+  - [x] The admin's thresholds: version required on the restaurant patch with the stale refusal, the two fields merged over the stored row and checked as a pair, and the admin settings section (AC-20, AC-21)
+  - [x] The screen made honest: the distinct chime with its locked audio prompt, the held scroll with its new work marker, the not live banner, and the wake lock (AC-14, AC-15, AC-16, AC-17, AC-18)
+  - [ ] Finish: role and isolation tests, the two race tests, English and Hindi keys, axe at kitchen density, and the three metre legibility check spec 0005 asked for (AC-22, AC-23, AC-24) — all but the three metre check, which is a measurement on a real screen for `/check verify`
+- [ ] Verify it: `/check verify kitchen display`
+- [ ] Test it: `/test kitchen display`
+- [ ] Review it (fresh model): `/check review kitchen display`
+- [ ] Document it: `/document kitchen display`
 
 ## Slice 4: money
 
@@ -293,6 +306,8 @@ Out of scope for the current build pass, kept so the plan stays honest. Both are
 - **29. Drawn floor map** `from spec 0010`: a grid or free placement picture of the room for the admin and waiter floors, instead of the ordered list. Spec [0010](../specs/0010-tables-and-floor-plan/index.md) deferred it; it would add layout columns on top of the existing ordered tables rather than replace them · needs a decision
 - **30. Ready alerts on a locked phone** `from spec 0011`: Web Push, so a waiter whose screen is off still hears that food is ready. Needs a service worker, push keys in config, and a subscriptions table, and on iOS it only works for a site installed to the home screen. Revisit if waiters report missing food · needs a decision
 - **31. Approval for voiding cooked food** `from spec 0011`: any waiter may void any dish, cooked or not, with only the audit log behind it. A restaurant that sees write offs may want an admin to approve voids of ready dishes · needs a decision
+- **32. Per dish prep minutes** `from spec 0012`: an expected cooking time per dish, so a ticket is judged late against its own slowest dish rather than against one pair of numbers for the whole restaurant. Spec [0012](../specs/0012-kitchen-display/index.md) chose the per restaurant pair and left this as the real answer. It is a column on `dishes`, an admin field, and a change to how a ticket picks its threshold · needs a decision
+- **33. Kitchen stations** `from spec 0012`: a split kitchen with a cold section, a grill, and a pass, where a ticket's dishes are routed to the station that cooks them. Spec [0012](../specs/0012-kitchen-display/index.md) scoped it out explicitly; it would change the kitchen read, the kitchen screen, and how a dish is tied to a station on the menu · needs a decision
 - **27. Dish names in a second language** `from spec 0008`: an English name beside a Hindi one, say. Needs a translations shape for restaurant typed text and a rule for which name each screen shows · needs a decision
 
 ## Legend

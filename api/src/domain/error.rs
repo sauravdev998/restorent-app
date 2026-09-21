@@ -7,7 +7,7 @@
 
 use thiserror::Error;
 
-use super::enums::{LineStatus, VisitStatus};
+use super::enums::{LineStatus, RoundStatus, VisitStatus};
 
 /// What is wrong with one named field of a request.
 ///
@@ -48,6 +48,9 @@ pub enum FieldError {
     BeforeStart,
     /// The range covers more items than one step may add.
     TooMany,
+    /// A chef gave a cancellation reason only a waiter may give. A chef cancels
+    /// a dish because the kitchen has run out of it, and for nothing else.
+    NotAllowedForChef,
 }
 
 impl FieldError {
@@ -70,6 +73,7 @@ impl FieldError {
             Self::TooSmall => "too_small",
             Self::BeforeStart => "before_start",
             Self::TooMany => "too_many",
+            Self::NotAllowedForChef => "not_allowed_for_chef",
         }
     }
 }
@@ -229,6 +233,11 @@ pub enum ConflictKind {
     /// The dish has been served or already cancelled, so it cannot be
     /// cancelled now.
     LineNotVoidable,
+    /// The ticket is not in the state this action needed it to be in.
+    RoundNot(RoundStatus),
+    /// The restaurant's settings changed after the form that is saving them was
+    /// loaded.
+    RestaurantChanged,
 }
 
 impl ConflictKind {
@@ -278,6 +287,11 @@ impl ConflictKind {
             Self::TableTakenOver => "table_taken_over",
             Self::ClientKeyReused => "client_key_reused",
             Self::LineNotVoidable => "line_not_voidable",
+            Self::RoundNot(RoundStatus::Queued) => "round_not_queued",
+            Self::RoundNot(RoundStatus::Ready) => "round_not_ready",
+            Self::RoundNot(RoundStatus::Served) => "round_not_served",
+            Self::RoundNot(RoundStatus::Voided) => "round_not_voided",
+            Self::RestaurantChanged => "restaurant_changed",
         }
     }
 }
@@ -328,6 +342,13 @@ impl std::fmt::Display for ConflictKind {
             Self::TableTakenOver => "somebody else took that table over first",
             Self::ClientKeyReused => "that send key was already used for another table",
             Self::LineNotVoidable => "that dish has been served or already cancelled",
+            Self::RoundNot(RoundStatus::Queued) => "that ticket is no longer waiting to be cooked",
+            Self::RoundNot(RoundStatus::Ready) => "that ticket is not waiting to be carried out",
+            Self::RoundNot(RoundStatus::Served) => "that ticket has not reached the table",
+            Self::RoundNot(RoundStatus::Voided) => "that ticket has not been cancelled",
+            Self::RestaurantChanged => {
+                "the restaurant's settings changed after the form was opened"
+            }
         };
 
         formatter.write_str(sentence)

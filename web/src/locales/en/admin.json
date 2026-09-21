@@ -91,7 +91,16 @@
     "save": "Save settings",
     "saving": "Saving",
     "saved": "Settings saved",
-    "failed": "Those settings could not be saved."
+    "failed": "Those settings could not be saved.",
+    "kitchenHeading": "When the kitchen screen warns",
+    "kitchenIntro": "A ticket on the pass turns amber, then red, as it waits. Set both for your own kitchen: fifteen minutes is one restaurant’s disaster and another’s ordinary Tuesday.",
+    "kitchenWarning": "Turns amber after",
+    "kitchenWarningHint": "In minutes, between 1 and 240. Has to be less than the red one.",
+    "kitchenLate": "Turns red after",
+    "kitchenLateHint": "In minutes, between 1 and 240. Has to be more than the amber one.",
+    "kitchenMinutes": "minutes",
+    "staleTitle": "Somebody saved these settings first",
+    "staleBody": "Nothing of yours was saved. The form above now shows the settings as they stand, so make your change again."
   },
   "menu": {
     "title": "Menu",

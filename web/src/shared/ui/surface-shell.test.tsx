@@ -32,6 +32,9 @@ const WAITER: Identity = {
     timezone: 'Asia/Kolkata',
     defaultLanguage: 'en',
     formattingLocale: 'en-IN',
+    kitchenWarningAfterSeconds: 600,
+    kitchenLateAfterSeconds: 900,
+    version: 1,
   },
 }
 

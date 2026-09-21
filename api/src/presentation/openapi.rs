@@ -46,6 +46,8 @@ use super::handlers::{
         service::mark_round_served,
         service::kitchen_tickets,
         service::mark_line_ready,
+        service::unmark_line_ready,
+        service::mark_round_ready,
         service::open_orders,
         service::take_over,
         service::move_visit,
@@ -259,6 +261,48 @@ mod tests {
         }
     }
 
+    /// covers: AC-22
+    ///
+    /// The pass and everything a chef does on it, plus the two endpoints spec
+    /// 0012 changed the reach of. The role lives in each handler's signature and
+    /// is refused before the body runs, so what this pins is that the document,
+    /// and therefore the generated client, says who each one is for.
+    #[test]
+    fn every_kitchen_endpoint_is_in_the_document_and_says_who_may_call_it() {
+        let document = serde_json::to_value(ApiDoc::openapi()).expect("the document serialises");
+
+        let expected = [
+            ("/api/kitchen/tickets", "get", "Chefs only."),
+            ("/api/order-lines/{id}/ready", "post", "Chefs only."),
+            ("/api/order-lines/{id}/unready", "post", "Chefs only."),
+            ("/api/rounds/{id}/ready", "post", "Chefs only."),
+            // Widened to a chef by spec 0012, for one reason code only. The
+            // reason restriction is a field error rather than a role refusal, so
+            // it does not belong in this list.
+            ("/api/order-lines/{id}/void", "post", "Waiters, and chefs"),
+            // Where the two thresholds are set, and still admin only.
+            ("/api/restaurant", "patch", "Admins only."),
+        ];
+
+        for (path, method, role) in expected {
+            let operation = &document["paths"][path][method];
+            assert!(
+                operation.is_object(),
+                "{method} {path} is missing from the OpenAPI document"
+            );
+
+            let responses = operation["responses"].to_string();
+            assert!(
+                responses.contains(role),
+                "{method} {path} does not say {role:?} in its responses"
+            );
+            assert!(
+                responses.contains("\"403\"") && responses.contains("\"401\""),
+                "{method} {path} does not document its 401 and 403"
+            );
+        }
+    }
+
     /// covers: AC-16 (spec 0010)
     ///
     /// The same check for the floor: every admin floor endpoint is in the
@@ -374,8 +418,11 @@ mod tests {
             ("/api/visits/{id}/move", "post"),
             ("/api/visits/{id}/close", "post"),
             ("/api/order-lines/{id}/served", "post"),
-            ("/api/order-lines/{id}/void", "post"),
             ("/api/rounds/{id}/served", "post"),
+            // `/api/order-lines/{id}/void` was on this list until spec 0012
+            // widened it to a chef, for the one reason `kitchen_unavailable`. It
+            // is asserted in the kitchen test above, which is the test that
+            // knows it is no longer the waiter's alone.
         ];
 
         for (path, method) in expected {

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT name, address, timezone, default_language, formatting_locale\n        FROM restaurants\n        FOR UPDATE\n        ",
+  "query": "\n        SELECT name, address, timezone, default_language, formatting_locale,\n               kitchen_warning_after_seconds, kitchen_late_after_seconds\n        FROM restaurants\n        FOR UPDATE\n        ",
   "describe": {
     "columns": [
       {
@@ -57,6 +57,28 @@
             "name": "formatting_locale"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "kitchen_warning_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_warning_after_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "kitchen_late_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_late_after_seconds"
+          }
+        }
       }
     ],
     "parameters": {
@@ -67,8 +89,10 @@
       true,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "419e9b12b8088105052d9d814310d02ffc45b998ae7f67e180c95c646de8222e"
+  "hash": "84df7acdf9db740c6c3b4ffc4620a67802792a791529584e6709c048070adff7"
 }

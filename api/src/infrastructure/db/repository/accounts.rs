@@ -16,6 +16,7 @@
 use serde_json::json;
 
 use crate::domain::audit::AuditAction;
+use crate::domain::catalog::KitchenThresholds;
 use crate::domain::country::Country;
 use crate::domain::credentials::EmailAddress;
 use crate::domain::enums::StaffRole;
@@ -326,6 +327,12 @@ pub struct RestaurantSettingsPatch<'a> {
     pub default_language: Option<&'a LanguageCode>,
     /// How it writes money, numbers, and dates.
     pub formatting_locale: Option<&'a FormattingLocale>,
+    /// When the kitchen pass turns a waiting ticket amber, and when it turns it
+    /// red. Already merged over the stored pair and checked as a pair by
+    /// [`merge_kitchen_thresholds`](crate::domain::catalog::merge_kitchen_thresholds),
+    /// which is the only thing that may decide these two, because the ordering
+    /// rule spans both of them.
+    pub kitchen_thresholds: Option<KitchenThresholds>,
 }
 
 impl RestaurantSettingsPatch<'_> {
@@ -337,29 +344,23 @@ impl RestaurantSettingsPatch<'_> {
             && self.timezone.is_none()
             && self.default_language.is_none()
             && self.formatting_locale.is_none()
+            && self.kitchen_thresholds.is_none()
     }
 }
 
-/// Applies an admin's edit to the restaurant's settings, and writes it down.
+/// The two refusals an edit can earn before anything is written.
 ///
-/// One statement with `COALESCE` per column rather than a built up `SET` list,
-/// so there is no string concatenation anywhere near it and an omitted field is
-/// expressed as a null bind rather than as an absent clause.
+/// Both run before the row is locked, so a refused edit costs no write and holds
+/// no lock while it is being refused.
 ///
 /// # Errors
 ///
-/// Returns [`DomainError::NotFound`] if the scoped restaurant does not exist,
-/// [`DomainError::Invalid`] if the timezone is not one Postgres knows or the
-/// name is blank, and [`DomainError::Unavailable`] if a statement fails.
-pub async fn update_settings(
+/// Returns [`DomainError::Invalid`] for a blank name or a timezone Postgres does
+/// not know, and [`DomainError::Unavailable`] if the timezone check fails.
+async fn refuse_bad_settings(
     tx: &mut ScopedTx<'_>,
     patch: &RestaurantSettingsPatch<'_>,
-    actor: StaffId,
 ) -> DomainResult<()> {
-    if patch.is_empty() {
-        return Ok(());
-    }
-
     if patch.name.is_some_and(|name| name.trim().is_empty()) {
         return Err(DomainError::Invalid(
             "a restaurant name is required".to_owned(),
@@ -385,9 +386,47 @@ pub async fn update_settings(
         }
     }
 
+    Ok(())
+}
+
+/// Applies an admin's edit to the restaurant's settings, and writes it down.
+///
+/// One statement with `COALESCE` per column rather than a built up `SET` list,
+/// so there is no string concatenation anywhere near it and an omitted field is
+/// expressed as a null bind rather than as an absent clause.
+///
+/// **The edit names the version it was made against**, and the statement is
+/// conditional on it, which is the project rule for every editable row. That
+/// covers all seven settings and not only the two this feature added: the
+/// restaurant's name, address, timezone, and two language fields have been
+/// editable with last write wins since spec 0003, and the same conditional
+/// update ends it for them too.
+///
+/// An empty patch is not an edit, so it is not refused for staleness either: it
+/// writes nothing, bumps nothing, and the caller gets the row as it stands.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Conflict`] with `restaurant_changed` if the version no
+/// longer matches, [`DomainError::NotFound`] if the scoped restaurant does not
+/// exist, [`DomainError::Invalid`] if the timezone is not one Postgres knows or
+/// the name is blank, and [`DomainError::Unavailable`] if a statement fails.
+pub async fn update_settings(
+    tx: &mut ScopedTx<'_>,
+    patch: &RestaurantSettingsPatch<'_>,
+    version: i32,
+    actor: StaffId,
+) -> DomainResult<()> {
+    if patch.is_empty() {
+        return Ok(());
+    }
+
+    refuse_bad_settings(tx, patch).await?;
+
     let before = sqlx::query!(
         r#"
-        SELECT name, address, timezone, default_language, formatting_locale
+        SELECT name, address, timezone, default_language, formatting_locale,
+               kitchen_warning_after_seconds, kitchen_late_after_seconds
         FROM restaurants
         FOR UPDATE
         "#
@@ -404,7 +443,7 @@ pub async fn update_settings(
         .map(str::trim)
         .map(|value| if value.is_empty() { None } else { Some(value) });
 
-    sqlx::query!(
+    let written = sqlx::query!(
         r#"
         UPDATE restaurants
            SET name              = COALESCE($1, name),
@@ -412,7 +451,15 @@ pub async fn update_settings(
                timezone          = COALESCE($4, timezone),
                default_language  = COALESCE($5, default_language),
                formatting_locale = COALESCE($6, formatting_locale),
+               kitchen_warning_after_seconds =
+                   COALESCE($7, kitchen_warning_after_seconds),
+               kitchen_late_after_seconds =
+                   COALESCE($8, kitchen_late_after_seconds),
+               version           = version + 1,
                updated_at        = now()
+         WHERE version = $9
+        RETURNING name, address, timezone, default_language, formatting_locale,
+                  kitchen_warning_after_seconds, kitchen_late_after_seconds
         "#,
         name,
         address.is_some(),
@@ -420,25 +467,37 @@ pub async fn update_settings(
         patch.timezone,
         patch.default_language.map(LanguageCode::as_str),
         patch.formatting_locale.map(FormattingLocale::as_str),
+        patch
+            .kitchen_thresholds
+            .map(|pair| pair.warning_after_seconds),
+        patch.kitchen_thresholds.map(|pair| pair.late_after_seconds),
+        version,
     )
-    .execute(tx.connection())
+    .fetch_optional(tx.connection())
     .await?;
 
-    let after = sqlx::query!(
-        r#"
-        SELECT name, address, timezone, default_language, formatting_locale
-        FROM restaurants
-        "#
-    )
-    .fetch_one(tx.connection())
-    .await?;
+    // Inside the row lock taken above, and that read already proved the row
+    // exists. So zero rows means exactly one thing: somebody saved this form
+    // first, and this edit was made against what the screen used to say.
+    let Some(after) = written else {
+        return Err(DomainError::Conflict(ConflictKind::RestaurantChanged));
+    };
 
     let restaurant_id = tx.restaurant_id().as_uuid();
 
     audit::record(
         tx,
         Some(actor),
-        AuditAction::RestaurantSettingsUpdated,
+        // A threshold edit is filed under its own action, because "who made the
+        // kitchen screen stop warning us" is a question somebody will ask and
+        // `restaurant_settings_updated` covers seven fields. Both rows carry all
+        // seven before and after either way, so the action is a filter rather
+        // than the only record of what moved.
+        if patch.kitchen_thresholds.is_some() {
+            AuditAction::RestaurantKitchenThresholdsChanged
+        } else {
+            AuditAction::RestaurantSettingsUpdated
+        },
         "restaurant",
         restaurant_id,
         Some(json!({
@@ -447,6 +506,8 @@ pub async fn update_settings(
             "timezone": before.timezone,
             "defaultLanguage": before.default_language,
             "formattingLocale": before.formatting_locale,
+            "kitchenWarningAfterSeconds": before.kitchen_warning_after_seconds,
+            "kitchenLateAfterSeconds": before.kitchen_late_after_seconds,
         })),
         Some(json!({
             "name": after.name,
@@ -454,6 +515,8 @@ pub async fn update_settings(
             "timezone": after.timezone,
             "defaultLanguage": after.default_language,
             "formattingLocale": after.formatting_locale,
+            "kitchenWarningAfterSeconds": after.kitchen_warning_after_seconds,
+            "kitchenLateAfterSeconds": after.kitchen_late_after_seconds,
         })),
     )
     .await?;

@@ -808,8 +808,12 @@ export interface paths {
       cookie?: never
     }
     /**
-     * The kitchen queue, oldest first.
-     * @description # Errors
+     * The kitchen queue: cooking oldest first, then plated oldest first.
+     * @description Carries the restaurant's own two thresholds with it rather than leaving the
+     *     screen to decide when a ticket is late, and says how many tickets it left
+     *     behind rather than quietly cutting them off.
+     *
+     *     # Errors
      *
      *     Returns `401` if nobody is signed in, `403` if the caller is not a chef, and
      *     `503` if the database is unavailable.
@@ -974,6 +978,36 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/order-lines/{id}/unready': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Puts one plated dish back on the stove.
+     * @description The undo for [`mark_line_ready`], and the only way back from `ready` that is
+     *     not a waiter serving the food. A ticket that had gone ready returns to cooking
+     *     with the dish, recomputed in the same transaction, so the waiter's screen
+     *     corrects itself through the event rather than being told separately.
+     *
+     *     # Errors
+     *
+     *     Returns `409 line_not_ready` if the dish is not waiting to be carried out,
+     *     which is what a waiter serving it a moment earlier produces, `404` if there is
+     *     no such dish, `401` if nobody is signed in, and `403` if the caller is not a
+     *     chef.
+     */
+    post: operations['unmark_line_ready']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/order-lines/{id}/void': {
     parameters: {
       query?: never
@@ -986,13 +1020,28 @@ export interface paths {
     /**
      * Cancels one dish that is still cooking or waiting on the pass, with a
      *     reason, and takes it off the bill.
-     * @description # Errors
+     * @description **A waiter or a chef, and the two may give different reasons.** A waiter
+     *     cancels for any of the four: the guest changed their mind, it was entered by
+     *     mistake, the kitchen has run out, or something else they write down. A chef
+     *     may give one reason only, `kitchen_unavailable`, because that is the one thing
+     *     a kitchen knows that nobody else does. Why a guest changed their mind is not a
+     *     judgement to make from behind the pass.
+     *
+     *     **A chef giving any other reason is a `400`, not a `403`.** Every `403` in this
+     *     API is the role refusal the `Actor` extractor makes before the handler body
+     *     runs, and a chef calling this endpoint is allowed to call it. What is refused
+     *     is the value of one field, and a refused field value is a named field error
+     *     everywhere else here.
+     *
+     *     # Errors
      *
      *     Returns `400` if the reason is `other` with no words
-     *     (`fields.reason = required`) or the words are over 200 characters
-     *     (`fields.reason = too_long`), `409 line_not_voidable` if the dish has been
-     *     served or already cancelled, `404` if there is no such dish, `401` if nobody
-     *     is signed in, and `403` if the caller is not a waiter.
+     *     (`fields.reason = required`), the words are over 200 characters
+     *     (`fields.reason = too_long`), or a chef gave any reason but kitchen
+     *     unavailable (`fields.reasonCode = not_allowed_for_chef`),
+     *     `409 line_not_voidable` if the dish has been served or already cancelled,
+     *     `404` if there is no such dish, `401` if nobody is signed in, and `403` if the
+     *     caller is an admin.
      */
     post: operations['void_line']
     delete?: never
@@ -1042,13 +1091,54 @@ export interface paths {
      * @description The role requirement is in the signature: `Actor<Admin>` refuses a waiter and
      *     a chef with `403` before this body runs, so there is no line here to forget.
      *
+     *     **The edit names the version it was made against**, and a stale one is refused
+     *     rather than merged. That covers all seven settings, not only the two kitchen
+     *     thresholds this endpoint grew in spec 0012: name, address, timezone, and the
+     *     two language fields come under the same conditional update.
+     *
+     *     **The two thresholds are merged over the stored pair before either is
+     *     checked.** Each may be edited on its own while the rule that amber comes
+     *     before red spans both, so an edit raising only the warning can cross a stored
+     *     late value it never mentions. The merge is what catches that, and it is what
+     *     lets a refusal name a field rather than say "those two are wrong".
+     *
      *     # Errors
      *
-     *     Returns a `400` naming each field that was not accepted, `403` for a waiter
+     *     Returns a `400` naming each field that was not accepted, `409
+     *     restaurant_changed` if the version is no longer current, `403` for a waiter
      *     or a chef, `401` if nobody is signed in, and a `503` if the database is
      *     unavailable.
      */
     patch: operations['update_restaurant']
+    trace?: never
+  }
+  '/api/rounds/{id}/ready': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Marks every dish still cooking on one ticket off the pass, in one go.
+     * @description One transaction, so the ticket either fully flips or does not change at all. A
+     *     chef who plates a whole table at once taps once instead of four times, and a
+     *     request that fails half way leaves every dish exactly as it was.
+     *
+     *     # Errors
+     *
+     *     Returns `409 round_not_queued` if no dish on the ticket is still cooking,
+     *     which is also what a colleague marking one of them between the read and the
+     *     write produces, `404` if there is no such ticket, `401` if nobody is signed
+     *     in, and `403` if the caller is not a chef.
+     */
+    post: operations['mark_round_ready']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
     trace?: never
   }
   '/api/rounds/{id}/served': {
@@ -2106,9 +2196,22 @@ export interface components {
       quantity: number
       /** @description Where this one dish has got to. */
       status: components['schemas']['LineStatusDto']
+      /**
+       * @description The words whoever cancelled it gave. Carried only for `other`, the one
+       *     code that says nothing on its own and the one code that requires them;
+       *     for the other three the code is the reason and the words are a note to a
+       *     manager rather than to the kitchen.
+       */
+      voidReason?: string | null
+      voidReasonCode?: null | components['schemas']['VoidReasonDto']
     }
     /** @description Everything the kitchen still has work on. */
     KitchenResponse: {
+      /**
+       * Format: int32
+       * @description After how many seconds it draws one red.
+       */
+      lateAfterSeconds: number
       /**
        * Format: date-time
        * @description What the server's clock reads, at the moment this answer was built.
@@ -2121,6 +2224,19 @@ export interface components {
       serverTime: string
       /** @description The tickets, oldest first. */
       tickets: components['schemas']['KitchenTicketDto'][]
+      /**
+       * Format: int64
+       * @description How many more tickets there were than this answer carries. `0` means
+       *     nothing was left out, which is every ordinary evening. Above zero, the
+       *     screen says work is hidden rather than hiding it silently.
+       */
+      truncatedCount: number
+      /**
+       * Format: int32
+       * @description After how many seconds of waiting the screen draws a ticket amber. This
+       *     restaurant's own setting, not a number the screen decides.
+       */
+      warningAfterSeconds: number
     }
     /** @description One ticket on the kitchen screen. */
     KitchenTicketDto: {
@@ -2133,7 +2249,15 @@ export interface components {
       lines: components['schemas']['KitchenLineDto'][]
       /**
        * Format: date-time
-       * @description When it reached the kitchen. The waiting time is measured from here.
+       * @description When the last dish came off the pass, for a ticket that is ready. A
+       *     plated ticket's age is measured from here instead, because what matters
+       *     about it is how long it has been under the lamp. `null` while it is still
+       *     cooking.
+       */
+      readyAt?: string | null
+      /**
+       * Format: date-time
+       * @description When it reached the kitchen. A cooking ticket's age is measured from here.
        */
       sentAt: string
       /**
@@ -2512,6 +2636,16 @@ export interface components {
        * @description Which restaurant this is.
        */
       id: string
+      /**
+       * Format: int32
+       * @description After how many seconds it draws one red. Always the larger of the two.
+       */
+      kitchenLateAfterSeconds: number
+      /**
+       * Format: int32
+       * @description After how many seconds the kitchen pass draws a waiting ticket amber.
+       */
+      kitchenWarningAfterSeconds: number
       /** @description What it is called. */
       name: string
       /**
@@ -2519,6 +2653,15 @@ export interface components {
        *     never with the device's.
        */
       timezone: string
+      /**
+       * Format: int32
+       * @description Which version of this row the screen is holding. An edit has to name it,
+       *     and one naming an older version is refused rather than merged over
+       *     somebody else's change. Carried on every identity bundle, including the
+       *     one a successful save returns, so a screen that just saved holds the new
+       *     version without a second read.
+       */
+      version: number
     }
     /** @description What restoring a dish asks for. */
     RestoreDishRequest: {
@@ -2847,10 +2990,31 @@ export interface components {
       defaultLanguage?: string | null
       /** @description How it writes money, numbers, and dates. */
       formattingLocale?: string | null
+      /**
+       * Format: int32
+       * @description After how many seconds it draws one red. The same bounds, and above the
+       *     warning threshold.
+       */
+      kitchenLateAfterSeconds?: number | null
+      /**
+       * Format: int32
+       * @description After how many seconds the kitchen pass draws a waiting ticket amber.
+       *     Between 60 and 14400, and below the late threshold once laid over what is
+       *     stored.
+       */
+      kitchenWarningAfterSeconds?: number | null
       /** @description What the restaurant is called. */
       name?: string | null
       /** @description Its IANA timezone. */
       timezone?: string | null
+      /**
+       * Format: int32
+       * @description Which version of the restaurant this edit was made against. Required, and
+       *     an edit naming one that is no longer current is refused rather than
+       *     merged over somebody else's change. Every identity bundle carries it,
+       *     including the one a successful save returns.
+       */
+      version: number
     }
     /** @description One table's whole meal, as the waiter's screen reads it. */
     VisitResponse: {
@@ -4567,7 +4731,7 @@ export interface operations {
     }
     requestBody?: never
     responses: {
-      /** @description Every queued or ready ticket, oldest first. Chefs only. */
+      /** @description Up to 120 queued or ready tickets, cooking first, with this restaurant's ageing thresholds. Chefs only. */
       200: {
         headers: {
           [name: string]: unknown
@@ -4863,6 +5027,65 @@ export interface operations {
       }
     }
   }
+  unmark_line_ready: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The dish to put back on the stove. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The dish and its ticket's new status. Chefs only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['MarkedLineResponse']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a chef. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such dish. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `line_not_ready`: that dish is not waiting to be carried out. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
   void_line: {
     parameters: {
       query?: never
@@ -4879,7 +5102,7 @@ export interface operations {
       }
     }
     responses: {
-      /** @description The cancelled dish, its ticket, and the bill's subtotal after. Waiters only. */
+      /** @description The cancelled dish, its ticket, and the bill's subtotal after. Waiters, and chefs for kitchen unavailable only. */
       200: {
         headers: {
           [name: string]: unknown
@@ -4888,7 +5111,7 @@ export interface operations {
           'application/json': components['schemas']['VoidLineResponse']
         }
       }
-      /** @description A missing or over long reason. */
+      /** @description A missing or over long reason, or a reason a chef may not give. */
       400: {
         headers: {
           [name: string]: unknown
@@ -4906,7 +5129,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorBody']
         }
       }
-      /** @description Not a waiter. */
+      /** @description An admin asked. */
       403: {
         headers: {
           [name: string]: unknown
@@ -4986,7 +5209,7 @@ export interface operations {
       }
     }
     responses: {
-      /** @description The updated identity. Admins only. */
+      /** @description The updated identity, carrying the new version. Admins only. */
       200: {
         headers: {
           [name: string]: unknown
@@ -5015,6 +5238,74 @@ export interface operations {
       }
       /** @description A waiter or a chef asked. */
       403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `restaurant_changed`: somebody saved these settings first. */
+      409: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+    }
+  }
+  mark_round_ready: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        /** @description The ticket whose cooking dishes are all done. */
+        id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description The ticket after the write. Chefs only. */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['OrderRoundDto']
+        }
+      }
+      /** @description Nobody is signed in. */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description Not a chef. */
+      403: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description No such ticket. */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ErrorBody']
+        }
+      }
+      /** @description `round_not_queued`: nothing on that ticket is still cooking. */
+      409: {
         headers: {
           [name: string]: unknown
         }
