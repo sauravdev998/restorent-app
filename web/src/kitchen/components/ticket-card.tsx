@@ -97,7 +97,11 @@ export function TicketCard({
               {t('pass.newTicket')}
             </span>
           )}
-          {t('pass.round', { number: ticket.sequenceNo })}
+          {/* Its own element, not a bare text node beside the New mark. Left
+              loose, the round label and the mark share one element's text, so
+              "Round 1" is never any element's own words and nothing can find
+              the round by name while the ticket is still marked new. */}
+          <span>{t('pass.round', { number: ticket.sequenceNo })}</span>
         </span>
       </header>
 
@@ -226,7 +230,7 @@ export function TicketCard({
               className={cn('space-y-1', freshCancelIds.has(line.id) && 'flash-once')}
               data-fresh={freshCancelIds.has(line.id) || undefined}
             >
-              <p className="font-medium text-status-voided line-through">
+              <p className="text-base font-medium text-status-voided line-through">
                 {line.quantity} × <RestaurantText>{line.dishName}</RestaurantText>
               </p>
               <p className="text-xs text-muted-foreground">
@@ -259,7 +263,12 @@ export function TicketCard({
 function DishText({ line, muted = false }: { line: KitchenLine; muted?: boolean }) {
   return (
     <div className="min-w-0">
-      <p className={cn('font-medium', muted ? 'text-muted-foreground' : 'text-card-foreground')}>
+      <p
+        className={cn(
+          'text-base font-medium',
+          muted ? 'text-muted-foreground' : 'text-card-foreground',
+        )}
+      >
         {line.quantity} × <RestaurantText>{line.dishName}</RestaurantText>
       </p>
       {/* Reaches the pass exactly as the guest said it, whole and wrapped over

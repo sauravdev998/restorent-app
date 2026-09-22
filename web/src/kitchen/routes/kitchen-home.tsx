@@ -13,7 +13,7 @@ import { Button } from '@/shared/ui/button'
 import { cn } from '@/shared/ui/cn'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { Icon } from '@/shared/ui/icon'
-import { isAudioUnlocked } from '@/shared/ui/audio-unlock'
+import { useAudioUnlocked } from '@/shared/ui/audio-unlock'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { showToast } from '@/shared/ui/toast-store'
 import { useFreshIds } from '@/kitchen/alerts/use-fresh-ids'
@@ -69,6 +69,12 @@ export function KitchenHome() {
   // Held awake while this screen is open, released when the chef walks to the
   // Menu tab or signs out.
   useWakeLock()
+
+  // Watched rather than read once while rendering. The prompt below has to go
+  // on the very tap that opens the audio context, and nothing else redraws this
+  // screen for it: a kitchen tablet can sit untouched between tickets, so a
+  // prompt waiting for the next redraw is a prompt that stays up for the shift.
+  const audioUnlocked = useAudioUnlocked()
 
   // Which dish is mid tap, so its own button says so and no second tap lands on
   // the same dish while the first is in flight.
@@ -221,7 +227,7 @@ export function KitchenHome() {
           sit untouched for an hour. The prompt makes the silence visible and
           fixable. It does not make the sound reliable, and nothing on this screen
           depends on it. */}
-      {!isAudioUnlocked() && (
+      {!audioUnlocked && (
         <div
           className="border-line flex items-center gap-3 border-border bg-card p-4"
           data-testid="pass-sound-off"
@@ -243,7 +249,7 @@ export function KitchenHome() {
           className="border-line sticky top-0 z-10 flex items-center justify-between gap-3 border-primary bg-card p-3 text-primary"
           data-testid="new-work-above"
         >
-          <span className="flex items-center gap-2 font-semibold">
+          <span className="flex items-center gap-2 text-base font-semibold">
             <Icon icon={ArrowUp} size="md" />
             {t('pass.newWorkAbove')}
           </span>
