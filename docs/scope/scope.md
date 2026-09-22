@@ -230,15 +230,15 @@ The chef's real working screen, readable across a kitchen: incoming tickets appe
 **Done when:** a new ticket appears without a refresh; tickets are ordered oldest first and show elapsed time with a visible warning once one waits too long; tapping a dish marks only that dish; the ticket flips to ready automatically on the last dish and leaves the active queue; and the whole screen is legible at kitchen distance and usable with wet or gloved hands.
 spec [0012](../specs/0012-kitchen-display/index.md) · code in `api/src/presentation/handlers/service.rs`, `api/src/infrastructure/db/repository/service.rs`, `web/src/kitchen/`, `web/src/admin/routes/restaurant-settings.tsx`
 - [x] Design it (spec): `/architect kitchen display`
-- [ ] Build it: `/develop kitchen display`
+- [x] Build it: `/develop kitchen display`
   - [x] The thread, top to bottom: migration 0010 with the two thresholds, the version column and the two indexes, the kitchen read carrying the thresholds and the 120 cap, and the redrawn pass with two urgency levels and the Ready area (AC-1, AC-2, AC-3, AC-5, AC-6, AC-19, AC-20)
   - [x] The chef's three new acts: undo with its audit row, All done on a ticket, and the chef void with the Cancelled strip and whole notes (AC-4, AC-7, AC-8, AC-9, AC-10, AC-11, AC-12, AC-13)
   - [x] The admin's thresholds: version required on the restaurant patch with the stale refusal, the two fields merged over the stored row and checked as a pair, and the admin settings section (AC-20, AC-21)
   - [x] The screen made honest: the distinct chime with its locked audio prompt, the held scroll with its new work marker, the not live banner, and the wake lock (AC-14, AC-15, AC-16, AC-17, AC-18)
-  - [ ] Finish: role and isolation tests, the two race tests, English and Hindi keys, axe at kitchen density, and the three metre legibility check spec 0005 asked for (AC-22, AC-23, AC-24) — all but the three metre check, which is a measurement on a real screen for `/check verify`
+  - [x] Finish: role and isolation tests, the two race tests, English and Hindi keys, axe at kitchen density, and the three metre legibility check spec 0005 asked for (AC-22, AC-23, AC-24) — all but the three metre check, which is a measurement on a real screen for `/check verify`
 - [ ] Verify it: `/check verify kitchen display`
-- [ ] Test it: `/test kitchen display`
-- [ ] Review it (fresh model): `/check review kitchen display`
+- [x] Test it: `/test kitchen display`
+- [x] Review it (fresh model): `/check review kitchen display`
 - [ ] Document it: `/document kitchen display`
 
 ## Slice 4: money
