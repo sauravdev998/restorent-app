@@ -33,17 +33,18 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::catalog::TableSection;
-use crate::domain::error::{DomainError, FieldErrors};
+use crate::domain::enums::{StaffRole, VoidReason};
+use crate::domain::error::{DomainError, FieldError, FieldErrors};
 use crate::domain::ids::{
     DiningTableId, DishId, OrderLineId, OrderRoundId, StaffId, TableSectionId, VisitId,
 };
 use crate::domain::service::{FloorTable, NewOrderLine, normalize_note, void_reason_text};
-use crate::infrastructure::db::repository::{billing, floor, service};
+use crate::infrastructure::db::repository::{billing, catalog, floor, service};
 use crate::presentation::dto::{
     LineStatusDto, OrderLineDto, OrderRoundDto, RoundStatusDto, VoidReasonDto,
 };
 use crate::presentation::error::{ApiError, ErrorBody};
-use crate::presentation::extract::{Actor, Chef, JsonBody, Waiter};
+use crate::presentation::extract::{Actor, Chef, JsonBody, Waiter, WaiterOrChef};
 use crate::presentation::state::AppState;
 
 // ===========================================================================
@@ -687,6 +688,15 @@ pub struct KitchenResponse {
     /// fast would otherwise show every ticket as twenty minutes late, and the
     /// one number a chef acts on would be the one number nobody could trust.
     pub server_time: DateTime<Utc>,
+    /// After how many seconds of waiting the screen draws a ticket amber. This
+    /// restaurant's own setting, not a number the screen decides.
+    pub warning_after_seconds: i32,
+    /// After how many seconds it draws one red.
+    pub late_after_seconds: i32,
+    /// How many more tickets there were than this answer carries. `0` means
+    /// nothing was left out, which is every ordinary evening. Above zero, the
+    /// screen says work is hidden rather than hiding it silently.
+    pub truncated_count: i64,
 }
 
 /// One ticket on the kitchen screen.
@@ -699,8 +709,13 @@ pub struct KitchenTicketDto {
     pub sequence_no: i32,
     /// Where the food is going.
     pub table_label: String,
-    /// When it reached the kitchen. The waiting time is measured from here.
+    /// When it reached the kitchen. A cooking ticket's age is measured from here.
     pub sent_at: DateTime<Utc>,
+    /// When the last dish came off the pass, for a ticket that is ready. A
+    /// plated ticket's age is measured from here instead, because what matters
+    /// about it is how long it has been under the lamp. `null` while it is still
+    /// cooking.
+    pub ready_at: Option<DateTime<Utc>>,
     /// Where the whole ticket has got to.
     pub status: RoundStatusDto,
     /// Every dish on it, oldest first.
@@ -725,9 +740,23 @@ pub struct KitchenLineDto {
     pub note: Option<String>,
     /// Where this one dish has got to.
     pub status: LineStatusDto,
+    /// Why it was cancelled, for a dish in the Cancelled strip. The screen says
+    /// it in its own language from this code; the free text behind it is the
+    /// waiter's own words and does not belong on a wall screen. `null` for a
+    /// dish that was not cancelled.
+    pub void_reason_code: Option<VoidReasonDto>,
+    /// The words whoever cancelled it gave. Carried only for `other`, the one
+    /// code that says nothing on its own and the one code that requires them;
+    /// for the other three the code is the reason and the words are a note to a
+    /// manager rather than to the kitchen.
+    pub void_reason: Option<String>,
 }
 
-/// The kitchen queue, oldest first.
+/// The kitchen queue: cooking oldest first, then plated oldest first.
+///
+/// Carries the restaurant's own two thresholds with it rather than leaving the
+/// screen to decide when a ticket is late, and says how many tickets it left
+/// behind rather than quietly cutting them off.
 ///
 /// # Errors
 ///
@@ -738,7 +767,7 @@ pub struct KitchenLineDto {
     path = "/api/kitchen/tickets",
     tag = "orders",
     responses(
-        (status = 200, description = "Every queued or ready ticket, oldest first. Chefs only.", body = KitchenResponse),
+        (status = 200, description = "Up to 120 queued or ready tickets, cooking first, with this restaurant's ageing thresholds. Chefs only.", body = KitchenResponse),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
         (status = 403, description = "Not a chef.", body = ErrorBody),
     )
@@ -747,23 +776,27 @@ pub async fn kitchen_tickets(
     State(state): State<AppState>,
     actor: Actor<Chef>,
 ) -> Result<Json<KitchenResponse>, ApiError> {
-    // A snapshot. The queue is one statement for the tickets and another per
-    // ticket for its dishes, so without one a chef could be shown a ticket
-    // whose status and whose dishes came from either side of a colleague's tap.
+    // A snapshot. The queue is several statements, so without one a chef could
+    // be shown a ticket whose status and whose dishes came from either side of a
+    // colleague's tap, and the ticket would then sit in the wrong half of the
+    // screen. The thresholds are read in the same snapshot for the same reason.
     let mut tx = state
         .database
         .begin_scoped_snapshot(actor.restaurant_id())
         .await?;
     let queue = service::kitchen_queue(&mut tx).await?;
+    let thresholds = catalog::kitchen_thresholds(&mut tx).await?;
     tx.commit().await?;
 
     let tickets = queue
+        .tickets
         .into_iter()
         .map(|ticket| KitchenTicketDto {
             id: ticket.round.id.as_uuid(),
             sequence_no: ticket.round.sequence_no,
             table_label: ticket.table_label,
             sent_at: ticket.round.sent_at,
+            ready_at: ticket.round.ready_at,
             status: ticket.round.status.into(),
             lines: ticket
                 .lines
@@ -774,6 +807,14 @@ pub async fn kitchen_tickets(
                     quantity: line.quantity,
                     note: line.note,
                     status: line.status.into(),
+                    void_reason_code: line.void_reason_code.map(Into::into),
+                    // Only for `other`. The other three codes say what happened
+                    // on their own, and their text is a note to a manager rather
+                    // than to a kitchen.
+                    void_reason: match line.void_reason_code {
+                        Some(VoidReason::Other) => line.void_reason,
+                        _ => None,
+                    },
                 })
                 .collect(),
         })
@@ -782,6 +823,9 @@ pub async fn kitchen_tickets(
     Ok(Json(KitchenResponse {
         tickets,
         server_time: Utc::now(),
+        warning_after_seconds: thresholds.warning_after_seconds,
+        late_after_seconds: thresholds.late_after_seconds,
+        truncated_count: queue.truncated_count,
     }))
 }
 
@@ -837,6 +881,95 @@ pub async fn mark_line_ready(
         line: line.into(),
         round_status: round_status.into(),
     }))
+}
+
+/// Puts one plated dish back on the stove.
+///
+/// The undo for [`mark_line_ready`], and the only way back from `ready` that is
+/// not a waiter serving the food. A ticket that had gone ready returns to cooking
+/// with the dish, recomputed in the same transaction, so the waiter's screen
+/// corrects itself through the event rather than being told separately.
+///
+/// # Errors
+///
+/// Returns `409 line_not_ready` if the dish is not waiting to be carried out,
+/// which is what a waiter serving it a moment earlier produces, `404` if there is
+/// no such dish, `401` if nobody is signed in, and `403` if the caller is not a
+/// chef.
+#[utoipa::path(
+    post,
+    path = "/api/order-lines/{id}/unready",
+    tag = "orders",
+    params(("id" = Uuid, Path, description = "The dish to put back on the stove.")),
+    responses(
+        (status = 200, description = "The dish and its ticket's new status. Chefs only.", body = MarkedLineResponse),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not a chef.", body = ErrorBody),
+        (status = 404, description = "No such dish.", body = ErrorBody),
+        (status = 409, description = "`line_not_ready`: that dish is not waiting to be carried out.", body = ErrorBody),
+    )
+)]
+pub async fn unmark_line_ready(
+    State(state): State<AppState>,
+    actor: Actor<Chef>,
+    Path(line_id): Path<Uuid>,
+) -> Result<Json<MarkedLineResponse>, ApiError> {
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    let (line, round_status) =
+        service::unmark_line_ready(&mut tx, OrderLineId::from_uuid(line_id), actor.staff_id())
+            .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(MarkedLineResponse {
+        line: line.into(),
+        round_status: round_status.into(),
+    }))
+}
+
+/// Marks every dish still cooking on one ticket off the pass, in one go.
+///
+/// One transaction, so the ticket either fully flips or does not change at all. A
+/// chef who plates a whole table at once taps once instead of four times, and a
+/// request that fails half way leaves every dish exactly as it was.
+///
+/// # Errors
+///
+/// Returns `409 round_not_queued` if no dish on the ticket is still cooking,
+/// which is also what a colleague marking one of them between the read and the
+/// write produces, `404` if there is no such ticket, `401` if nobody is signed
+/// in, and `403` if the caller is not a chef.
+#[utoipa::path(
+    post,
+    path = "/api/rounds/{id}/ready",
+    tag = "orders",
+    params(("id" = Uuid, Path, description = "The ticket whose cooking dishes are all done.")),
+    responses(
+        (status = 200, description = "The ticket after the write. Chefs only.", body = OrderRoundDto),
+        (status = 401, description = "Nobody is signed in.", body = ErrorBody),
+        (status = 403, description = "Not a chef.", body = ErrorBody),
+        (status = 404, description = "No such ticket.", body = ErrorBody),
+        (status = 409, description = "`round_not_queued`: nothing on that ticket is still cooking.", body = ErrorBody),
+    )
+)]
+pub async fn mark_round_ready(
+    State(state): State<AppState>,
+    actor: Actor<Chef>,
+    Path(round_id): Path<Uuid>,
+) -> Result<Json<OrderRoundDto>, ApiError> {
+    let round_id = OrderRoundId::from_uuid(round_id);
+
+    let mut tx = state.database.begin_scoped(actor.restaurant_id()).await?;
+
+    service::mark_round_ready(&mut tx, round_id, actor.staff_id()).await?;
+
+    let written = service::round(&mut tx, round_id).await?;
+    let lines = service::lines_for_round(&mut tx, round_id).await?;
+
+    tx.commit().await?;
+
+    Ok(Json(OrderRoundDto::new(&written, lines)))
 }
 
 // ===========================================================================
@@ -912,13 +1045,28 @@ pub struct VoidLineResponse {
 /// Cancels one dish that is still cooking or waiting on the pass, with a
 /// reason, and takes it off the bill.
 ///
+/// **A waiter or a chef, and the two may give different reasons.** A waiter
+/// cancels for any of the four: the guest changed their mind, it was entered by
+/// mistake, the kitchen has run out, or something else they write down. A chef
+/// may give one reason only, `kitchen_unavailable`, because that is the one thing
+/// a kitchen knows that nobody else does. Why a guest changed their mind is not a
+/// judgement to make from behind the pass.
+///
+/// **A chef giving any other reason is a `400`, not a `403`.** Every `403` in this
+/// API is the role refusal the `Actor` extractor makes before the handler body
+/// runs, and a chef calling this endpoint is allowed to call it. What is refused
+/// is the value of one field, and a refused field value is a named field error
+/// everywhere else here.
+///
 /// # Errors
 ///
 /// Returns `400` if the reason is `other` with no words
-/// (`fields.reason = required`) or the words are over 200 characters
-/// (`fields.reason = too_long`), `409 line_not_voidable` if the dish has been
-/// served or already cancelled, `404` if there is no such dish, `401` if nobody
-/// is signed in, and `403` if the caller is not a waiter.
+/// (`fields.reason = required`), the words are over 200 characters
+/// (`fields.reason = too_long`), or a chef gave any reason but kitchen
+/// unavailable (`fields.reasonCode = not_allowed_for_chef`),
+/// `409 line_not_voidable` if the dish has been served or already cancelled,
+/// `404` if there is no such dish, `401` if nobody is signed in, and `403` if the
+/// caller is an admin.
 #[utoipa::path(
     post,
     path = "/api/order-lines/{id}/void",
@@ -926,21 +1074,32 @@ pub struct VoidLineResponse {
     params(("id" = Uuid, Path, description = "The dish to cancel.")),
     request_body = VoidLineRequest,
     responses(
-        (status = 200, description = "The cancelled dish, its ticket, and the bill's subtotal after. Waiters only.", body = VoidLineResponse),
-        (status = 400, description = "A missing or over long reason.", body = ErrorBody),
+        (status = 200, description = "The cancelled dish, its ticket, and the bill's subtotal after. Waiters, and chefs for kitchen unavailable only.", body = VoidLineResponse),
+        (status = 400, description = "A missing or over long reason, or a reason a chef may not give.", body = ErrorBody),
         (status = 401, description = "Nobody is signed in.", body = ErrorBody),
-        (status = 403, description = "Not a waiter.", body = ErrorBody),
+        (status = 403, description = "An admin asked.", body = ErrorBody),
         (status = 404, description = "No such dish.", body = ErrorBody),
         (status = 409, description = "`line_not_voidable`: that dish has been served or already cancelled.", body = ErrorBody),
     )
 )]
 pub async fn void_line(
     State(state): State<AppState>,
-    actor: Actor<Waiter>,
+    actor: Actor<WaiterOrChef>,
     Path(line_id): Path<Uuid>,
     JsonBody(request): JsonBody<VoidLineRequest>,
 ) -> Result<Json<VoidLineResponse>, ApiError> {
     let code = request.reason_code.into();
+
+    // Checked against the role the session resolved to, never against anything
+    // the client said about itself.
+    if actor.role() == StaffRole::Chef && code != VoidReason::KitchenUnavailable {
+        return Err(DomainError::InvalidFields(FieldErrors::one(
+            "reasonCode",
+            FieldError::NotAllowedForChef,
+        ))
+        .into());
+    }
+
     let reason = void_reason_text(code, request.reason.as_deref())
         .map_err(|problem| DomainError::InvalidFields(FieldErrors::one("reason", problem)))?;
 

@@ -46,6 +46,19 @@ interface SampleRow {
   since: string
 }
 
+/**
+ * The three bands a kitchen ticket's age reads in, as timestamps.
+ *
+ * Read once at module scope, like the sample rows below, because `Date.now()`
+ * during a render is impure: two renders would draw two different ages and a lint
+ * rule rightly refuses it.
+ */
+const AGES = {
+  calm: new Date(Date.now() - 60_000).toISOString(),
+  warning: new Date(Date.now() - 700_000).toISOString(),
+  late: new Date(Date.now() - 1_000_000).toISOString(),
+} as const
+
 const SAMPLE_ROWS: SampleRow[] = [
   { id: '1', table: '4', status: 'queued', since: new Date(Date.now() - 65_000).toISOString() },
   { id: '2', table: '9', status: 'ready', since: new Date(Date.now() - 240_000).toISOString() },
@@ -196,6 +209,21 @@ function Panel({ appearance, density }: { appearance: string; density: Density }
             <StatusPill status="queued" />
           </div>
           <ElapsedTime since={SAMPLE_ROWS[0]?.since ?? new Date().toISOString()} />
+        </Card>
+
+        {/* The three bands a kitchen ticket's age reads in, side by side, which
+            is the only place all three are visible at once. Amber and red each
+            carry their own icon and their own hidden word, so the difference
+            between them survives greyscale, colour blindness, and forced
+            colours. The thresholds here are the defaults every restaurant
+            starts with; the real ones are columns on its row. */}
+        <Card as="article" className="flex flex-col gap-3">
+          <p className="text-base font-semibold">Ageing: calm, amber, red</p>
+          <div className="flex flex-wrap items-center gap-6">
+            <ElapsedTime since={AGES.calm} warningAfterSeconds={600} lateAfterSeconds={900} />
+            <ElapsedTime since={AGES.warning} warningAfterSeconds={600} lateAfterSeconds={900} />
+            <ElapsedTime since={AGES.late} warningAfterSeconds={600} lateAfterSeconds={900} />
+          </div>
         </Card>
       </Section>
 

@@ -56,6 +56,10 @@ async fn main() -> anyhow::Result<()> {
     // exhaust Postgres by about the second restaurant.
     let listener_handle = events::spawn(config.database_url.clone(), Arc::clone(&registry));
 
+    // Kept back for the shutdown, which has to be able to end the open streams.
+    // See `shutdown_signal` for why the process cannot exit without it.
+    let streams = Arc::clone(&registry);
+
     let state = AppState {
         health: SystemHealth::new(database.clone(), listener_handle),
         database,
@@ -80,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(shutdown_signal(streams))
     .await
     .context("the http server stopped unexpectedly")?;
 
@@ -88,11 +92,17 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Resolves when the process is asked to stop.
+/// Resolves when the process is asked to stop, once every open event stream on
+/// this instance has been ended.
 ///
-/// Worth having even before there is much to clean up: a rolling deploy sends
-/// SIGTERM, and every open event stream on this instance ends when it does.
-async fn shutdown_signal() {
+/// Ending them is not tidiness, it is what lets the process exit at all.
+/// Graceful shutdown stops accepting new connections and then waits for the
+/// requests already in flight, and an event stream is a request that finishes
+/// only when somebody ends it. Left alone it waits for a stream that waits for
+/// it: a rolling deploy hangs until the platform loses patience and kills the
+/// task, and until then every kitchen screen holds a socket to a server that
+/// will never send it anything again, with nothing on screen to say so.
+async fn shutdown_signal(streams: Arc<EventRegistry>) {
     let interrupt = async {
         signal::ctrl_c()
             .await
@@ -114,4 +124,9 @@ async fn shutdown_signal() {
         () = interrupt => tracing::info!("interrupt received, shutting down"),
         () = terminate => tracing::info!("terminate received, shutting down"),
     }
+
+    // Dropping every channel makes each stream's next `recv` return `Closed`,
+    // which is the path the listen connection dropping already takes: the
+    // stream ends, the browser reconnects, and it refetches what it missed.
+    streams.close_all().await;
 }

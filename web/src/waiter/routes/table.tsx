@@ -478,6 +478,9 @@ function RoundCard({
   onVoid,
 }: RoundCardProps) {
   const { t } = useTranslation('waiter')
+  // The four cancellation reasons live in `common`, because the chef's pass names
+  // them too and one set of words is the point.
+  const { t: common } = useTranslation()
   const anyReady = round.lines.some((line) => line.status === 'ready')
 
   return (
@@ -510,7 +513,7 @@ function RoundCard({
                 )}
                 {line.status === 'voided' && line.voidReasonCode !== null && (
                   <p className="text-xs text-muted-foreground">
-                    {t(`void.reason.${line.voidReasonCode}`)}
+                    {common(`voidReason.${line.voidReasonCode}`)}
                     {line.voidReason !== null && (
                       <>
                         {' · '}

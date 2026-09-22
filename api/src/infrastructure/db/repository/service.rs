@@ -281,24 +281,61 @@ pub async fn floor(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<FloorTable>> {
         .collect())
 }
 
-/// Every ticket the kitchen still has work on, oldest first.
+/// The most tickets one kitchen read will return.
+///
+/// A ceiling rather than a page: there is no second page and the screen says so
+/// instead (see [`KitchenQueue::truncated_count`]). A kitchen with more than a
+/// hundred and twenty open tickets has a problem no scroll bar fixes, and the
+/// number is here so one restaurant's stuck old round cannot make every chef's
+/// pass slow to draw.
+pub const KITCHEN_QUEUE_LIMIT: i64 = 120;
+
+/// What one read of the pass returned, and how much it left behind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KitchenQueue {
+    /// The tickets: everything still cooking, oldest sent first, then everything
+    /// plated and waiting, oldest ready first.
+    pub tickets: Vec<KitchenTicket>,
+    /// How many more tickets matched than were returned. Zero means nothing was
+    /// left out, which is the ordinary evening.
+    pub truncated_count: i64,
+}
+
+/// Every ticket the kitchen still has work on, cooking first and then plated.
 ///
 /// `queued` and `ready` only. A served ticket has left the pass and a voided one
 /// was cancelled, and neither belongs on a screen a chef is cooking from.
 ///
-/// Ordered by when it was sent, which is the order a kitchen works in, with the
-/// identifier breaking a tie so two tickets sent in the same instant do not swap
-/// places between two refetches.
+/// **Two orderings, because the two halves are waiting for different things.**
+/// A cooking ticket is ordered by when it was sent, which is the order a kitchen
+/// works in. A plated one is ordered by when it came off the pass, because what
+/// matters about it is how long it has been sitting under the lamp, and the
+/// ticket that was sent first is not the one that was plated first. The
+/// identifier breaks a tie in both, so two tickets stamped in the same instant
+/// do not swap places between two refetches.
 ///
-/// Deliberately unlimited. A kitchen queue is bounded by the food a kitchen can
-/// physically have open at once, which is a fact about restaurants rather than a
-/// guarantee about this endpoint; feature 13 owns giving it an explicit ceiling.
+/// **Two statements and not one, so each uses its own index.** One statement
+/// ordering both halves by an expression would be a sort of everything open;
+/// `order_rounds_queue_idx` covers the cooking half and `order_rounds_ready_idx`
+/// the plated one, and each is read in order and cut off at the ceiling.
+/// Cooking comes first when the ceiling has to choose, because food nobody has
+/// cooked yet outranks food nobody has collected.
+///
+/// **The dishes arrive in one more statement, not one per ticket.** At the
+/// ceiling that is the difference between three round trips and a hundred and
+/// twenty three, which against a database across the internet is the difference
+/// between a screen that draws and one a chef gives up on.
+///
+/// Run it inside a snapshot transaction ([`Database::begin_scoped_snapshot`]),
+/// or a dish marked ready between two of the statements makes a ticket read as
+/// cooking with every dish on it ready, and the ticket then sits in the wrong
+/// half of the screen.
 ///
 /// # Errors
 ///
 /// Returns [`DomainError::Unavailable`] if a read fails.
-pub async fn kitchen_queue(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<KitchenTicket>> {
-    let rows = sqlx::query!(
+pub async fn kitchen_queue(tx: &mut ScopedTx<'_>) -> DomainResult<KitchenQueue> {
+    let cooking = sqlx::query!(
         r#"
         SELECT r.id, r.visit_id, r.sequence_no, r.status AS "status: RoundStatus",
                r.sent_by_staff_id, r.sent_at, r.ready_at, r.served_at, r.client_key,
@@ -306,21 +343,55 @@ pub async fn kitchen_queue(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<KitchenTic
         FROM order_rounds AS r
         JOIN visits AS v ON v.id = r.visit_id
         JOIN dining_tables AS t ON t.id = v.table_id
-        WHERE r.status IN ('queued', 'ready')
+        WHERE r.status = 'queued'
         ORDER BY r.sent_at, r.id
-        "#
+        LIMIT $1
+        "#,
+        KITCHEN_QUEUE_LIMIT,
     )
     .fetch_all(tx.connection())
     .await?;
 
-    let mut tickets = Vec::with_capacity(rows.len());
+    let plated = sqlx::query!(
+        r#"
+        SELECT r.id, r.visit_id, r.sequence_no, r.status AS "status: RoundStatus",
+               r.sent_by_staff_id, r.sent_at, r.ready_at, r.served_at, r.client_key,
+               t.label AS table_label
+        FROM order_rounds AS r
+        JOIN visits AS v ON v.id = r.visit_id
+        JOIN dining_tables AS t ON t.id = v.table_id
+        WHERE r.status = 'ready'
+        ORDER BY r.ready_at, r.id
+        LIMIT $1
+        "#,
+        KITCHEN_QUEUE_LIMIT,
+    )
+    .fetch_all(tx.connection())
+    .await?;
 
-    for row in rows {
-        let round_id = OrderRoundId::from_uuid(row.id);
+    // Everything open, counted rather than fetched, so the screen can say work
+    // is hidden rather than hide it silently. One index only count over the
+    // widened partial index.
+    let open = sqlx::query!(
+        r#"
+        SELECT count(*) AS "open!"
+        FROM order_rounds
+        WHERE status IN ('queued', 'ready')
+        "#
+    )
+    .fetch_one(tx.connection())
+    .await?
+    .open;
 
-        tickets.push(KitchenTicket {
-            round: OrderRound {
-                id: round_id,
+    // Each `query!` mints its own anonymous row type, so the two halves are
+    // turned into the shape the screen wants before they meet rather than being
+    // chained as rows.
+    let ticket_of = |round: OrderRound, table_label: String| (round, table_label);
+
+    let cooking = cooking.into_iter().map(|row| {
+        ticket_of(
+            OrderRound {
+                id: OrderRoundId::from_uuid(row.id),
                 visit_id: VisitId::from_uuid(row.visit_id),
                 sequence_no: row.sequence_no,
                 status: row.status,
@@ -330,12 +401,110 @@ pub async fn kitchen_queue(tx: &mut ScopedTx<'_>) -> DomainResult<Vec<KitchenTic
                 served_at: row.served_at,
                 client_key: row.client_key,
             },
-            table_label: row.table_label,
-            lines: lines_for_round(tx, round_id).await?,
+            row.table_label,
+        )
+    });
+
+    let plated = plated.into_iter().map(|row| {
+        ticket_of(
+            OrderRound {
+                id: OrderRoundId::from_uuid(row.id),
+                visit_id: VisitId::from_uuid(row.visit_id),
+                sequence_no: row.sequence_no,
+                status: row.status,
+                sent_by_staff_id: StaffId::from_uuid(row.sent_by_staff_id),
+                sent_at: row.sent_at,
+                ready_at: row.ready_at,
+                served_at: row.served_at,
+                client_key: row.client_key,
+            },
+            row.table_label,
+        )
+    });
+
+    let limit = usize::try_from(KITCHEN_QUEUE_LIMIT).unwrap_or(usize::MAX);
+    let taken: Vec<_> = cooking.chain(plated).take(limit).collect();
+
+    let round_ids: Vec<Uuid> = taken.iter().map(|(round, _)| round.id.as_uuid()).collect();
+    let mut lines_by_round = lines_for_rounds(tx, &round_ids).await?;
+
+    let tickets = taken
+        .into_iter()
+        .map(|(round, table_label)| {
+            let lines = lines_by_round
+                .remove(&round.id.as_uuid())
+                .unwrap_or_default();
+            KitchenTicket {
+                round,
+                table_label,
+                lines,
+            }
+        })
+        .collect();
+
+    // A negative difference cannot happen: the count and both reads share one
+    // snapshot. Saturating rather than asserting, because a wrong number on a
+    // banner is not worth a failed read to a chef.
+    let truncated_count = open.saturating_sub(i64::try_from(round_ids.len()).unwrap_or(i64::MAX));
+
+    Ok(KitchenQueue {
+        tickets,
+        truncated_count,
+    })
+}
+
+/// Every dish on each of these tickets, in one statement, grouped by ticket.
+///
+/// The order within a ticket is the order the dishes were sent, the same as
+/// [`lines_for_round`] gives for one.
+async fn lines_for_rounds(
+    tx: &mut ScopedTx<'_>,
+    round_ids: &[Uuid],
+) -> DomainResult<HashMap<Uuid, Vec<OrderLine>>> {
+    if round_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query!(
+        r#"
+        SELECT id, round_id, dish_id, bill_id, quantity, unit_price, dish_name,
+               line_total, note, status AS "status: LineStatus", ready_by_staff_id,
+               ready_at, served_at, voided_by_staff_id, voided_at,
+               void_reason_code AS "void_reason_code: VoidReason", void_reason
+        FROM order_lines
+        WHERE round_id = ANY($1)
+        ORDER BY round_id, created_at, id
+        "#,
+        round_ids,
+    )
+    .fetch_all(tx.connection())
+    .await?;
+
+    let mut grouped: HashMap<Uuid, Vec<OrderLine>> = HashMap::new();
+
+    for row in rows {
+        grouped.entry(row.round_id).or_default().push(OrderLine {
+            id: OrderLineId::from_uuid(row.id),
+            round_id: OrderRoundId::from_uuid(row.round_id),
+            dish_id: DishId::from_uuid(row.dish_id),
+            bill_id: row.bill_id.map(BillId::from_uuid),
+            quantity: row.quantity,
+            unit_price: row.unit_price,
+            dish_name: row.dish_name,
+            line_total: row.line_total,
+            note: row.note,
+            status: row.status,
+            ready_by_staff_id: row.ready_by_staff_id.map(StaffId::from_uuid),
+            ready_at: row.ready_at,
+            served_at: row.served_at,
+            voided_by_staff_id: row.voided_by_staff_id.map(StaffId::from_uuid),
+            voided_at: row.voided_at,
+            void_reason_code: row.void_reason_code,
+            void_reason: row.void_reason,
         });
     }
 
-    Ok(tickets)
+    Ok(grouped)
 }
 
 /// Every open visit in the restaurant, with every ticket and dish on it.
@@ -1124,6 +1293,137 @@ pub async fn mark_line_served(
     finish_line_write(tx, line_id, OrderRoundId::from_uuid(updated.round_id)).await
 }
 
+/// Puts one plated dish back on the stove, undoing a chef's tap.
+///
+/// The one act on the pass that was irreversible until now, and the tap most
+/// worth taking back is the one that flips a whole ticket to ready while a chef
+/// is still cooking on it.
+///
+/// **A dish can be undone only while it is `ready`.** That is the whole rule,
+/// and the conditional update naming the status is what enforces it. There is no
+/// second check on the ticket: `round_status_from_lines` calls a ticket served
+/// only when every dish that counts has reached the table, so a ticket cannot be
+/// served while any dish on it is still `ready`, and the undo only ever targets
+/// a `ready` dish. A ticket level check would be a branch no interleaving can
+/// reach.
+///
+/// The ready stamp and the chef who set it are cleared together, because a dish
+/// carrying one and not the other is a bug. The ticket is recomputed in the same
+/// transaction, so one that had gone ready returns to cooking with it.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Conflict`] with `line_not_ready` if the dish is not
+/// waiting to be carried out, which is what a waiter serving it a moment earlier
+/// produces, and [`DomainError::NotFound`] if there is no such dish.
+pub async fn unmark_line_ready(
+    tx: &mut ScopedTx<'_>,
+    line_id: OrderLineId,
+    staff_id: StaffId,
+) -> DomainResult<(OrderLine, RoundStatus)> {
+    let updated = sqlx::query!(
+        r#"
+        UPDATE order_lines
+        SET status = 'queued', ready_by_staff_id = NULL, ready_at = NULL,
+            updated_at = now()
+        WHERE id = $1 AND status = 'ready'
+        RETURNING round_id
+        "#,
+        line_id.as_uuid(),
+    )
+    .fetch_optional(tx.connection())
+    .await?;
+
+    let Some(updated) = updated else {
+        return Err(line_conflict(tx, line_id, LineStatus::Ready).await);
+    };
+
+    let round_id = OrderRoundId::from_uuid(updated.round_id);
+    let (written, round_status) = finish_line_write(tx, line_id, round_id).await?;
+
+    // Named in the record because a chef undoing their own tap and a chef
+    // undoing a colleague's look identical afterwards, and because Done and Undo
+    // sit next to each other on a screen operated with gloves.
+    super::audit::record(
+        tx,
+        Some(staff_id),
+        AuditAction::LineReadyUndone,
+        "order_line",
+        line_id.as_uuid(),
+        Some(json!({
+            "status": LineStatus::Ready,
+            "dish_name": written.dish_name,
+            "round_id": round_id.as_uuid(),
+        })),
+        Some(json!({
+            "status": LineStatus::Queued,
+            "round_status": round_status,
+        })),
+    )
+    .await?;
+
+    Ok((written, round_status))
+}
+
+/// Marks every dish still cooking on one ticket off the pass at once.
+///
+/// One transaction, so the ticket either fully flips or does not change at all.
+/// A chef clearing a four dish ticket taps once rather than four times, and never
+/// ends up with two marked and two not because the tablet lost the network half
+/// way through.
+///
+/// A dish somebody else marked between the read and the write makes the whole
+/// request a conflict rather than a partial success, for the same reason: the
+/// chef asked for the ticket, not for whichever dishes happened to still be
+/// there.
+///
+/// # Errors
+///
+/// Returns [`DomainError::Conflict`] with `round_not_queued` if no dish on the
+/// ticket is still cooking, and [`DomainError::NotFound`] if there is no such
+/// ticket.
+pub async fn mark_round_ready(
+    tx: &mut ScopedTx<'_>,
+    round_id: OrderRoundId,
+    staff_id: StaffId,
+) -> DomainResult<RoundStatus> {
+    // Read first, so a ticket that does not exist is not found rather than a
+    // ticket with nothing cooking on it.
+    round(tx, round_id).await?;
+
+    let queued: Vec<OrderLineId> = lines_for_round(tx, round_id)
+        .await?
+        .into_iter()
+        .filter(|line| line.status == LineStatus::Queued)
+        .map(|line| line.id)
+        .collect();
+
+    if queued.is_empty() {
+        return Err(DomainError::Conflict(ConflictKind::RoundNot(
+            RoundStatus::Queued,
+        )));
+    }
+
+    let mut last = RoundStatus::Queued;
+
+    for line_id in queued {
+        match mark_line_ready(tx, line_id, staff_id).await {
+            Ok((_, round_status)) => last = round_status,
+            // Somebody else moved one of these dishes between the read above and
+            // this write. The chef asked for the whole ticket, so the whole
+            // request is refused and nothing is left half done.
+            Err(DomainError::Conflict(_)) => {
+                return Err(DomainError::Conflict(ConflictKind::RoundNot(
+                    RoundStatus::Queued,
+                )));
+            }
+            Err(other) => return Err(other),
+        }
+    }
+
+    Ok(last)
+}
+
 /// Cancels one dish, with a reason and the person who cancelled it, and takes
 /// it off the bill.
 ///
@@ -1319,6 +1619,14 @@ async fn recompute_round_status(
         SET status = $2,
             ready_at = CASE
                 WHEN $2 = 'ready'::round_status AND ready_at IS NULL THEN now()
+                -- An undo takes a ticket back to cooking, and the stamp goes
+                -- with it. Without this line the ticket keeps the moment it
+                -- first went ready, and when the dish is cooked again the Ready
+                -- area shows it as having waited under the lamp for the whole
+                -- of the undo as well, which is a red ticket that is not late.
+                -- Every other way into 'queued' has no stamp to clear, so this
+                -- reaches only the undo.
+                WHEN $2 = 'queued'::round_status THEN NULL
                 ELSE ready_at
             END,
             served_at = CASE

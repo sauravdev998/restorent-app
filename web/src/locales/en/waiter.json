@@ -116,13 +116,7 @@
     "keep": "Keep the dish",
     "confirm": "Cancel the dish",
     "cancelling": "Cancelling",
-    "done": "Dish cancelled. It is off the bill.",
-    "reason": {
-      "guest_changed_mind": "Guest changed their mind",
-      "entered_by_mistake": "Entered by mistake",
-      "kitchen_unavailable": "Kitchen can't make it",
-      "other": "Other"
-    }
+    "done": "Dish cancelled. It is off the bill."
   },
   "alert": {
     "title_one": "{{count}} dish ready to collect",

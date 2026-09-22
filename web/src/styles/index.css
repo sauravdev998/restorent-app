@@ -570,6 +570,25 @@
     font-feature-settings: 'tnum' 1;
   }
 
+  /* One flash, at the moment a dish is cancelled off a kitchen ticket, and never
+     again. A chef mid cook has to notice a dish leaving their list, and a pulse
+     that keeps going is a screen nobody reads. The reduced motion block below
+     flattens it to nothing, which is safe: the Cancelled strip it sits in carries
+     the meaning on its own, with a border, a heading, and the reason in words. */
+  @keyframes flash-once {
+    0%,
+    100% {
+      background-color: transparent;
+    }
+    30% {
+      background-color: var(--muted);
+    }
+  }
+
+  .flash-once {
+    animation: flash-once 900ms ease-out 1;
+  }
+
   /* Respect a person who has asked their system for less motion. */
   @media (prefers-reduced-motion: reduce) {
     *,

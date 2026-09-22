@@ -97,6 +97,11 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
   table_taken_over: 'apiError.tableTakenOver',
   client_key_reused: 'apiError.clientKeyReused',
   line_not_voidable: 'apiError.lineNotVoidable',
+  round_not_queued: 'apiError.roundNotQueued',
+  round_not_ready: 'apiError.roundNotReady',
+  round_not_served: 'apiError.roundNotServed',
+  round_not_voided: 'apiError.roundNotVoided',
+  restaurant_changed: 'apiError.restaurantChanged',
 }
 
 /** What anything unrecognised says. */

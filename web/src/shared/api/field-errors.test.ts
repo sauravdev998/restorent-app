@@ -69,6 +69,7 @@ describe('the closed set of codes', () => {
       'too_small',
       'before_start',
       'too_many',
+      'not_allowed_for_chef',
     ])
 
     for (const code of FIELD_ERROR_CODES) {

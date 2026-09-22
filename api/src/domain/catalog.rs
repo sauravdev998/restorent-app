@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
 use super::enums::Diet;
+use super::error::FieldError;
 use super::ids::{
     DiningTableId, DishId, MenuCategoryId, RestaurantId, TableSectionId, TaxComponentId,
 };
@@ -47,6 +48,18 @@ pub struct Restaurant {
     pub address: Option<String>,
     /// Its tax registration number, for printing on a bill.
     pub tax_registration_number: Option<String>,
+    /// How many seconds a kitchen ticket may wait before the pass draws it
+    /// amber. Always below [`Self::kitchen_late_after_seconds`], which the
+    /// database holds as a check constraint as well as the handler checking it.
+    pub kitchen_warning_after_seconds: i32,
+    /// How many seconds a kitchen ticket may wait before the pass draws it red.
+    ///
+    /// Per restaurant because fifteen minutes is a fast kitchen's disaster and a
+    /// slow one's ordinary Tuesday, and only the restaurant knows which it is.
+    pub kitchen_late_after_seconds: i32,
+    /// Bumped by every write that changes the row. An edit naming an older one
+    /// is refused rather than merged over somebody else's change.
+    pub version: i32,
     /// When it was switched off, if it was. Deactivating leaves every row intact
     /// and reachable; only deleting the restaurant removes anything.
     pub deactivated_at: Option<DateTime<Utc>>,
@@ -195,4 +208,211 @@ pub struct ArchivedTable {
     /// Whether that section is still live, and so can take the table back.
     /// False when it had no section.
     pub section_live: bool,
+}
+
+// ===========================================================================
+// The kitchen's two ageing thresholds
+// ===========================================================================
+
+/// The least a kitchen threshold may be, in seconds.
+///
+/// A minute. Below that every ticket is amber the moment it is sent, which turns
+/// the one signal a chef acts on into wallpaper.
+pub const KITCHEN_THRESHOLD_MIN_SECONDS: i32 = 60;
+
+/// The most a kitchen threshold may be, in seconds. Four hours, which is longer
+/// than any single dish a restaurant sends to one table.
+pub const KITCHEN_THRESHOLD_MAX_SECONDS: i32 = 14_400;
+
+/// When the pass turns a waiting ticket amber, and when it turns it red.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KitchenThresholds {
+    /// Seconds after which a ticket reads amber.
+    pub warning_after_seconds: i32,
+    /// Seconds after which it reads red. Always the larger of the two.
+    pub late_after_seconds: i32,
+}
+
+/// Which of the two thresholds an edit was refused over, and why.
+///
+/// Carried rather than a field name, because a wire field name is
+/// `presentation`'s word for the box and this layer does not know it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThresholdProblem {
+    /// The warning threshold was not accepted.
+    Warning(FieldError),
+    /// The late threshold was not accepted.
+    Late(FieldError),
+}
+
+/// Works out what the pair becomes when an edit naming either one, or both, or
+/// neither, is laid over what is stored, and checks the result as a pair.
+///
+/// The merge is the whole point. Both fields are independently optional while
+/// the ordering rule spans both, so an edit raising only the warning can cross a
+/// stored late value it never mentions. Checking each field alone would accept
+/// it and leave the pass with amber starting after red.
+///
+/// A crossed pair is reported against the late threshold, with
+/// [`FieldError::BeforeStart`]: the pair is a range, and what has gone wrong is
+/// that its end comes before its start. That is the same field whichever of the
+/// two the edit named, so the answer does not depend on which box was typed in,
+/// and both boxes sit together on the settings screen.
+///
+/// # Errors
+///
+/// Returns [`ThresholdProblem::Warning`] or [`ThresholdProblem::Late`] naming
+/// the threshold that was refused: [`FieldError::TooSmall`] or
+/// [`FieldError::TooLarge`] for one outside the bounds, and
+/// [`FieldError::BeforeStart`] on the late one for a crossed pair.
+pub fn merge_kitchen_thresholds(
+    submitted_warning: Option<i32>,
+    submitted_late: Option<i32>,
+    stored: KitchenThresholds,
+) -> Result<KitchenThresholds, ThresholdProblem> {
+    if let Some(warning) = submitted_warning {
+        bounds(warning).map_err(ThresholdProblem::Warning)?;
+    }
+
+    if let Some(late) = submitted_late {
+        bounds(late).map_err(ThresholdProblem::Late)?;
+    }
+
+    let merged = KitchenThresholds {
+        warning_after_seconds: submitted_warning.unwrap_or(stored.warning_after_seconds),
+        late_after_seconds: submitted_late.unwrap_or(stored.late_after_seconds),
+    };
+
+    if merged.warning_after_seconds >= merged.late_after_seconds {
+        return Err(ThresholdProblem::Late(FieldError::BeforeStart));
+    }
+
+    Ok(merged)
+}
+
+/// Whether one threshold is inside the bounds both columns hold.
+fn bounds(seconds: i32) -> Result<(), FieldError> {
+    if seconds < KITCHEN_THRESHOLD_MIN_SECONDS {
+        return Err(FieldError::TooSmall);
+    }
+
+    if seconds > KITCHEN_THRESHOLD_MAX_SECONDS {
+        return Err(FieldError::TooLarge);
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const STORED: KitchenThresholds = KitchenThresholds {
+        warning_after_seconds: 600,
+        late_after_seconds: 900,
+    };
+
+    /// covers: AC-20
+    #[test]
+    fn an_edit_naming_neither_threshold_keeps_both() {
+        assert_eq!(merge_kitchen_thresholds(None, None, STORED), Ok(STORED));
+    }
+
+    /// covers: AC-20
+    #[test]
+    fn either_threshold_may_be_changed_on_its_own() {
+        assert_eq!(
+            merge_kitchen_thresholds(Some(300), None, STORED),
+            Ok(KitchenThresholds {
+                warning_after_seconds: 300,
+                late_after_seconds: 900,
+            })
+        );
+        assert_eq!(
+            merge_kitchen_thresholds(None, Some(1_200), STORED),
+            Ok(KitchenThresholds {
+                warning_after_seconds: 600,
+                late_after_seconds: 1_200,
+            })
+        );
+    }
+
+    /// covers: AC-20
+    ///
+    /// The case the merge exists for. Nothing about 1200 on its own is wrong; it
+    /// is wrong only once it is laid over a stored late value of 900.
+    #[test]
+    fn raising_only_the_warning_over_the_stored_late_value_is_refused() {
+        assert_eq!(
+            merge_kitchen_thresholds(Some(1_200), None, STORED),
+            Err(ThresholdProblem::Late(FieldError::BeforeStart))
+        );
+    }
+
+    /// covers: AC-20
+    #[test]
+    fn lowering_only_the_late_value_under_the_stored_warning_is_refused() {
+        assert_eq!(
+            merge_kitchen_thresholds(None, Some(300), STORED),
+            Err(ThresholdProblem::Late(FieldError::BeforeStart))
+        );
+    }
+
+    /// covers: AC-20
+    #[test]
+    fn the_two_may_not_be_equal_because_amber_would_never_show() {
+        assert_eq!(
+            merge_kitchen_thresholds(Some(900), Some(900), STORED),
+            Err(ThresholdProblem::Late(FieldError::BeforeStart))
+        );
+    }
+
+    /// covers: AC-20
+    #[test]
+    fn each_threshold_is_refused_outside_the_bounds_naming_itself() {
+        assert_eq!(
+            merge_kitchen_thresholds(Some(59), None, STORED),
+            Err(ThresholdProblem::Warning(FieldError::TooSmall))
+        );
+        assert_eq!(
+            merge_kitchen_thresholds(Some(14_401), None, STORED),
+            Err(ThresholdProblem::Warning(FieldError::TooLarge))
+        );
+        assert_eq!(
+            merge_kitchen_thresholds(None, Some(59), STORED),
+            Err(ThresholdProblem::Late(FieldError::TooSmall))
+        );
+        assert_eq!(
+            merge_kitchen_thresholds(None, Some(14_401), STORED),
+            Err(ThresholdProblem::Late(FieldError::TooLarge))
+        );
+    }
+
+    /// covers: AC-20
+    ///
+    /// The bounds are checked before the pair, so an edit that is both out of
+    /// range and crossed names the out of range field rather than the ordering.
+    #[test]
+    fn the_bounds_are_reported_before_the_ordering() {
+        assert_eq!(
+            merge_kitchen_thresholds(Some(14_401), Some(59), STORED),
+            Err(ThresholdProblem::Warning(FieldError::TooLarge))
+        );
+    }
+
+    /// covers: AC-20
+    #[test]
+    fn the_bounds_themselves_are_accepted() {
+        assert_eq!(
+            merge_kitchen_thresholds(
+                Some(KITCHEN_THRESHOLD_MIN_SECONDS),
+                Some(KITCHEN_THRESHOLD_MAX_SECONDS),
+                STORED
+            ),
+            Ok(KitchenThresholds {
+                warning_after_seconds: 60,
+                late_after_seconds: 14_400,
+            })
+        );
+    }
 }

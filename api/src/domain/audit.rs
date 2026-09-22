@@ -32,6 +32,10 @@ pub enum AuditAction {
     RestaurantSettingsUpdated,
     /// A dish was cancelled off a ticket.
     LineVoided,
+    /// A chef took a dish back off the pass, undoing their own tap.
+    LineReadyUndone,
+    /// An admin changed when the kitchen pass turns a ticket amber or red.
+    RestaurantKitchenThresholdsChanged,
     /// A bill was closed, numbered, and totalled.
     BillClosed,
     /// A dish's name, description, price, diet marker, or category changed.
@@ -102,6 +106,14 @@ impl AuditAction {
             Self::PasswordChanged => "password_changed",
             Self::RestaurantSettingsUpdated => "restaurant_settings_updated",
             Self::LineVoided => "line_voided",
+            // Spec 0012 writes these two as `order_line.ready_undone` and
+            // `restaurant.kitchen_thresholds_changed`. Stored flat, like the
+            // thirty one above them, because this column exists to be matched
+            // on and one log spelled two ways is the thing the closed list
+            // above was made to prevent. The meaning is the spec's; only the
+            // punctuation is the file's.
+            Self::LineReadyUndone => "line_ready_undone",
+            Self::RestaurantKitchenThresholdsChanged => "restaurant_kitchen_thresholds_changed",
             Self::BillClosed => "bill_closed",
             Self::DishEdited => "dish_edited",
             Self::DishArchived => "dish_archived",
@@ -165,7 +177,7 @@ mod tests {
     ///
     /// Kept honest by [`position`]: adding a variant stops that match compiling,
     /// and filling it in stops this array being the right length.
-    const ALL: [AuditAction; 33] = [
+    const ALL: [AuditAction; 35] = [
         AuditAction::RestaurantRegistered,
         AuditAction::PasswordChanged,
         AuditAction::RestaurantSettingsUpdated,
@@ -199,6 +211,8 @@ mod tests {
         AuditAction::VisitTakenOver,
         AuditAction::VisitMoved,
         AuditAction::BillVoided,
+        AuditAction::LineReadyUndone,
+        AuditAction::RestaurantKitchenThresholdsChanged,
     ];
 
     /// Where each action sits in [`ALL`].
@@ -241,6 +255,8 @@ mod tests {
             AuditAction::VisitTakenOver => 30,
             AuditAction::VisitMoved => 31,
             AuditAction::BillVoided => 32,
+            AuditAction::LineReadyUndone => 33,
+            AuditAction::RestaurantKitchenThresholdsChanged => 34,
         }
     }
 

@@ -42,6 +42,9 @@ const IDENTITY: Identity = {
     timezone: 'Asia/Kolkata',
     defaultLanguage: 'en',
     formattingLocale: 'en-IN',
+    kitchenWarningAfterSeconds: 600,
+    kitchenLateAfterSeconds: 900,
+    version: 1,
   },
 }
 
@@ -154,6 +157,13 @@ describe('RestaurantSettings', () => {
           timezone: 'Asia/Kolkata',
           defaultLanguage: 'en',
           formattingLocale: 'en-IN',
+          // The version this form was drawn against, so a save that lost a race
+          // is refused rather than merged over the winner's (spec 0012, AC-21).
+          version: 1,
+          // The two kitchen thresholds are absent, and that is the point: this
+          // admin touched the address only. A save that restated two numbers it
+          // never touched would be a save that can lose a colleague's threshold
+          // edit while claiming to be about an address.
         },
       })
     })

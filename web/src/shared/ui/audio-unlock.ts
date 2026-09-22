@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react'
+
 /**
  * Whether this browser has let us make a sound yet, and the sound itself.
  *
@@ -15,9 +17,47 @@ let context: AudioContext | null = null
 
 const UNLOCKING_EVENTS = ['pointerdown', 'keydown'] as const
 
+type Listener = () => void
+
+const listeners = new Set<Listener>()
+
 /** True once the browser has allowed audio in this tab. */
 export function isAudioUnlocked(): boolean {
   return context !== null
+}
+
+function subscribe(listener: Listener): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+/**
+ * Whether audio is allowed, kept current as it changes.
+ *
+ * For a screen that shows something while audio is still locked. The plain
+ * [`isAudioUnlocked`] reads a module flag, so a screen that calls it while
+ * rendering is reading a value nothing tells it about: the first tap opens the
+ * audio context and the screen carries on showing "sound is off" until some
+ * unrelated change happens to redraw it. On a kitchen tablet nobody touches
+ * that can be the rest of the shift.
+ */
+export function useAudioUnlocked(): boolean {
+  return useSyncExternalStore(subscribe, isAudioUnlocked, () => false)
+}
+
+/**
+ * The open audio context, or `null` while audio is still locked.
+ *
+ * For a surface that synthesises its own sound rather than playing the ready
+ * chime: the kitchen's ticket chime is three descending knocks and has to be
+ * unmistakably not this file's two rising notes. The context itself stays here,
+ * opened once in the one gesture a browser allows it in, because two contexts in
+ * one tab is a second thing that can be refused.
+ */
+export function audioContext(): AudioContext | null {
+  return context
 }
 
 /**
@@ -48,6 +88,7 @@ export function primeAudioUnlock(): () => void {
       context = null
     }
     remove()
+    for (const listener of listeners) listener()
   }
 
   for (const name of UNLOCKING_EVENTS) window.addEventListener(name, unlock)

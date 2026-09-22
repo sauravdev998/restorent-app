@@ -119,7 +119,7 @@ export function VoidDialog({ line, onClose }: VoidDialogProps) {
           >
             {VOID_REASONS.map((code) => (
               <option key={code} value={code}>
-                {t(`void.reason.${code}`)}
+                {common(`voidReason.${code}`)}
               </option>
             ))}
           </Select>

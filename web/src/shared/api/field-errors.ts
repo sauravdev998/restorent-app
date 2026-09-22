@@ -32,6 +32,7 @@ export const FIELD_ERROR_CODES = [
   'too_small',
   'before_start',
   'too_many',
+  'not_allowed_for_chef',
 ] as const
 
 /** One of them. */

@@ -1,0 +1,108 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE restaurants\n           SET name              = COALESCE($1, name),\n               address           = CASE WHEN $2::boolean THEN $3::text ELSE address END,\n               timezone          = COALESCE($4, timezone),\n               default_language  = COALESCE($5, default_language),\n               formatting_locale = COALESCE($6, formatting_locale),\n               kitchen_warning_after_seconds =\n                   COALESCE($7, kitchen_warning_after_seconds),\n               kitchen_late_after_seconds =\n                   COALESCE($8, kitchen_late_after_seconds),\n               version           = version + 1,\n               updated_at        = now()\n         WHERE version = $9\n        RETURNING name, address, timezone, default_language, formatting_locale,\n                  kitchen_warning_after_seconds, kitchen_late_after_seconds\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "address",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "address"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "timezone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "timezone"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "default_language",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "default_language"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "formatting_locale",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "formatting_locale"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "kitchen_warning_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_warning_after_seconds"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "kitchen_late_after_seconds",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "restaurants",
+            "name": "kitchen_late_after_seconds"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "41f20d1e3feae7e66ecdda8adb67fd20169c905df7c5a1ab01861d3b0bae93bc"
+}

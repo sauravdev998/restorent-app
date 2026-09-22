@@ -36,11 +36,18 @@
     "voided": "Cancelled",
     "late": "Late"
   },
+  "voidReason": {
+    "guest_changed_mind": "Guest changed their mind",
+    "entered_by_mistake": "Entered by mistake",
+    "kitchen_unavailable": "Kitchen can't make it",
+    "other": "Other"
+  },
   "elapsed": {
     "minutes_one": "{{count}} minute",
     "minutes_other": "{{count}} minutes",
     "seconds_one": "{{count}} second",
-    "seconds_other": "{{count}} seconds"
+    "seconds_other": "{{count}} seconds",
+    "gettingLate": "getting late"
   },
   "field": {
     "required": "Required",
@@ -117,7 +124,12 @@
     "tableTakenOver": "Somebody else took that table over first. The screen now shows who has it.",
     "clientKeyReused": "That order was already sent for another table. Start the basket again.",
     "lineNotVoidable": "That dish has already been served or cancelled, so it cannot be cancelled now.",
-    "nothingReady": "Nothing on that round is ready to carry out yet."
+    "nothingReady": "Nothing on that round is ready to carry out yet.",
+    "roundNotQueued": "Nothing on that ticket is still cooking. It now shows where it stands.",
+    "roundNotReady": "That ticket is not waiting to be carried out.",
+    "roundNotServed": "That ticket has not reached the table yet.",
+    "roundNotVoided": "That ticket has not been cancelled.",
+    "restaurantChanged": "Somebody saved these settings first. Nothing of yours was saved, so make your change again."
   },
   "placeholder": "Nothing here yet. This route group exists so later slices have somewhere to land.",
   "signIn": {
@@ -191,7 +203,8 @@
     "too_many_decimals": "That has more decimal places than your currency uses.",
     "too_small": "That is less than the least this allows.",
     "before_start": "That comes before the start.",
-    "too_many": "That is more than can be added in one go."
+    "too_many": "That is more than can be added in one go.",
+    "not_allowed_for_chef": "The kitchen can only take a dish off because it has run out. Ask a waiter for any other reason."
   },
   "diet": {
     "veg": "Vegetarian",

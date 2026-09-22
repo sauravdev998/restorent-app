@@ -6,21 +6,28 @@ import { formatUnitList } from '@/shared/format'
 import { cn } from './cn'
 import { Icon } from './icon'
 import { STATUS_PRESENTATION } from './status'
+import { urgencyOf } from './urgency'
 
 /**
- * How long a round may wait before it reads as late.
+ * How long a round may wait before it reads as late, when nobody says.
  *
- * A placeholder, and it is written down as one. The real threshold belongs to
- * each restaurant and is feature 13's decision. `ElapsedTime` takes it as a
- * prop so feature 13 supplies the real value without anything here being
- * rewritten.
+ * A fallback, and only that. The real thresholds belong to each restaurant, are
+ * stored on its row, and reach every screen that draws an age through the read
+ * that carries the age itself (spec 0012). Nothing in the product relies on this
+ * number: it is here so a component rendered in a test or in the `/design`
+ * gallery, with no restaurant behind it, still has something to compare against.
  */
 export const DEFAULT_LATE_AFTER_SECONDS = 900
 
 export interface ElapsedTimeProps {
-  /** The `timestamptz` the clock counts from, e.g. a round's `created_at`. */
+  /** The `timestamptz` the clock counts from, e.g. a round's `sent_at`. */
   since: string
-  /** Seconds after which this reads as late. Defaults to the placeholder above. */
+  /**
+   * Seconds after which this reads amber. Absent means it never does, which is
+   * what every screen outside the kitchen wants: one threshold, one colour.
+   */
+  warningAfterSeconds?: number
+  /** Seconds after which this reads red. Defaults to the fallback above. */
   lateAfterSeconds?: number
   className?: string
 }
@@ -44,6 +51,11 @@ function secondsSince(iso: string, now: number): number {
  * spelling out a colon. The words and the separator between them both come from
  * the active language rather than being assembled in English here.
  *
+ * **Two thresholds, and colour is never the only difference between them.**
+ * Amber and red each bring their own icon and their own hidden word, so a
+ * greyscale print out, a colour blind chef, and a screen in forced colours mode
+ * all still read three distinct states rather than one.
+ *
  * Deliberately not `aria-label`. `<time>` carries no ARIA role, and an
  * `aria-label` on a role less element is simply ignored by screen readers, so
  * the label would have looked correct in the source and announced nothing. Real
@@ -51,6 +63,7 @@ function secondsSince(iso: string, now: number): number {
  */
 export function ElapsedTime({
   since,
+  warningAfterSeconds,
   lateAfterSeconds = DEFAULT_LATE_AFTER_SECONDS,
   className,
 }: ElapsedTimeProps) {
@@ -69,7 +82,7 @@ export function ElapsedTime({
   const total = secondsSince(since, now)
   const minutes = Math.floor(total / 60)
   const seconds = total % 60
-  const late = total >= lateAfterSeconds
+  const urgency = urgencyOf(total, warningAfterSeconds, lateAfterSeconds)
 
   const clock = `${String(minutes)}:${String(seconds).padStart(2, '0')}`
 
@@ -82,19 +95,32 @@ export function ElapsedTime({
     t('elapsed.seconds', { count: seconds }),
   ])
 
+  // Amber borrows the queued tone rather than inventing a sixth: this is the
+  // cooking colour saying "still cooking, and it has been a while". Red is the
+  // one derived emphasis the design system already has.
+  const tone =
+    urgency === 'late'
+      ? STATUS_PRESENTATION.late
+      : urgency === 'warning'
+        ? STATUS_PRESENTATION.queued
+        : undefined
+
   return (
     <time
       dateTime={`PT${String(minutes)}M${String(seconds)}S`}
-      className={cn(
-        'tabular inline-flex items-center gap-2 text-sm',
-        late && STATUS_PRESENTATION.late.text,
-        className,
-      )}
-      data-late={late || undefined}
+      className={cn('tabular inline-flex items-center gap-2 text-sm', tone?.text, className)}
+      data-late={urgency === 'late' || undefined}
+      data-urgency={urgency}
     >
-      {late && <Icon icon={STATUS_PRESENTATION.late.icon} size="sm" />}
+      {tone && <Icon icon={tone.icon} size="sm" />}
       <span aria-hidden="true">{clock}</span>
-      <span className="sr-only">{late ? formatUnitList([spoken, t('status.late')]) : spoken}</span>
+      <span className="sr-only">
+        {urgency === 'late'
+          ? formatUnitList([spoken, t('status.late')])
+          : urgency === 'warning'
+            ? formatUnitList([spoken, t('elapsed.gettingLate')])
+            : spoken}
+      </span>
     </time>
   )
 }

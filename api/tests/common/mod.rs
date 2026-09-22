@@ -58,9 +58,30 @@ pub async fn database() -> Database {
         environment: Environment::Development,
     };
 
-    Database::connect(&config)
-        .await
-        .expect("the integration tests need a reachable database")
+    // Three attempts at the pool, not one.
+    //
+    // Every test opens a pool of its own, and opening one needs a brand new
+    // connection. `Database::connect` gives up on that connection after five
+    // seconds, which is the ceiling the running API wants: a request has thirty
+    // seconds, so a pool that cannot produce a connection in five should say the
+    // database is down while the caller is still listening.
+    //
+    // A developer's database is often not on the same network as the developer.
+    // Against a hosted one, a fresh connection measured from here costs between
+    // one and a half and three seconds, and a whole suite opens that connection
+    // a few hundred times, so the slowest of them crosses five seconds and the
+    // run dies with `Unavailable("database")` in whichever test was unlucky.
+    // That is a measurement of the link, not a failing test. A second attempt
+    // gets a fresh five seconds and has always been enough.
+    let mut refusal = None;
+    for _ in 0..3 {
+        match Database::connect(&config).await {
+            Ok(database) => return database,
+            Err(error) => refusal = Some(error),
+        }
+    }
+
+    panic!("the integration tests need a reachable database: {refusal:?}")
 }
 
 /// Sends a ticket with a fresh send key, for the many tests that are about
