@@ -705,6 +705,70 @@ describe('KitchenHome', () => {
     expect(screen.getByText('Sound is off')).toBeInTheDocument()
   }) // covers: AC-15
 
+  it('stops offering sound on the very tap that allows it', async () => {
+    // The other half of AC-15, and the half that shipped broken. Showing the
+    // prompt was never the problem; taking it down was. The screen read the
+    // unlocked flag while rendering, so the first tap opened the audio context
+    // and left the prompt up until something unrelated redrew the screen. On a
+    // wall mounted tablet between tickets that is the rest of the shift, and a
+    // chef reads it as sound being off when it is on.
+    //
+    // Nothing here redraws the screen but the unlock itself: no new ticket, no
+    // refetch, no timer. That is the point.
+    //
+    // Its own module registry, because whether audio is unlocked is module
+    // state with no way back. Resetting first and importing the screen and the
+    // unlock together gives this test a fresh pair that share one instance,
+    // and leaves the copy every other test in this file uses still locked.
+    // React and Testing Library come from `node_modules` and are not reset, so
+    // there is still one React here.
+    vi.resetModules()
+
+    // jsdom has no audio. Only `new AudioContext()` not throwing matters: the
+    // chime is never reached, because no ticket arrives.
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        resume() {
+          return Promise.resolve()
+        }
+      },
+    )
+
+    const [{ api: freshApi }, { primeAudioUnlock }, { KitchenHome: FreshPass }] = await Promise.all(
+      [import('@/shared/api/client'), import('@/shared/ui/audio-unlock'), import('./kitchen-home')],
+    )
+    vi.mocked(freshApi.GET).mockResolvedValue({ data: queue() })
+
+    // What `RootLayout` does once per browser: listen for the first gesture.
+    const remove = primeAudioUnlock()
+
+    try {
+      const { ui } = wrap(<FreshPass />)
+      render(ui)
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pass-sound-off')).toBeInTheDocument()
+      })
+
+      // The one gesture a browser opens an audio context in. Synchronous: the
+      // unlock opens the context and tells its listeners in the same tick.
+      act(() => {
+        window.dispatchEvent(new Event('pointerdown'))
+      })
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('pass-sound-off')).not.toBeInTheDocument()
+      })
+    } finally {
+      remove()
+      vi.unstubAllGlobals()
+    }
+  }) // covers: AC-15
+
   it('offers a way back when the queue cannot be read', async () => {
     failWith({ error: 'unavailable', message: 'the database is unavailable' })
     await mount()
