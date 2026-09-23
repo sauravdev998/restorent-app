@@ -239,7 +239,7 @@ spec [0012](../specs/0012-kitchen-display/index.md) · code in `api/src/presenta
 - [ ] Verify it: `/check verify kitchen display`
 - [x] Test it: `/test kitchen display`
 - [x] Review it (fresh model): `/check review kitchen display`
-- [ ] Document it: `/document kitchen display`
+- [x] Document it: `/document kitchen display`
 
 ## Slice 4: money
 

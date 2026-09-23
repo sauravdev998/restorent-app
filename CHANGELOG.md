@@ -108,6 +108,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which is safe exactly as long as CloudFront is the only route to the listener. The prefix list id
   comes from CDK context, and its absence leaves the listener open with a loud warning at synth
   time rather than a stack that will not synthesise.
+- The kitchen pass a chef works from for a whole service (see spec 0012). Tickets arrive by
+  themselves, oldest first by when the round was sent, and each dish is tapped done on its own. A
+  ticket flips to ready by itself when its last cooking dish lands, with no separate act, and moves
+  to a Ready to collect area on the same screen, where it waits under its own clock until a waiter
+  carries it out. A chef can also clear a whole ticket with All done, which marks every cooking dish
+  on it in one transaction, so the ticket either fully flips or does not change at all.
+- Back on, which puts a ready dish back on the stove. The dish returns to cooking, its ready stamp
+  and the staff member who set it are both cleared, and a ticket that had gone ready returns to
+  cooking with it. It writes a `line_ready_undone` audit row naming the chef who took the tap back,
+  not the one who made it.
+- Ran out, which takes a dish off a ticket from the pass. The bill recomputes and every waiter
+  screen updates, as with a waiter's own cancellation. A chef may give only the kitchen unavailable
+  reason: any other is refused with `not_allowed_for_chef` naming the `reasonCode` field. A
+  cancelled dish leaves the cook list and appears in a clearly separated Cancelled strip at the
+  bottom of its ticket, with the reason in words, flashing once as it happens.
+- Two ageing thresholds each restaurant sets for itself, in a "When the kitchen screen warns"
+  section of admin Settings. A waiting ticket turns amber at the first and red at the second, and
+  the Ready area ages plated food on the same two. Each is between 1 and 240 minutes, amber has to
+  come before red, and the pair is checked after the submitted values are laid over the stored ones,
+  so either can be edited on its own. They default to ten and fifteen minutes, which is how the pass
+  already behaved, so nothing changed meaning the moment the columns landed. Every age on the pass
+  is measured against the server's clock, so a tablet with the wrong time still reads true.
+- A kitchen chime for a new ticket, audibly different from the waiter's ready chime, and a New mark
+  on the card that arrived. While the browser has not yet allowed sound, the pass shows a kitchen
+  sized "Sound is off" prompt that goes away on the first touch. Every alert still works with no
+  sound at all.
+- A pass that does not move under a hand mid tap. A ticket arriving while the chef has scrolled
+  leaves the scroll where it is and raises a "New work above" marker with a control back to the top.
+- A "This screen is not live" banner across the pass, dimming the tickets, for as long as the live
+  stream is not connected. A quiet kitchen screen and a broken one no longer look identical.
+- A wake lock held while the pass is open, so a wall mounted tablet does not go dark between
+  tickets, and released the moment the chef walks to another screen. A browser without the wake lock
+  is unaffected otherwise.
+- A ceiling on the kitchen read, which returns at most 120 tickets and reports how many more it did
+  not, so a pass that is behind says how much work is hidden rather than hiding it silently.
+- `POST /api/order-lines/{id}/unready` and `POST /api/rounds/{id}/ready`, the two endpoints behind
+  Back on and All done. Both are chefs only, and both refuse a ticket in the wrong state with a
+  named conflict (`round_not_queued`, `round_not_ready`, and the pair for served and cancelled).
 
 ### Changed
 
@@ -134,6 +172,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a header said so. `GET /api/me` returns the signed in person, their role, and their restaurant's
   settings as one bundle, and registration and sign in return that same shape, so the app has one
   answer to "who is this" instead of three.
+- An edit of the restaurant's settings now has to name the version it was made against, and one
+  naming a version that is no longer current is refused with `restaurant_changed` rather than
+  merged over somebody else's change. That covers all seven settings, not only the two kitchen
+  thresholds: name, address, timezone, and the two language fields come under the same conditional
+  update. The refused form reloads with the winner's values and says plainly that nothing of yours
+  was saved. Every identity bundle now carries `restaurant.version`, including the one a successful
+  save returns, so a screen that just saved holds the new version without a second read.
+- The kitchen queue index on `order_rounds` now covers ready rounds as well as queued ones. The
+  kitchen read has filtered on both statuses since spec 0007 while the index covered one, so the
+  ready half of every read was a scan. A second index orders the Ready area by `ready_at`, which
+  the widened one cannot serve.
 
 ### Removed
 
@@ -141,3 +190,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `?restaurant_id=` query parameter on the API, and `current-restaurant.ts` and
   `restaurant-settings.ts` on the web side. No code path in any environment can now name a
   restaurant that did not come from a resolved session.
+
+### Fixed
+
+- The API now ends its open event streams before the process exits. A stream is a request that
+  finishes only when somebody ends it, so graceful shutdown waited for a stream that was waiting
+  for the server: a rolling deploy hung until the platform killed the task, and until then every
+  kitchen screen held a socket to an instance that would never send it anything again, with nothing
+  on screen to say so. Closing every channel ends each stream, the browser reconnects, and it
+  refetches what it missed.
