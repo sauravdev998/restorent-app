@@ -108,7 +108,7 @@ export function WaiterOrders() {
           description={mineOnly ? t('orders.emptyMineBody') : t('orders.emptyBody')}
         />
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid items-start gap-3 lg:grid-cols-2">
           {shown.map((order) => (
             <OrderCard
               key={order.id}

@@ -187,7 +187,7 @@ export function WaiterFloor() {
                         </p>
                       )}
                     </div>
-                    <ReadyBadge count={table.occupancy?.readyDishCount ?? 0} />
+                    <ReadyBadge count={table.occupancy?.readyDishCount ?? 0} className="shrink-0" />
                   </div>
 
                   {table.occupancy ? (

@@ -13,6 +13,7 @@ import { formatMoney } from '@/shared/format'
 import { useIdentity } from '@/shared/session/use-identity'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
+import { cn } from '@/shared/ui/cn'
 import { DietMark } from '@/shared/ui/diet-mark'
 import { ElapsedTime } from '@/shared/ui/elapsed-time'
 import { EmptyState } from '@/shared/ui/empty-state'
@@ -262,177 +263,198 @@ export function WaiterTable() {
         )}
       </header>
 
-      {!closed && (
-        <section aria-labelledby="order-heading" className="space-y-3">
-          <h2 id="order-heading" className="text-lg font-medium text-foreground">
-            {t('table.orderHeading')}
-          </h2>
+      {/* Two columns once the waiter's column is desktop wide: the menu on the
+          left, and on the right everything about this table so far, basket
+          first. The source order is the phone's order, so a screen reader and
+          the tab key walk it exactly as they do on a phone. A closed table has
+          no menu, so it keeps the one column. */}
+      <div
+        className={cn(
+          'space-y-6',
+          !closed &&
+            'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start lg:gap-8 lg:space-y-0',
+        )}
+      >
+        {!closed && (
+          <section aria-labelledby="order-heading" className="space-y-3">
+            <h2 id="order-heading" className="text-lg font-medium text-foreground">
+              {t('table.orderHeading')}
+            </h2>
 
-          {menu.isPending ? (
-            <Skeleton className="h-48 w-full" label={common('loading.label')} />
-          ) : menu.isError ? (
-            <EmptyState icon={UtensilsCrossed} title={common('error.title')} />
-          ) : (
-            menu.data.categories.map((category) => (
-              <Card key={category.id}>
-                <h3 className="mb-2 text-sm font-medium text-muted-foreground">
-                  <RestaurantText>{category.name}</RestaurantText>
-                </h3>
-                <ul className="divide-y divide-border">
-                  {category.dishes.map((dish) => {
-                    const inBasket = basket.lines
-                      .filter((line) => line.dishId === dish.id)
-                      .reduce((total, line) => total + line.quantity, 0)
+            {menu.isPending ? (
+              <Skeleton className="h-48 w-full" label={common('loading.label')} />
+            ) : menu.isError ? (
+              <EmptyState icon={UtensilsCrossed} title={common('error.title')} />
+            ) : (
+              menu.data.categories.map((category) => (
+                <Card key={category.id}>
+                  <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                    <RestaurantText>{category.name}</RestaurantText>
+                  </h3>
+                  <ul className="divide-y divide-border">
+                    {category.dishes.map((dish) => {
+                      const inBasket = basket.lines
+                        .filter((line) => line.dishId === dish.id)
+                        .reduce((total, line) => total + line.quantity, 0)
 
-                    return (
-                      <li key={dish.id} className="flex items-center justify-between gap-3 py-2">
-                        <DietMark diet={dish.diet} />
-                        <div className="min-w-0 flex-1">
-                          <RestaurantText
-                            as="p"
-                            className={
-                              dish.available
-                                ? 'truncate text-card-foreground'
-                                : 'truncate text-muted-foreground line-through'
-                            }
-                          >
-                            {dish.name}
-                          </RestaurantText>
-                          <p className="text-xs text-muted-foreground">
-                            {formatMoney(
-                              dish.price,
-                              menu.data.currencyCode,
-                              menu.data.currencyDecimals,
-                            )}
-                            {/* Shown rather than hidden, so a waiter can tell the
+                      return (
+                        <li key={dish.id} className="flex items-center justify-between gap-3 py-2">
+                          <DietMark diet={dish.diet} />
+                          <div className="min-w-0 flex-1">
+                            <RestaurantText
+                              as="p"
+                              className={
+                                dish.available
+                                  ? 'truncate text-card-foreground'
+                                  : 'truncate text-muted-foreground line-through'
+                              }
+                            >
+                              {dish.name}
+                            </RestaurantText>
+                            <p className="text-xs text-muted-foreground">
+                              {formatMoney(
+                                dish.price,
+                                menu.data.currencyCode,
+                                menu.data.currencyDecimals,
+                              )}
+                              {/* Shown rather than hidden, so a waiter can tell the
                                 customer the kitchen has run out. Sending one is
                                 refused by the server as well. */}
-                            {!dish.available && ` · ${t('table.unavailable')}`}
-                          </p>
-                        </div>
+                              {!dish.available && ` · ${t('table.unavailable')}`}
+                            </p>
+                          </div>
 
-                        <div className="flex items-center gap-2">
-                          {inBasket > 0 && (
-                            <span className="tabular w-6 text-center text-sm">{inBasket}</span>
-                          )}
-                          <Button
-                            size="sm"
-                            disabled={!dish.available}
-                            aria-label={t('table.addOne', { dish: dish.name })}
-                            onClick={() => {
-                              update((current) => addOne(current, dish.id, dish.name))
-                            }}
-                          >
-                            +
-                          </Button>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </Card>
-            ))
+                          <div className="flex items-center gap-2">
+                            {inBasket > 0 && (
+                              <span className="tabular w-6 text-center text-sm">{inBasket}</span>
+                            )}
+                            <Button
+                              size="sm"
+                              disabled={!dish.available}
+                              aria-label={t('table.addOne', { dish: dish.name })}
+                              onClick={() => {
+                                update((current) => addOne(current, dish.id, dish.name))
+                              }}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </Card>
+              ))
+            )}
+          </section>
+        )}
+
+        <div className="space-y-6">
+          {!closed && (
+            <div className="space-y-3">
+              {plates > 0 && <BasketPanel basket={basket} onChange={update} flagged={flagged} />}
+
+              <Button
+                disabled={plates === 0 || flagged.length > 0 || tooLong || send.isPending}
+                onClick={sendBasket}
+              >
+                {send.isPending ? t('table.sending') : t('table.send', { count: plates })}
+              </Button>
+            </div>
           )}
 
-          {plates > 0 && <BasketPanel basket={basket} onChange={update} flagged={flagged} />}
+          <section aria-labelledby="rounds-heading" className="space-y-3">
+            <h2 id="rounds-heading" className="text-lg font-medium text-foreground">
+              {t('table.roundsHeading')}
+            </h2>
 
-          <Button
-            disabled={plates === 0 || flagged.length > 0 || tooLong || send.isPending}
-            onClick={sendBasket}
-          >
-            {send.isPending ? t('table.sending') : t('table.send', { count: plates })}
-          </Button>
-        </section>
-      )}
-
-      <section aria-labelledby="rounds-heading" className="space-y-3">
-        <h2 id="rounds-heading" className="text-lg font-medium text-foreground">
-          {t('table.roundsHeading')}
-        </h2>
-
-        {visit.data.rounds.length === 0 ? (
-          <EmptyState
-            icon={UtensilsCrossed}
-            title={t('table.nothingSentTitle')}
-            description={t('table.nothingSentBody')}
-          />
-        ) : (
-          <ul className="space-y-3">
-            {visit.data.rounds.map((round) => (
-              <RoundCard
-                key={round.id}
-                round={round}
-                offset={offset}
-                billMoney={billMoney}
-                open={!closed}
-                serving={serving}
-                onServe={serve}
-                servingRound={servingRound === round.id}
-                onServeRound={() => {
-                  setServingRound(round.id)
-                  serveRound.mutate(round.id)
-                }}
-                onVoid={setVoiding}
+            {visit.data.rounds.length === 0 ? (
+              <EmptyState
+                icon={UtensilsCrossed}
+                title={t('table.nothingSentTitle')}
+                description={t('table.nothingSentBody')}
               />
-            ))}
-          </ul>
-        )}
-      </section>
+            ) : (
+              <ul className="space-y-3">
+                {visit.data.rounds.map((round) => (
+                  <RoundCard
+                    key={round.id}
+                    round={round}
+                    offset={offset}
+                    billMoney={billMoney}
+                    open={!closed}
+                    serving={serving}
+                    onServe={serve}
+                    servingRound={servingRound === round.id}
+                    onServeRound={() => {
+                      setServingRound(round.id)
+                      serveRound.mutate(round.id)
+                    }}
+                    onVoid={setVoiding}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
 
-      {bill && (
-        <Card>
-          <h2 className="mb-2 flex items-center gap-2 text-lg font-medium text-card-foreground">
-            <ReceiptText aria-hidden="true" className="size-5" />
-            {bill.status === 'voided'
-              ? t('bill.nothingTitle')
-              : closed
-                ? t('bill.closedTitle', { number: bill.number ?? 0 })
-                : t('bill.runningTitle')}
-          </h2>
+          {bill && (
+            <Card>
+              <h2 className="mb-2 flex items-center gap-2 text-lg font-medium text-card-foreground">
+                <ReceiptText aria-hidden="true" className="size-5" />
+                {bill.status === 'voided'
+                  ? t('bill.nothingTitle')
+                  : closed
+                    ? t('bill.closedTitle', { number: bill.number ?? 0 })
+                    : t('bill.runningTitle')}
+              </h2>
 
-          {bill.status === 'voided' ? (
-            // Every dish was cancelled, or none was ordered: the bill was
-            // voided rather than closed, so no number was used and there is
-            // no total to show.
-            <p className="text-sm text-muted-foreground">{t('bill.nothingBody')}</p>
-          ) : (
-            <dl className="space-y-1 text-sm">
-              <Figure label={t('bill.subtotal')} value={billMoney(bill.subtotal)} />
+              {bill.status === 'voided' ? (
+                // Every dish was cancelled, or none was ordered: the bill was
+                // voided rather than closed, so no number was used and there is
+                // no total to show.
+                <p className="text-sm text-muted-foreground">{t('bill.nothingBody')}</p>
+              ) : (
+                <dl className="space-y-1 text-sm">
+                  <Figure label={t('bill.subtotal')} value={billMoney(bill.subtotal)} />
 
-              {/* Shown only when there is one. A restaurant that charges no
+                  {/* Shown only when there is one. A restaurant that charges no
                   service charge should not read a line saying it charged zero. */}
-              {bill.serviceChargePercent !== null && (
-                <Figure
-                  label={t('bill.serviceCharge', { percent: bill.serviceChargePercent })}
-                  value={billMoney(bill.serviceChargeAmount)}
-                />
+                  {bill.serviceChargePercent !== null && (
+                    <Figure
+                      label={t('bill.serviceCharge', { percent: bill.serviceChargePercent })}
+                      value={billMoney(bill.serviceChargeAmount)}
+                    />
+                  )}
+
+                  {bill.taxes.map((tax) => (
+                    <Figure
+                      key={tax.name}
+                      label={t('bill.tax', { name: tax.name, rate: tax.ratePercent })}
+                      value={billMoney(tax.amount)}
+                    />
+                  ))}
+
+                  {closed && (
+                    <Figure label={t('bill.total')} value={billMoney(bill.total)} emphasis />
+                  )}
+                </dl>
               )}
 
-              {bill.taxes.map((tax) => (
-                <Figure
-                  key={tax.name}
-                  label={t('bill.tax', { name: tax.name, rate: tax.ratePercent })}
-                  value={billMoney(tax.amount)}
-                />
-              ))}
-
-              {closed && <Figure label={t('bill.total')} value={billMoney(bill.total)} emphasis />}
-            </dl>
+              {!closed && (
+                <Button
+                  className="mt-4"
+                  disabled={close.isPending}
+                  onClick={() => {
+                    close.mutate()
+                  }}
+                >
+                  {close.isPending ? t('bill.closing') : t('bill.close')}
+                </Button>
+              )}
+            </Card>
           )}
-
-          {!closed && (
-            <Button
-              className="mt-4"
-              disabled={close.isPending}
-              onClick={() => {
-                close.mutate()
-              }}
-            >
-              {close.isPending ? t('bill.closing') : t('bill.close')}
-            </Button>
-          )}
-        </Card>
-      )}
+        </div>
+      </div>
 
       <VoidDialog
         line={voiding}
