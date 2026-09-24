@@ -12,10 +12,17 @@ const shot = async (page, name, opts = {}) => {
   console.log('shot', name)
 }
 const step = async (label, fn) => {
-  try { await fn() } catch (e) { console.log('FAILED', label, e.message.split('\n')[0]) }
+  try {
+    await fn()
+  } catch (e) {
+    console.log('FAILED', label, e.message.split('\n')[0])
+  }
 }
 
-const desktop = await browser.newContext({ viewport: { width: 1366, height: 860 }, deviceScaleFactor: 2 })
+const desktop = await browser.newContext({
+  viewport: { width: 1366, height: 860 },
+  deviceScaleFactor: 2,
+})
 const page = await desktop.newPage()
 page.setDefaultTimeout(15000)
 
@@ -51,7 +58,9 @@ await step('add dish dialog', async () => {
   const dlg = page.getByRole('dialog')
   await dlg.waitFor()
   await dlg.getByLabel('Name').fill('Masala dosa')
-  await dlg.getByLabel('Description').fill('Crisp rice crepe with spiced potato, sambar and chutney')
+  await dlg
+    .getByLabel('Description')
+    .fill('Crisp rice crepe with spiced potato, sambar and chutney')
   await dlg.getByLabel('Price').fill('180')
   await shot(page, '11-admin-add-dish')
   await dlg.getByRole('button', { name: 'Add dish' }).click()
@@ -71,13 +80,15 @@ await step('admin floor', async () => {
   await shot(page, '13-admin-floor', { fullPage: true })
 })
 await step('add table dialog', async () => {
-  await page.getByRole('button', { name: /add a table/i }).first().click()
+  await page
+    .getByRole('button', { name: /add a table/i })
+    .first()
+    .click()
   const dlg = page.getByRole('dialog')
   await dlg.waitFor()
   await shot(page, '14-admin-add-table')
   await page.keyboard.press('Escape')
 })
-
 
 await step('settings', async () => {
   await page.goto(`${BASE}/admin/settings`)
