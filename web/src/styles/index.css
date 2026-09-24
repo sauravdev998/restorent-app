@@ -415,6 +415,16 @@
   --text-3xl--line-height: 3.125rem;
 }
 
+/* The same waiter on a laptop or a host stand monitor. Only the column widens:
+   the type and the targets stay at phone size, because the width cannot tell a
+   desk from a tablet held in a hand. 64rem is Tailwind's `lg`, so the screens'
+   own `lg:` layouts switch at the moment the column has room for them. */
+@media (width >= 64rem) {
+  [data-surface='waiter'] {
+    --shell-width: 72rem;
+  }
+}
+
 /* Kitchen: a screen on a wall, read from two or three metres away, tapped with
    a hand that is wet or gloved or both. Everything is bigger, the borders are
    thicker, and the icon strokes are heavier. */

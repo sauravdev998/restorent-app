@@ -282,7 +282,11 @@ export function KitchenHome() {
               description={t('pass.quietBody')}
             />
           ) : (
-            <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            // As many columns as fit a card at least 28rem wide, rather than a
+            // column count per breakpoint. Breakpoints ride the viewport, and
+            // at kitchen type size three columns on a laptop squeezed each
+            // dish into a sliver beside its buttons. Both lists share it.
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,28rem),1fr))] gap-4">
               {cooking.map((ticket) => (
                 <TicketCard key={ticket.id} {...cardProps(ticket)} />
               ))}
@@ -298,7 +302,7 @@ export function KitchenHome() {
           {plated.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('pass.readyEmpty')}</p>
           ) : (
-            <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,28rem),1fr))] gap-4">
               {plated.map((ticket) => (
                 <TicketCard key={ticket.id} {...cardProps(ticket)} />
               ))}

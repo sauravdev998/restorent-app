@@ -139,9 +139,9 @@ export function TicketCard({
 
           <ul className="space-y-2">
             {cooking.map((line) => (
-              <li key={line.id} className="flex items-start justify-between gap-3">
+              <li key={line.id} className="flex flex-wrap items-start justify-between gap-3">
                 <DishText line={line} />
-                <div className="flex shrink-0 flex-col items-end gap-2">
+                <div className="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
                   <Button
                     disabled={busy(line.id, 'ready')}
                     onClick={() => {
@@ -174,9 +174,9 @@ export function TicketCard({
       {plated.length > 0 && (
         <ul className="space-y-2">
           {plated.map((line) => (
-            <li key={line.id} className="flex items-start justify-between gap-3">
+            <li key={line.id} className="flex flex-wrap items-start justify-between gap-3">
               <DishText line={line} muted />
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="ms-auto flex shrink-0 items-center gap-2">
                 <StatusPill status="ready" compact />
                 <Button
                   variant="secondary"
@@ -262,7 +262,10 @@ export function TicketCard({
 /** A dish's quantity, name, and the guest's own words about it. */
 function DishText({ line, muted = false }: { line: KitchenLine; muted?: boolean }) {
   return (
-    <div className="min-w-0">
+    // Grows into the row, but never below 12rem. When the card is too narrow
+    // for that beside the buttons, the buttons wrap underneath instead, so a
+    // long note gets the card's whole width rather than one word per line.
+    <div className="min-w-0 flex-[1_1_12rem]">
       <p
         className={cn(
           'text-base font-medium',
